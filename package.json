@@ -1,0 +1,21 @@
+{
+  "name": "boundaryci",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.11.0+sha512.4463f65fd80ed80d69bc1d4bf163ee94f605c7380fc318bb5b2ebe15f8cd12d49c51a4d59e951b401e764d3b6ca751cbf51bc50ed7001a6bcb4935e684c34882",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": "11.11.0"
+  },
+  "devDependencies": {
+    "@octokit/app-permissions": "2.1.0",
+    "@octokit/openapi": "22.0.0",
+    "@octokit/plugin-rest-endpoint-methods": "18.0.0",
+    "@types/node": "24.13.3",
+    "octokit": "5.0.5",
+    "probot": "14.3.2",
+    "typescript": "6.0.2",
+    "vitest": "4.1.10"
+  }
+}

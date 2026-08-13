@@ -1,0 +1,8 @@
+packages:
+  - tools/permission-data-feasibility
+engineStrict: true
+strictPeerDependencies: true
+ignoreScripts: true
+verifyStoreIntegrity: true
+strictStorePkgContentCheck: true
+updateNotifier: false
