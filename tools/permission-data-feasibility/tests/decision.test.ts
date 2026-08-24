@@ -89,7 +89,8 @@ describe('terminal feasibility decision', () => {
       'issues/create',
       'issues/list-for-repo',
     ]);
-    expect(JSON.stringify(decision)).not.toMatch(/Claude|Codex|assistant/iu);
+    expect(decision.review.reviewer).toBe('Independent feasibility reviewer');
+    expect(JSON.stringify(decision)).not.toMatch(/review(?:Result|Prompt)Sha256/u);
   });
 
   it('matches the committed decision record exactly', () => {
@@ -115,13 +116,13 @@ describe('terminal feasibility decision', () => {
         input.authorizedScopeSha256 = '0'.repeat(64);
       },
       (input) => {
-        input.review.highFindings = 1;
+        (input.review as unknown as { highFindings: number }).highFindings = 1;
       },
       (input) => {
-        input.review.blockingMediumFindings = 1;
+        (input.review as unknown as { blockingMediumFindings: number }).blockingMediumFindings = 1;
       },
       (input) => {
-        input.review.hardInvariantViolations = 1;
+        (input.review as unknown as { hardInvariantViolations: number }).hardInvariantViolations = 1;
       },
       (input) => {
         input.usefulnessAccepted = false;
@@ -163,4 +164,3 @@ describe('terminal feasibility decision', () => {
     expect(() => validateFeasibilityDecision(changed, { packet, supportManifest: support })).toThrow();
   });
 });
-

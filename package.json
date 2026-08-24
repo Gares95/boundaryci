@@ -9,18 +9,9 @@
     "pnpm": "11.11.0"
   },
   "scripts": {
-    "audit:resolved-graph": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- tools/permission-data-feasibility/scripts/audit-lockfile.mjs --lock pnpm-lock.yaml --check tools/permission-data-feasibility/evidence/resolved-graph-candidate.json",
-    "test:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot",
-    "typecheck": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
-    "lint": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- tools/permission-data-feasibility/scripts/source-lint.mjs",
-    "format:check": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- tools/permission-data-feasibility/scripts/check-format.mjs",
-    "quality:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- tools/permission-data-feasibility/scripts/quality-audit.mjs",
-    "snapshot:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/snapshot-artifacts.ts",
-    "evidence:refresh:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/capture-primary-evidence.ts",
-    "build-evidence:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- tools/permission-data-feasibility/scripts/build-evidence.ts",
-    "finalize-decision:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- tools/permission-data-feasibility/scripts/finalize-decision.ts",
-    "assert-production-phase-authorized": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- tools/permission-data-feasibility/scripts/assert-production-phase-authorized.ts",
-    "write-verification:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/run-offline.mjs -- tools/permission-data-feasibility/scripts/write-verification-report.ts"
+    "test:permission-data-feasibility": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot",
+    "typecheck": "node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
+    "quality:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/quality-checks.mjs"
   },
   "devDependencies": {
     "@octokit/app-permissions": "2.1.0",

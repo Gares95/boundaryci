@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "apiVersion": "2022-11-28",
-  "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+  "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
   "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
   "strategy": "generated-candidates-plus-reviewed-bounded-catalog",
   "operationUniverse": {
@@ -33105,5 +33105,5 @@
       ]
     }
   ],
-  "contentSha256": "2724a4838c8467ca75812ec066622898552de7d1b7d5bf2ffe97b15994ba9faa"
+  "contentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4"
 }

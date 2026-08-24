@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+  "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
   "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
-  "inventorySha256": "2724a4838c8467ca75812ec066622898552de7d1b7d5bf2ffe97b15994ba9faa",
-  "supportManifestSha256": "63eb59fc9c90c7805b0727aea0c7a98325f1515dff653d03d1e5f94fd937a035",
+  "inventorySha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+  "supportManifestSha256": "fe2b5abdd118769a2f8764a0bb0177a7bd68d7cc4fa7229e5c9c4ef1024da28d",
   "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa",
-  "preliminarySelectionSha256": "8c52cb3f5864068e968bb8217c87cc5b90fbca87883f4f7b3eea6accfaefb124",
+  "preliminarySelectionSha256": "c23e9c3017dd2d8d4ebe8d6f3e59c72895d8dd1e3d026286b7f5d82317fdde4d",
   "sourcePrecedenceSha256": "605e5e3833e44027e0336d393e8f09f74ee2158e4f27984e63c2e60e3473fd04",
   "operationCounts": {
     "total": 878,
@@ -5742,14 +5742,14 @@
           "retrievalStatus": "captured",
           "reviewStatus": "reviewed",
           "reviewedOn": "2026-08-24",
-          "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+          "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
           "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5"
         },
         "rawEvidenceSha256": "beaedc5113d1b93a0deb4ce80dba6fb9d0b2f07c5bb4761caf86d4f80e52b875",
         "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
         "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa",
-        "selectionSha256": "8c52cb3f5864068e968bb8217c87cc5b90fbca87883f4f7b3eea6accfaefb124",
-        "entrySha256": "c0663e85e422bd04cb38ad8d60e824ae26f46014ecc112035bfca69481965304"
+        "selectionSha256": "c23e9c3017dd2d8d4ebe8d6f3e59c72895d8dd1e3d026286b7f5d82317fdde4d",
+        "entrySha256": "59e29ecea924235615873a5740f9249e39be929d0fee4579d962afa1a6d2c740"
       }
     },
     {
@@ -9389,14 +9389,14 @@
           "retrievalStatus": "captured",
           "reviewStatus": "reviewed",
           "reviewedOn": "2026-08-24",
-          "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+          "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
           "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5"
         },
         "rawEvidenceSha256": "c9d3d18bf2c97d0a30cbb3a768b1729cf25d2c1ec761a4771bece1f83a9094cd",
         "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
         "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa",
-        "selectionSha256": "8c52cb3f5864068e968bb8217c87cc5b90fbca87883f4f7b3eea6accfaefb124",
-        "entrySha256": "0d38af60aefb81b492ba13af0f17ad0836f73abf1b2423563b73294a0d04e2b5"
+        "selectionSha256": "c23e9c3017dd2d8d4ebe8d6f3e59c72895d8dd1e3d026286b7f5d82317fdde4d",
+        "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09"
       }
     },
     {
@@ -28861,8 +28861,8 @@
         "path": "/repos/{owner}/{repo}/issues",
         "operationId": "issues/create",
         "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
-        "entrySha256": "0d38af60aefb81b492ba13af0f17ad0836f73abf1b2423563b73294a0d04e2b5",
-        "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+        "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
         "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
       },
       {
@@ -28870,12 +28870,12 @@
         "path": "/repos/{owner}/{repo}/issues",
         "operationId": "issues/list-for-repo",
         "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
-        "entrySha256": "c0663e85e422bd04cb38ad8d60e824ae26f46014ecc112035bfca69481965304",
-        "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+        "entrySha256": "59e29ecea924235615873a5740f9249e39be929d0fee4579d962afa1a6d2c740",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
         "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
       }
     ],
-    "authorizedScopeSha256": "d2415b1d10b1504684597ad27c02cd71c7708508c0f0541c71259b3e5c8093bc"
+    "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
   },
-  "contentSha256": "ee94019dec385b5831e2cc962f4ec41610c238470ce2a7ed6f61614c16f6f85e"
+  "contentSha256": "14ba7eebf9845cd014fd877353875194d646c3a868ce638331ab4c605aa9d8e6"
 }

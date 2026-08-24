@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactManifest": {
-    "contentSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+    "contentSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
     "apiVersion": "2022-11-28",
     "artifacts": [
       {
@@ -64,7 +64,7 @@
     ]
   },
   "canonicalIssues": {
-    "contentSha256": "837963a880ed5bde6e9cf83db7a0b3855e39e0672058accf9247cdd170ba6e2c",
+    "contentSha256": "ba84dcf2844cdb40d1b0b7d317314de8c7ad466c6f96bb32933c9b0ea6c9ef2b",
     "chains": [
       {
         "status": "resolved",
@@ -81,7 +81,7 @@
           "level": "read"
         },
         "evidence": {
-          "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+          "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
           "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
           "permissionFactSha256": "beaedc5113d1b93a0deb4ce80dba6fb9d0b2f07c5bb4761caf86d4f80e52b875"
         }
@@ -101,7 +101,7 @@
           "level": "write"
         },
         "evidence": {
-          "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+          "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
           "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
           "permissionFactSha256": "c9d3d18bf2c97d0a30cbb3a768b1729cf25d2c1ec761a4771bece1f83a9094cd"
         }
@@ -109,7 +109,7 @@
     ]
   },
   "inventory": {
-    "contentSha256": "2724a4838c8467ca75812ec066622898552de7d1b7d5bf2ffe97b15994ba9faa",
+    "contentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
     "operationUniverse": {
       "total": 878,
       "classCounts": {
@@ -150,7 +150,7 @@
   "support": {
     "strategy": "generated-candidates-plus-reviewed-bounded-catalog",
     "predicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa",
-    "preliminarySelectionSha256": "8c52cb3f5864068e968bb8217c87cc5b90fbca87883f4f7b3eea6accfaefb124"
+    "preliminarySelectionSha256": "c23e9c3017dd2d8d4ebe8d6f3e59c72895d8dd1e3d026286b7f5d82317fdde4d"
   },
   "authorizedScopeCandidate": {
     "members": [
@@ -159,8 +159,8 @@
         "path": "/repos/{owner}/{repo}/issues",
         "operationId": "issues/create",
         "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
-        "entrySha256": "0d38af60aefb81b492ba13af0f17ad0836f73abf1b2423563b73294a0d04e2b5",
-        "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+        "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
         "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
       },
       {
@@ -168,15 +168,15 @@
         "path": "/repos/{owner}/{repo}/issues",
         "operationId": "issues/list-for-repo",
         "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
-        "entrySha256": "c0663e85e422bd04cb38ad8d60e824ae26f46014ecc112035bfca69481965304",
-        "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+        "entrySha256": "59e29ecea924235615873a5740f9249e39be929d0fee4579d962afa1a6d2c740",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
         "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
       }
     ],
-    "authorizedScopeSha256": "d2415b1d10b1504684597ad27c02cd71c7708508c0f0541c71259b3e5c8093bc"
+    "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
   },
   "ledger": {
-    "contentSha256": "ee94019dec385b5831e2cc962f4ec41610c238470ce2a7ed6f61614c16f6f85e",
+    "contentSha256": "14ba7eebf9845cd014fd877353875194d646c3a868ce638331ab4c605aa9d8e6",
     "operationCounts": {
       "total": 878,
       "candidateSupported": 2,
@@ -255,5 +255,5 @@
     "GO WITH BOUNDED SUPPORT",
     "NO-GO / RESCOPE"
   ],
-  "contentSha256": "b77682f1fb99a82113af8fc369f6e2b958b0b6eb70a5016a365a75a1b3d45877"
+  "contentSha256": "6202c30b316f29885a6012b2e7703b0a1de018c5d2716c3cc7aa5a7d797fc0f8"
 }

@@ -6,8 +6,8 @@
     "packageManager": "pnpm@11.11.0+sha512.4463f65fd80ed80d69bc1d4bf163ee94f605c7380fc318bb5b2ebe15f8cd12d49c51a4d59e951b401e764d3b6ca751cbf51bc50ed7001a6bcb4935e684c34882",
     "packageJson": {
       "path": "package.json",
-      "bytes": 2675,
-      "sha256": "de3cdfff4d8593bbed0949075217593420d18dfbe9c802f963573bfbfa95a801"
+      "bytes": 940,
+      "sha256": "a3b0067d61c9dbc40fc8565eab236aedacb6c068f2046a8f561eb3250f9af32c"
     },
     "lockfile": {
       "path": "pnpm-lock.yaml",
@@ -157,5 +157,5 @@
       }
     ]
   },
-  "contentSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec"
+  "contentSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c"
 }

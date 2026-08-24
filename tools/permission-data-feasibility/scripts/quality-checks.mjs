@@ -86,6 +86,21 @@ const JSON_CONTRACTS = {
     'sourcePrecedence',
     'support',
   ],
+  'tools/permission-data-feasibility/evidence/decision-record.json': [
+    'authorization',
+    'contentSha256',
+    'decidedAt',
+    'decisionMaker',
+    'evidence',
+    'excludedIncompleteClasses',
+    'knownLimitations',
+    'outcome',
+    'rationale',
+    'review',
+    'schemaVersion',
+    'usefulness',
+    'wordingAccepted',
+  ],
   'tools/permission-data-feasibility/fixtures/canonical-issues.json': [
     'artifactManifestSha256',
     'chains',
@@ -104,6 +119,7 @@ const JSON_CONTRACTS = {
 const SOURCE_FILES = [
   'tools/permission-data-feasibility/artifact-sources.ts',
   'tools/permission-data-feasibility/contracts.ts',
+  'tools/permission-data-feasibility/decision.ts',
   'tools/permission-data-feasibility/extract.ts',
   'tools/permission-data-feasibility/fail-closed.ts',
   'tools/permission-data-feasibility/inventory.ts',
@@ -114,6 +130,8 @@ const SOURCE_FILES = [
   'tools/permission-data-feasibility/scripts/build-evidence.ts',
   'tools/permission-data-feasibility/scripts/write-artifact-manifest.ts',
 ];
+
+const PUBLIC_TEXT_FILES = ['tools/permission-data-feasibility/evidence/DECISION.md'];
 
 function fail(message) {
   throw new Error(message);
@@ -222,7 +240,12 @@ check('json-contracts-and-digests', () => {
 });
 
 check('format-and-final-newline', () => {
-  for (const path of [...Object.keys(JSON_CONTRACTS), ...SOURCE_FILES, 'tools/permission-data-feasibility/scripts/quality-checks.mjs']) {
+  for (const path of [
+    ...Object.keys(JSON_CONTRACTS),
+    ...SOURCE_FILES,
+    ...PUBLIC_TEXT_FILES,
+    'tools/permission-data-feasibility/scripts/quality-checks.mjs',
+  ]) {
     const text = readText(path);
     if (!text.endsWith('\n')) fail(`missing final newline: ${path}`);
     const badLine = text.split('\n').findIndex((line) => /[\t ]+$/u.test(line));
@@ -272,7 +295,7 @@ check('public-neutral-content', () => {
     /\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/u,
     /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/u,
   ];
-  for (const path of Object.keys(JSON_CONTRACTS)) {
+  for (const path of [...Object.keys(JSON_CONTRACTS), ...PUBLIC_TEXT_FILES]) {
     const text = readText(path);
     const fragment = localOnlyFragments.find((candidate) => text.includes(candidate));
     if (fragment !== undefined) fail(`forbidden local-only content in ${path}`);
@@ -311,6 +334,7 @@ check('cross-artifact-reconciliation', () => {
   const ledger = documents['tools/permission-data-feasibility/evidence/operation-ledger.json'];
   const incomplete = documents['tools/permission-data-feasibility/evidence/incomplete-semantics.json'];
   const packet = documents['tools/permission-data-feasibility/evidence/feasibility-packet.json'];
+  const decision = documents['tools/permission-data-feasibility/evidence/decision-record.json'];
   const canonical = documents['tools/permission-data-feasibility/fixtures/canonical-issues.json'];
   if (inventory.artifactManifestSha256 !== manifest.contentSha256 || support.artifactManifestSha256 !== manifest.contentSha256 || ledger.artifactManifestSha256 !== manifest.contentSha256) fail('artifact-manifest identity mismatch');
   if (inventory.permissionSourcesSha256 !== permission.contentSha256 || support.permissionSourcesSha256 !== permission.contentSha256 || ledger.permissionSourcesSha256 !== permission.contentSha256) fail('permission-source identity mismatch');
@@ -325,6 +349,22 @@ check('cross-artifact-reconciliation', () => {
   if (!sameJson(packet.incompleteSemantics.reasons, reasonCodes)) fail('packet incomplete-reason mismatch');
   if (!sameJson(packet.legalTerminalOutcomes, ['GO', 'GO WITH BOUNDED SUPPORT', 'NO-GO / RESCOPE'])) fail('packet terminal outcomes mismatch');
   if ('decision' in packet || 'selectedOutcome' in packet || 'terminalDecision' in packet) fail('packet selects a terminal outcome');
+  if (
+    decision.evidence.feasibilityPacketSha256 !== packet.contentSha256 ||
+    decision.evidence.supportManifestSha256 !== support.contentSha256 ||
+    decision.evidence.supportPredicateSha256 !== support.predicate.ruleSha256 ||
+    decision.evidence.selectionSha256 !== support.selectionSha256
+  ) {
+    fail('decision evidence identity mismatch');
+  }
+  if (
+    decision.outcome !== 'GO WITH BOUNDED SUPPORT' ||
+    decision.authorization.status !== 'authorized-bounded' ||
+    decision.authorization.authorizedScopeSha256 !== ledger.authorizedScopeCandidate.authorizedScopeSha256 ||
+    !sameJson(decision.authorization.members, ledger.authorizedScopeCandidate.members)
+  ) {
+    fail('decision authorized scope mismatch');
+  }
 });
 
 const artifactDigests = Object.keys(JSON_CONTRACTS)

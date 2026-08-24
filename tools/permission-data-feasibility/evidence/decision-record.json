@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "outcome": "GO WITH BOUNDED SUPPORT",
+  "review": {
+    "reviewer": "Independent feasibility reviewer",
+    "reviewedAt": "2026-08-24T13:51:35Z",
+    "verdict": "APPROVED"
+  },
+  "decisionMaker": "Gares95",
+  "decidedAt": "2026-08-24T13:58:34Z",
+  "evidence": {
+    "feasibilityPacketSha256": "6202c30b316f29885a6012b2e7703b0a1de018c5d2716c3cc7aa5a7d797fc0f8",
+    "supportManifestSha256": "fe2b5abdd118769a2f8764a0bb0177a7bd68d7cc4fa7229e5c9c4ef1024da28d",
+    "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa",
+    "selectionSha256": "c23e9c3017dd2d8d4ebe8d6f3e59c72895d8dd1e3d026286b7f5d82317fdde4d"
+  },
+  "rationale": "Authorize only the exact reviewer-backed Issues read/write member set. It proves the canonical v1 permission-expansion demonstration while every operation and evidence class outside that byte-identical scope remains incomplete and unauthorized.",
+  "wordingAccepted": true,
+  "usefulness": {
+    "accepted": true,
+    "rationale": "The exact two-operation scope is useful because it deterministically proves the flagship Issues read-to-write boundary change without guessing and establishes the safe bounded catalog strategy for subsequent implementation."
+  },
+  "authorization": {
+    "status": "authorized-bounded",
+    "members": [
+      {
+        "verb": "POST",
+        "path": "/repos/{owner}/{repo}/issues",
+        "operationId": "issues/create",
+        "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+        "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+      },
+      {
+        "verb": "GET",
+        "path": "/repos/{owner}/{repo}/issues",
+        "operationId": "issues/list-for-repo",
+        "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
+        "entrySha256": "59e29ecea924235615873a5740f9249e39be929d0fee4579d962afa1a6d2c740",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+      }
+    ],
+    "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+  },
+  "excludedIncompleteClasses": [
+    "permission-expression:allOf",
+    "permission-expression:anyOf",
+    "permission-evidence:ambiguous",
+    "permission-evidence:conflicting",
+    "permission-evidence:missing",
+    "permission-evidence:unsupported",
+    "freshness:stale-seed",
+    "freshness:not-assessed",
+    "credential:fine-grained-pat-only",
+    "credential:none",
+    "method-surface:v17-only",
+    "method-surface:v18-only",
+    "method-surface:surface-conflict",
+    "operation-join:no-openapi-operation",
+    "operation-join:duplicate-openapi-operation",
+    "reason:ambiguous-permission-data",
+    "reason:conflicting-permission-data",
+    "reason:credential-semantics-unproven",
+    "reason:duplicate-endpoint-method",
+    "reason:duplicate-openapi-operation",
+    "reason:duplicate-permission-data",
+    "reason:invalid-endpoint-route",
+    "reason:malformed-permission-evidence",
+    "reason:missing-credential-identity",
+    "reason:missing-operation-identity",
+    "reason:missing-permission-data",
+    "reason:missing-runtime-method",
+    "reason:missing-standalone-method",
+    "reason:no-openapi-operation",
+    "reason:runtime-method-surface-mismatch",
+    "reason:source-integrity-mismatch",
+    "reason:stale-permission-source",
+    "reason:unreviewed-permission-source",
+    "reason:unsupported-access-level",
+    "reason:unsupported-permission-expression",
+    "reason:unsupported-permission-name",
+    "reason:unsupported-permission-qualifier"
+  ],
+  "knownLimitations": [
+    "The candidate scope contains only the two exact reviewer-backed canonical Issues operations.",
+    "No reviewed GitHub App-applicable allOf expression is available in the retained evidence.",
+    "Fine-grained personal access token anyOf observations do not prove installation-token semantics.",
+    "The permission-package inverse index is incomplete, operator-less, and stale for some entries.",
+    "The reviewed GitHub permission documentation is live and unversioned; its review date is retained."
+  ],
+  "contentSha256": "cd30436d22364842aaf2470ccfaf55ae1127e2b4a683be19a38ca3ec8aab0261"
+}
