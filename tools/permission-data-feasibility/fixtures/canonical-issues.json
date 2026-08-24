@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
-  "permissionSourcesSha256": "8e240cb0a1b9b9f5fc2d33a84c52b4d4079b30515133525eff618577bb39e32b",
+  "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
   "chains": [
     {
       "status": "resolved",
@@ -19,7 +19,7 @@
       },
       "evidence": {
         "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
-        "permissionSourcesSha256": "8e240cb0a1b9b9f5fc2d33a84c52b4d4079b30515133525eff618577bb39e32b",
+        "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
         "permissionFactSha256": "beaedc5113d1b93a0deb4ce80dba6fb9d0b2f07c5bb4761caf86d4f80e52b875"
       }
     },
@@ -39,10 +39,10 @@
       },
       "evidence": {
         "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
-        "permissionSourcesSha256": "8e240cb0a1b9b9f5fc2d33a84c52b4d4079b30515133525eff618577bb39e32b",
+        "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
         "permissionFactSha256": "c9d3d18bf2c97d0a30cbb3a768b1729cf25d2c1ec761a4771bece1f83a9094cd"
       }
     }
   ],
-  "contentSha256": "e132f5ca63c80ef55e611f81bfe3c25afa9aa61bc37f05c928dc3293dcf2d6e6"
+  "contentSha256": "837963a880ed5bde6e9cf83db7a0b3855e39e0672058accf9247cdd170ba6e2c"
 }

@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "vocabulary": [
+    "checks",
+    "contents",
+    "issues",
+    "pull_requests"
+  ],
+  "cases": [
+    {
+      "id": "single",
+      "raw": "issues=read",
+      "operationId": "fixture/single",
+      "credentialClass": "installation-token",
+      "expected": {
+        "status": "resolved",
+        "sourceOrder": [
+          [
+            "issues=read"
+          ]
+        ],
+        "expression": {
+          "type": "permission",
+          "permission": "issues",
+          "level": "read"
+        }
+      }
+    },
+    {
+      "id": "all-of",
+      "raw": "pull_requests=write, issues=read",
+      "operationId": "fixture/all-of",
+      "credentialClass": "installation-token",
+      "expected": {
+        "status": "resolved",
+        "sourceOrder": [
+          [
+            "pull_requests=write",
+            "issues=read"
+          ]
+        ],
+        "expression": {
+          "type": "allOf",
+          "requirements": [
+            {
+              "type": "permission",
+              "permission": "issues",
+              "level": "read"
+            },
+            {
+              "type": "permission",
+              "permission": "pull_requests",
+              "level": "write"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "any-of",
+      "raw": "pull_requests=read; issues=read",
+      "operationId": "fixture/any-of",
+      "credentialClass": "installation-token",
+      "expected": {
+        "status": "resolved",
+        "sourceOrder": [
+          [
+            "pull_requests=read"
+          ],
+          [
+            "issues=read"
+          ]
+        ],
+        "expression": {
+          "type": "anyOf",
+          "requirements": [
+            {
+              "type": "permission",
+              "permission": "issues",
+              "level": "read"
+            },
+            {
+              "type": "permission",
+              "permission": "pull_requests",
+              "level": "read"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "alternatives-of-groups",
+      "raw": "pull_requests=write, issues=read; contents=write, checks=read",
+      "operationId": "fixture/alternatives-of-groups",
+      "credentialClass": "installation-token",
+      "expected": {
+        "status": "resolved",
+        "sourceOrder": [
+          [
+            "pull_requests=write",
+            "issues=read"
+          ],
+          [
+            "contents=write",
+            "checks=read"
+          ]
+        ],
+        "expression": {
+          "type": "anyOf",
+          "requirements": [
+            {
+              "type": "allOf",
+              "requirements": [
+                {
+                  "type": "permission",
+                  "permission": "checks",
+                  "level": "read"
+                },
+                {
+                  "type": "permission",
+                  "permission": "contents",
+                  "level": "write"
+                }
+              ]
+            },
+            {
+              "type": "allOf",
+              "requirements": [
+                {
+                  "type": "permission",
+                  "permission": "issues",
+                  "level": "read"
+                },
+                {
+                  "type": "permission",
+                  "permission": "pull_requests",
+                  "level": "write"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "contentSha256": "3d62112814056466da4fabf38511fc599f2c0bc652d3d94ebd31868822ae4231"
+}

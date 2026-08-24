@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "strategy": "generated-candidates-plus-reviewed-bounded-catalog",
+  "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+  "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
+  "predicate": {
+    "rule": {
+      "version": 1,
+      "conditions": [
+        "app-enabled-openapi-operation",
+        "unique-method-route-operation-join",
+        "direct-method-alias-common-identical-v17-v18",
+        "reviewer-backed-github-app-applicable-expression",
+        "supported-permission-vocabulary-and-access",
+        "complete-artifact-source-api-and-integrity-provenance",
+        "no-ambiguous-conflicting-stale-unsupported-or-credential-unproven-qualifier"
+      ]
+    },
+    "ruleSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+  },
+  "requiredOperationIds": [
+    "issues/create",
+    "issues/list-for-repo"
+  ],
+  "selectedMembers": [
+    {
+      "verb": "POST",
+      "path": "/repos/{owner}/{repo}/issues",
+      "operationId": "issues/create",
+      "methodAliases": [
+        "issues.create"
+      ],
+      "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+      "permissionEvidenceSha256": "c9d3d18bf2c97d0a30cbb3a768b1729cf25d2c1ec761a4771bece1f83a9094cd",
+      "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
+      "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec"
+    },
+    {
+      "verb": "GET",
+      "path": "/repos/{owner}/{repo}/issues",
+      "operationId": "issues/list-for-repo",
+      "methodAliases": [
+        "issues.listForRepo"
+      ],
+      "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
+      "permissionEvidenceSha256": "beaedc5113d1b93a0deb4ce80dba6fb9d0b2f07c5bb4761caf86d4f80e52b875",
+      "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
+      "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec"
+    }
+  ],
+  "selectionSha256": "8c52cb3f5864068e968bb8217c87cc5b90fbca87883f4f7b3eea6accfaefb124",
+  "contentSha256": "63eb59fc9c90c7805b0727aea0c7a98325f1515dff653d03d1e5f94fd937a035"
+}

@@ -16,6 +16,7 @@ import {
   type UnresolvedOperationReason,
 } from './contracts.js';
 import { digestJson, validateArtifactManifest } from './artifact-sources.js';
+import { buildPermissionSourceExtensions, validatePermissionSourceExtensions } from './source-evidence.js';
 
 export interface EndpointMethodRecord {
   scope: string;
@@ -238,7 +239,7 @@ export function buildPermissionSources(): PermissionSources {
     },
   ];
   const facts = factsWithoutDigest.map((fact) => ({ ...fact, evidenceSha256: permissionFactDigest(fact) }));
-  const unsigned: Omit<PermissionSources, 'contentSha256'> = {
+  const unsigned = {
     schemaVersion: 1,
     documentation: {
       sourceUrl: GITHUB_APP_ISSUES_PERMISSION_URL,
@@ -248,13 +249,18 @@ export function buildPermissionSources(): PermissionSources {
       reviewedOn: '2026-08-24',
     },
     facts,
+    ...buildPermissionSourceExtensions(),
   };
-  return { ...unsigned, contentSha256: digestJson(unsigned as unknown as JsonValue) };
+  return { ...unsigned, contentSha256: digestJson(unsigned as unknown as JsonValue) } as PermissionSources;
 }
 
 export function validatePermissionSources(value: unknown): asserts value is PermissionSources {
   assertPlainObject(value, 'permission sources');
-  assertExactKeys(value, ['schemaVersion', 'documentation', 'facts', 'contentSha256'], 'permission sources');
+  assertExactKeys(
+    value,
+    ['schemaVersion', 'documentation', 'facts', 'vocabulary', 'headerFacts', 'refusedProbes', 'contentSha256'],
+    'permission sources',
+  );
   if (value.schemaVersion !== 1) throw new TypeError('permission source schema version mismatch');
   assertPlainObject(value.documentation, 'permission sources.documentation');
   assertExactKeys(
@@ -294,6 +300,11 @@ export function validatePermissionSources(value: unknown): asserts value is Perm
       throw new Error(`permission fact[${index}] digest mismatch`);
     }
   }
+  validatePermissionSourceExtensions({
+    vocabulary: value.vocabulary,
+    headerFacts: value.headerFacts,
+    refusedProbes: value.refusedProbes,
+  });
   assertSha256(value.contentSha256, 'permission sources.contentSha256');
   const { contentSha256: _contentSha256, ...unsigned } = value;
   if (value.contentSha256 !== digestJson(unsigned as unknown as JsonValue)) {

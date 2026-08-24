@@ -33,5 +33,113 @@
       "evidenceSha256": "c9d3d18bf2c97d0a30cbb3a768b1729cf25d2c1ec761a4771bece1f83a9094cd"
     }
   ],
-  "contentSha256": "8e240cb0a1b9b9f5fc2d33a84c52b4d4079b30515133525eff618577bb39e32b"
+  "vocabulary": [
+    {
+      "permission": "checks",
+      "sourceUrl": "https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-checks",
+      "reviewStatus": "reviewed",
+      "reviewedOn": "2026-08-24"
+    },
+    {
+      "permission": "contents",
+      "sourceUrl": "https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-contents",
+      "reviewStatus": "reviewed",
+      "reviewedOn": "2026-08-24"
+    },
+    {
+      "permission": "issues",
+      "sourceUrl": "https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-issues",
+      "reviewStatus": "reviewed",
+      "reviewedOn": "2026-08-24"
+    },
+    {
+      "permission": "pull_requests",
+      "sourceUrl": "https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-pull-requests",
+      "reviewStatus": "reviewed",
+      "reviewedOn": "2026-08-24"
+    }
+  ],
+  "headerFacts": [
+    {
+      "sourceKind": "x-accepted-github-permissions",
+      "sourceUrl": "https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api",
+      "operation": {
+        "operationId": "issues/list-comments",
+        "verb": "GET",
+        "path": "/repos/{owner}/{repo}/issues/{issue_number}/comments"
+      },
+      "apiVersion": "2022-11-28",
+      "claimedCredentialClass": "fine-grained-personal-access-token",
+      "machineCredentialClass": "classic-oauth-token",
+      "credentialApplicability": "unproven-for-github-app-installation",
+      "repositoryScope": "private-repository",
+      "trialIds": [
+        "initial",
+        "reproducibility-1",
+        "reproducibility-2",
+        "reproducibility-3"
+      ],
+      "retrievedAt": "2026-08-16T21:32:49.948Z",
+      "raw": "issues=read; pull_requests=read",
+      "rawSha256": "62a6fbe44b97496d2d5009f5a3965e82050f49d52c04a0cf26ca4418fac44976",
+      "sourceOrder": [
+        [
+          "issues=read"
+        ],
+        [
+          "pull_requests=read"
+        ]
+      ],
+      "expression": {
+        "type": "anyOf",
+        "requirements": [
+          {
+            "type": "permission",
+            "permission": "issues",
+            "level": "read"
+          },
+          {
+            "type": "permission",
+            "permission": "pull_requests",
+            "level": "read"
+          }
+        ]
+      },
+      "expressionSha256": "47f85f30c904af1ed782c47574ccab2910b142cbf04220f4c042108148a2d42f",
+      "reviewerStatus": "reviewed-credential-unproven"
+    }
+  ],
+  "refusedProbes": [
+    {
+      "operationId": "checks/create",
+      "verb": "POST",
+      "path": "/repos/{owner}/{repo}/check-runs",
+      "outcome": "not-probed-safety-policy"
+    },
+    {
+      "operationId": "issues/create",
+      "verb": "POST",
+      "path": "/repos/{owner}/{repo}/issues",
+      "outcome": "not-probed-safety-policy"
+    },
+    {
+      "operationId": "issues/create-comment",
+      "verb": "POST",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/comments",
+      "outcome": "not-probed-safety-policy"
+    },
+    {
+      "operationId": "issues/update",
+      "verb": "PATCH",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}",
+      "outcome": "not-probed-safety-policy"
+    },
+    {
+      "operationId": "repos/create-or-update-file-contents",
+      "verb": "PUT",
+      "path": "/repos/{owner}/{repo}/contents/{path}",
+      "outcome": "not-probed-safety-policy"
+    }
+  ],
+  "contentSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5"
 }
