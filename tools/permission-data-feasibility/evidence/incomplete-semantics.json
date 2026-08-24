@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "topLevelOutcome": "incomplete-analysis",
+  "definitions": [
+    {
+      "code": "ambiguous-permission-data",
+      "outcome": "incomplete-analysis",
+      "summary": "Permission associations exist without a proven logical operator.",
+      "explanation": "Permission associations exist without a proven logical operator. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "conflicting-permission-data",
+      "outcome": "incomplete-analysis",
+      "summary": "Applicable permission evidence disagrees.",
+      "explanation": "Applicable permission evidence disagrees. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "credential-semantics-unproven",
+      "outcome": "incomplete-analysis",
+      "summary": "Permission evidence was observed for a credential class not proven equivalent to a GitHub App installation token.",
+      "explanation": "Permission evidence was observed for a credential class not proven equivalent to a GitHub App installation token. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "duplicate-endpoint-method",
+      "outcome": "incomplete-analysis",
+      "summary": "The endpoint-method surface contains a duplicate method identity.",
+      "explanation": "The endpoint-method surface contains a duplicate method identity. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "duplicate-openapi-operation",
+      "outcome": "incomplete-analysis",
+      "summary": "The route maps to more than one OpenAPI operation.",
+      "explanation": "The route maps to more than one OpenAPI operation. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "duplicate-permission-data",
+      "outcome": "incomplete-analysis",
+      "summary": "The permission expression repeats an atom.",
+      "explanation": "The permission expression repeats an atom. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "invalid-endpoint-route",
+      "outcome": "incomplete-analysis",
+      "summary": "The endpoint route cannot be normalized safely.",
+      "explanation": "The endpoint route cannot be normalized safely. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "malformed-permission-evidence",
+      "outcome": "incomplete-analysis",
+      "summary": "The permission evidence is empty or malformed.",
+      "explanation": "The permission evidence is empty or malformed. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "missing-credential-identity",
+      "outcome": "incomplete-analysis",
+      "summary": "The evidence does not identify the credential class.",
+      "explanation": "The evidence does not identify the credential class. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "missing-operation-identity",
+      "outcome": "incomplete-analysis",
+      "summary": "The evidence does not identify an exact REST operation.",
+      "explanation": "The evidence does not identify an exact REST operation. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "missing-permission-data",
+      "outcome": "incomplete-analysis",
+      "summary": "No applicable reviewed permission evidence is available.",
+      "explanation": "No applicable reviewed permission evidence is available. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "missing-runtime-method",
+      "outcome": "incomplete-analysis",
+      "summary": "The runtime endpoint-method surface does not contain this method.",
+      "explanation": "The runtime endpoint-method surface does not contain this method. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "missing-standalone-method",
+      "outcome": "incomplete-analysis",
+      "summary": "The standalone endpoint-method surface does not contain this method.",
+      "explanation": "The standalone endpoint-method surface does not contain this method. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "no-openapi-operation",
+      "outcome": "incomplete-analysis",
+      "summary": "The normalized route has no unique OpenAPI operation.",
+      "explanation": "The normalized route has no unique OpenAPI operation. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "runtime-method-surface-mismatch",
+      "outcome": "incomplete-analysis",
+      "summary": "The compared endpoint-method surfaces do not agree.",
+      "explanation": "The compared endpoint-method surfaces do not agree. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "source-integrity-mismatch",
+      "outcome": "incomplete-analysis",
+      "summary": "A required evidence source failed its identity or digest check.",
+      "explanation": "A required evidence source failed its identity or digest check. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "stale-permission-source",
+      "outcome": "incomplete-analysis",
+      "summary": "A lower-ranked permission source disagrees with current reviewed evidence.",
+      "explanation": "A lower-ranked permission source disagrees with current reviewed evidence. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "unreviewed-permission-source",
+      "outcome": "incomplete-analysis",
+      "summary": "The only available association is not authoritative for permission semantics.",
+      "explanation": "The only available association is not authoritative for permission semantics. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "unsupported-access-level",
+      "outcome": "incomplete-analysis",
+      "summary": "The evidence uses an access level outside the supported read/write model.",
+      "explanation": "The evidence uses an access level outside the supported read/write model. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "unsupported-permission-expression",
+      "outcome": "incomplete-analysis",
+      "summary": "The permission requirement cannot be represented safely by the supported expression contract.",
+      "explanation": "The permission requirement cannot be represented safely by the supported expression contract. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "unsupported-permission-name",
+      "outcome": "incomplete-analysis",
+      "summary": "The permission name is outside the reviewed vocabulary.",
+      "explanation": "The permission name is outside the reviewed vocabulary. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    },
+    {
+      "code": "unsupported-permission-qualifier",
+      "outcome": "incomplete-analysis",
+      "summary": "The evidence contains a qualifier whose semantics are not modeled.",
+      "explanation": "The evidence contains a qualifier whose semantics are not modeled. Known evidence is retained, but the full observed permission boundary cannot be proven for this item. No unqualified clean or no-change conclusion is available."
+    }
+  ],
+  "contentSha256": "928a5044e9906cb234fcc08af40a967a47395206d973ab4279f5b3dce0c4ca3c"
+}

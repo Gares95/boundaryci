@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "scope": "evidence-integrity-only",
+  "checks": [
+    {
+      "id": "json-contracts-and-digests",
+      "status": "pass"
+    },
+    {
+      "id": "format-and-final-newline",
+      "status": "pass"
+    },
+    {
+      "id": "no-target-code-execution",
+      "status": "pass"
+    },
+    {
+      "id": "public-neutral-content",
+      "status": "pass"
+    },
+    {
+      "id": "inventory-ledger-reconciliation",
+      "status": "pass"
+    },
+    {
+      "id": "cross-artifact-reconciliation",
+      "status": "pass"
+    }
+  ],
+  "artifactDigests": [
+    {
+      "path": "tools/permission-data-feasibility/evidence/artifact-manifest.json",
+      "sha256": "d5865d5e5877b876a762f51fd362ec86b9f3c9c62e35fffc6d7ae07061447666"
+    },
+    {
+      "path": "tools/permission-data-feasibility/evidence/feasibility-packet.json",
+      "sha256": "05fc25ed17d92571dcd7165a5d2fe796e71519ef2a7d016aaf688bd64af8ee6c"
+    },
+    {
+      "path": "tools/permission-data-feasibility/evidence/incomplete-semantics.json",
+      "sha256": "930f34856204f5e9ac1e218c70041b4e59b9970eb645bc86c6d70506dc75f2d9"
+    },
+    {
+      "path": "tools/permission-data-feasibility/evidence/operation-inventory.json",
+      "sha256": "8cc68c0dd49b2cc0fd3bb28f5d7868bbcaa0cb62447bdd9457113f7a22b563cb"
+    },
+    {
+      "path": "tools/permission-data-feasibility/evidence/operation-ledger.json",
+      "sha256": "8263ff430398e0256789f31b3a3f64db715f515ecd1dd8db15cc269d2e673325"
+    },
+    {
+      "path": "tools/permission-data-feasibility/evidence/permission-sources.json",
+      "sha256": "e0bf2de5b70e276a1c016561a881385827a81e2c5611df5411b3485c15684f7f"
+    },
+    {
+      "path": "tools/permission-data-feasibility/evidence/support-manifest.json",
+      "sha256": "1fb31cfcd3f72c07824b84da59130851c147a19a00474b7c3bb00aa40eb2e401"
+    },
+    {
+      "path": "tools/permission-data-feasibility/fixtures/canonical-issues.json",
+      "sha256": "f2e47f9983696e3423c6c89859d1b6631a9e1a2c345831078888d3bc58e4c7cc"
+    },
+    {
+      "path": "tools/permission-data-feasibility/fixtures/header-expressions.json",
+      "sha256": "b0465c71cdbb4da315cbbbb9494eefe83bf28cbec2054c62cccef997b177bcb8"
+    }
+  ],
+  "contentSha256": "aeb7d3ecb98cf1cdb401dafbf643a6d0bb2a68c92c3a46b04befbf4969b68bc5"
+}

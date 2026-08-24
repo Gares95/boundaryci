@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "artifactManifest": {
+    "contentSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+    "apiVersion": "2022-11-28",
+    "artifacts": [
+      {
+        "role": "appPermissions",
+        "packageName": "@octokit/app-permissions",
+        "version": "2.1.0",
+        "integrity": "sha512-enxS7BhjntGdKl+xmrU8by9Sxa940/msBQEJGBjts+HKzAOKA//ayh7FuIC2ksNDuLVZG0VIwDYIj/nIqT5mxQ==",
+        "dataFileSha256s": [
+          "5caad37a801392a22ea4969efeab789c0b89e141aa663df80de538a0a8cb3600"
+        ]
+      },
+      {
+        "role": "octokit",
+        "packageName": "octokit",
+        "version": "5.0.5",
+        "integrity": "sha512-4+/OFSqOjoyULo7eN7EA97DE0Xydj/PW5aIckxqQIoFjFwqXKuFCvXUJObyJfBF9Khu4RL/jlDRI9FPaMGfPnw==",
+        "dataFileSha256s": []
+      },
+      {
+        "role": "openApi",
+        "packageName": "@octokit/openapi",
+        "version": "22.0.0",
+        "integrity": "sha512-Rpif7FjTjFEBSU+amIRHUAIAHwgg+tVJdTiQuU2GEWDniZxmWjxZCgJ4V9GEp2GXnq/Bl+TrjEvwAl9PB29NAQ==",
+        "dataFileSha256s": [
+          "3e8065e9059605343c997b736154b12f7f2bb2b8f409b1a6b40b16b6728c2eaa"
+        ]
+      },
+      {
+        "role": "probot",
+        "packageName": "probot",
+        "version": "14.3.2",
+        "integrity": "sha512-Bprr2KwlVF4Jpb6bnIcfadA4Dtns8nDJxSEEPNy3FhRrtHUYxZGiczReG5Vo6M7t4iS8Kcvek7CDUTTXgkaSBw==",
+        "dataFileSha256s": []
+      },
+      {
+        "role": "runtimeEndpointMethods",
+        "packageName": "@octokit/plugin-rest-endpoint-methods",
+        "version": "17.0.0",
+        "integrity": "sha512-B5yCyIlOJFPqUUeiD0cnBJwWJO8lkJs5d8+ze9QDP6SvfiXSz1BF+91+0MeI1d2yxgOhU/O+CvtiZ9jSkHhFAw==",
+        "dataFileSha256s": [
+          "6326e53030d9e12713a7003da416806a3df07f58c78bac5d1d0e9ed4795db7cf"
+        ]
+      },
+      {
+        "role": "standaloneEndpointMethods",
+        "packageName": "@octokit/plugin-rest-endpoint-methods",
+        "version": "18.0.0",
+        "integrity": "sha512-1wM02pQTHEarWYij0Bb4gu8X8fBy2FJdI4HMTSFDxtYLbOkJErGVx5ywmM6jeS8tOmC0iCiRLrn6YsSIecUeOQ==",
+        "dataFileSha256s": [
+          "944ef7df536acfcbf6da66982fd4eb4d13a83f8e639761b6d0d6cdbe6de76a72"
+        ]
+      },
+      {
+        "role": "typescript",
+        "packageName": "typescript",
+        "version": "6.0.2",
+        "integrity": "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ==",
+        "dataFileSha256s": []
+      }
+    ]
+  },
+  "canonicalIssues": {
+    "contentSha256": "837963a880ed5bde6e9cf83db7a0b3855e39e0672058accf9247cdd170ba6e2c",
+    "chains": [
+      {
+        "status": "resolved",
+        "scope": "issues",
+        "method": "listForRepo",
+        "route": {
+          "verb": "GET",
+          "path": "/repos/{owner}/{repo}/issues"
+        },
+        "operationId": "issues/list-for-repo",
+        "requirement": {
+          "type": "permission",
+          "permission": "issues",
+          "level": "read"
+        },
+        "evidence": {
+          "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+          "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
+          "permissionFactSha256": "beaedc5113d1b93a0deb4ce80dba6fb9d0b2f07c5bb4761caf86d4f80e52b875"
+        }
+      },
+      {
+        "status": "resolved",
+        "scope": "issues",
+        "method": "create",
+        "route": {
+          "verb": "POST",
+          "path": "/repos/{owner}/{repo}/issues"
+        },
+        "operationId": "issues/create",
+        "requirement": {
+          "type": "permission",
+          "permission": "issues",
+          "level": "write"
+        },
+        "evidence": {
+          "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+          "permissionSourcesSha256": "99c872baeef80ca01c2c967cdb30d523eb24b1e17e219ba0a6f5f11378e08ce5",
+          "permissionFactSha256": "c9d3d18bf2c97d0a30cbb3a768b1729cf25d2c1ec761a4771bece1f83a9094cd"
+        }
+      }
+    ]
+  },
+  "inventory": {
+    "contentSha256": "2724a4838c8467ca75812ec066622898552de7d1b7d5bf2ffe97b15994ba9faa",
+    "operationUniverse": {
+      "total": 878,
+      "classCounts": {
+        "single": 2,
+        "allOf": 0,
+        "anyOf": 0,
+        "ambiguous": 67,
+        "conflicting": 0,
+        "missing": 506,
+        "unsupported": 303
+      },
+      "freshnessCounts": {
+        "current": 2,
+        "stale-seed": 250,
+        "not-assessed": 626
+      },
+      "credentialApplicabilityCounts": {
+        "github-app-reviewed": 2,
+        "fine-grained-pat-only": 1,
+        "none": 875
+      }
+    },
+    "methodUniverse": {
+      "total": 1053,
+      "surfaceCounts": {
+        "common-identical": 1019,
+        "v17-only": 9,
+        "v18-only": 25,
+        "surface-conflict": 0
+      },
+      "operationJoinCounts": {
+        "matched-operation": 1038,
+        "no-openapi-operation": 15,
+        "duplicate-openapi-operation": 0
+      }
+    }
+  },
+  "support": {
+    "strategy": "generated-candidates-plus-reviewed-bounded-catalog",
+    "predicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa",
+    "preliminarySelectionSha256": "8c52cb3f5864068e968bb8217c87cc5b90fbca87883f4f7b3eea6accfaefb124"
+  },
+  "authorizedScopeCandidate": {
+    "members": [
+      {
+        "verb": "POST",
+        "path": "/repos/{owner}/{repo}/issues",
+        "operationId": "issues/create",
+        "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+        "entrySha256": "0d38af60aefb81b492ba13af0f17ad0836f73abf1b2423563b73294a0d04e2b5",
+        "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+        "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+      },
+      {
+        "verb": "GET",
+        "path": "/repos/{owner}/{repo}/issues",
+        "operationId": "issues/list-for-repo",
+        "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
+        "entrySha256": "c0663e85e422bd04cb38ad8d60e824ae26f46014ecc112035bfca69481965304",
+        "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+        "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+      }
+    ],
+    "authorizedScopeSha256": "d2415b1d10b1504684597ad27c02cd71c7708508c0f0541c71259b3e5c8093bc"
+  },
+  "ledger": {
+    "contentSha256": "ee94019dec385b5831e2cc962f4ec41610c238470ce2a7ed6f61614c16f6f85e",
+    "operationCounts": {
+      "total": 878,
+      "candidateSupported": 2,
+      "incomplete": 876
+    },
+    "methodCounts": {
+      "total": 1053,
+      "resolved": 1010,
+      "incomplete": 43
+    }
+  },
+  "sourcePrecedence": {
+    "matrix": {
+      "version": 1,
+      "ranks": [
+        {
+          "rank": 1,
+          "sourceKind": "github-app-permission-documentation",
+          "applicability": "authoritative-for-github-app-semantics"
+        },
+        {
+          "rank": 2,
+          "sourceKind": "installation-token-response-header",
+          "applicability": "operator-bearing-corroboration-or-conflict"
+        },
+        {
+          "rank": 3,
+          "sourceKind": "fine-grained-pat-response-header",
+          "applicability": "representable-but-not-github-app-applicable"
+        },
+        {
+          "rank": 4,
+          "sourceKind": "app-permissions-inverse-association",
+          "applicability": "seed-and-cross-check-only"
+        }
+      ]
+    },
+    "contentSha256": "605e5e3833e44027e0336d393e8f09f74ee2158e4f27984e63c2e60e3473fd04"
+  },
+  "incompleteSemantics": {
+    "contentSha256": "928a5044e9906cb234fcc08af40a967a47395206d973ab4279f5b3dce0c4ca3c",
+    "reasons": [
+      "ambiguous-permission-data",
+      "conflicting-permission-data",
+      "credential-semantics-unproven",
+      "duplicate-endpoint-method",
+      "duplicate-openapi-operation",
+      "duplicate-permission-data",
+      "invalid-endpoint-route",
+      "malformed-permission-evidence",
+      "missing-credential-identity",
+      "missing-operation-identity",
+      "missing-permission-data",
+      "missing-runtime-method",
+      "missing-standalone-method",
+      "no-openapi-operation",
+      "runtime-method-surface-mismatch",
+      "source-integrity-mismatch",
+      "stale-permission-source",
+      "unreviewed-permission-source",
+      "unsupported-access-level",
+      "unsupported-permission-expression",
+      "unsupported-permission-name",
+      "unsupported-permission-qualifier"
+    ]
+  },
+  "knownLimitations": [
+    "The candidate scope contains only the two exact reviewer-backed canonical Issues operations.",
+    "No reviewed GitHub App-applicable allOf expression is available in the retained evidence.",
+    "Fine-grained personal access token anyOf observations do not prove installation-token semantics.",
+    "The permission-package inverse index is incomplete, operator-less, and stale for some entries.",
+    "The reviewed GitHub permission documentation is live and unversioned; its review date is retained."
+  ],
+  "legalTerminalOutcomes": [
+    "GO",
+    "GO WITH BOUNDED SUPPORT",
+    "NO-GO / RESCOPE"
+  ],
+  "contentSha256": "b77682f1fb99a82113af8fc369f6e2b958b0b6eb70a5016a365a75a1b3d45877"
+}

@@ -20,6 +20,13 @@ import {
   validateOperationInventory,
   validateSupportManifest,
 } from '../inventory.js';
+import { buildIncompleteSemantics, validateIncompleteSemantics } from '../fail-closed.js';
+import {
+  buildFeasibilityPacket,
+  buildOperationLedger,
+  validateFeasibilityPacket,
+  validateOperationLedger,
+} from '../ledger.js';
 import { buildHeaderExpressionFixture, validateHeaderExpressionFixture } from '../source-evidence.js';
 
 const PROJECT_ROOT = process.cwd();
@@ -29,6 +36,9 @@ const CANONICAL_FIXTURE_PATH = 'tools/permission-data-feasibility/fixtures/canon
 const HEADER_FIXTURE_PATH = 'tools/permission-data-feasibility/fixtures/header-expressions.json';
 const INVENTORY_PATH = 'tools/permission-data-feasibility/evidence/operation-inventory.json';
 const SUPPORT_PATH = 'tools/permission-data-feasibility/evidence/support-manifest.json';
+const LEDGER_PATH = 'tools/permission-data-feasibility/evidence/operation-ledger.json';
+const INCOMPLETE_PATH = 'tools/permission-data-feasibility/evidence/incomplete-semantics.json';
+const PACKET_PATH = 'tools/permission-data-feasibility/evidence/feasibility-packet.json';
 
 function artifactByRole(manifest: ArtifactManifest, role: ArtifactIdentity['role']): ArtifactIdentity {
   const matches = manifest.artifacts.filter((artifact) => artifact.role === role);
@@ -95,9 +105,20 @@ const inventory = buildOperationInventory({
 validateOperationInventory(inventory);
 const support = evaluateSupportPredicate(inventory);
 validateSupportManifest(support);
+const ledgerInputs = { artifactManifest: manifest, permissionSources, inventory, supportManifest: support };
+const ledger = buildOperationLedger(ledgerInputs);
+validateOperationLedger(ledger, ledgerInputs);
+const incompleteSemantics = buildIncompleteSemantics();
+validateIncompleteSemantics(incompleteSemantics);
+const packetInputs = { ...ledgerInputs, canonicalIssues: canonicalFixture, ledger, incompleteSemantics };
+const packet = buildFeasibilityPacket(packetInputs);
+validateFeasibilityPacket(packet, packetInputs);
 
 writeJsonAtomically(PERMISSION_SOURCES_PATH, permissionSources);
 writeJsonAtomically(CANONICAL_FIXTURE_PATH, canonicalFixture);
 writeJsonAtomically(HEADER_FIXTURE_PATH, headerFixture);
 writeJsonAtomically(INVENTORY_PATH, inventory);
 writeJsonAtomically(SUPPORT_PATH, support);
+writeJsonAtomically(LEDGER_PATH, ledger);
+writeJsonAtomically(INCOMPLETE_PATH, incompleteSemantics);
+writeJsonAtomically(PACKET_PATH, packet);
