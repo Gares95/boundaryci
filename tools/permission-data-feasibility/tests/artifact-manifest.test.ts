@@ -24,6 +24,13 @@ function resign(manifest: ArtifactManifest): void {
 }
 
 describe('portable artifact manifest', () => {
+  it('matches the committed manifest to the current project bytes', () => {
+    const committed = JSON.parse(
+      readFileSync(`${PROJECT_ROOT}/tools/permission-data-feasibility/evidence/artifact-manifest.json`, 'utf8'),
+    ) as unknown;
+    expect(() => assertArtifactManifestMatchesProject(PROJECT_ROOT, committed)).not.toThrow();
+  });
+
   it('binds the selected static inputs and the runtime endpoint surface', () => {
     const manifest = buildArtifactManifest(PROJECT_ROOT);
     expect(() => validateArtifactManifest(manifest)).not.toThrow();
