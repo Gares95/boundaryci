@@ -12,5 +12,9 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["tools/permission-data-feasibility/**/*.ts"]
+  "include": [
+    "tools/permission-data-feasibility/**/*.ts",
+    "src/permission-model/**/*.ts",
+    "tests/permission-model/**/*.test.ts"
+  ]
 }
