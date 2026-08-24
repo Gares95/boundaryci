@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+  "permissionSourcesSha256": "8e240cb0a1b9b9f5fc2d33a84c52b4d4079b30515133525eff618577bb39e32b",
+  "chains": [
+    {
+      "status": "resolved",
+      "scope": "issues",
+      "method": "listForRepo",
+      "route": {
+        "verb": "GET",
+        "path": "/repos/{owner}/{repo}/issues"
+      },
+      "operationId": "issues/list-for-repo",
+      "requirement": {
+        "type": "permission",
+        "permission": "issues",
+        "level": "read"
+      },
+      "evidence": {
+        "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+        "permissionSourcesSha256": "8e240cb0a1b9b9f5fc2d33a84c52b4d4079b30515133525eff618577bb39e32b",
+        "permissionFactSha256": "beaedc5113d1b93a0deb4ce80dba6fb9d0b2f07c5bb4761caf86d4f80e52b875"
+      }
+    },
+    {
+      "status": "resolved",
+      "scope": "issues",
+      "method": "create",
+      "route": {
+        "verb": "POST",
+        "path": "/repos/{owner}/{repo}/issues"
+      },
+      "operationId": "issues/create",
+      "requirement": {
+        "type": "permission",
+        "permission": "issues",
+        "level": "write"
+      },
+      "evidence": {
+        "artifactManifestSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec",
+        "permissionSourcesSha256": "8e240cb0a1b9b9f5fc2d33a84c52b4d4079b30515133525eff618577bb39e32b",
+        "permissionFactSha256": "c9d3d18bf2c97d0a30cbb3a768b1729cf25d2c1ec761a4771bece1f83a9094cd"
+      }
+    }
+  ],
+  "contentSha256": "e132f5ca63c80ef55e611f81bfe3c25afa9aa61bc37f05c928dc3293dcf2d6e6"
+}

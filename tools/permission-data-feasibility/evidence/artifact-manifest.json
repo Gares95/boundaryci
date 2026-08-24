@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "githubRestApiEvidenceVersion": "2022-11-28",
+  "documentationVersioning": "unversioned-live",
+  "project": {
+    "packageManager": "pnpm@11.11.0+sha512.4463f65fd80ed80d69bc1d4bf163ee94f605c7380fc318bb5b2ebe15f8cd12d49c51a4d59e951b401e764d3b6ca751cbf51bc50ed7001a6bcb4935e684c34882",
+    "packageJson": {
+      "path": "package.json",
+      "bytes": 2675,
+      "sha256": "de3cdfff4d8593bbed0949075217593420d18dfbe9c802f963573bfbfa95a801"
+    },
+    "lockfile": {
+      "path": "pnpm-lock.yaml",
+      "bytes": 47141,
+      "sha256": "40064d724d26943ddc6d6190711e12e6ec9a0a924e974c5946c17684b86323cf"
+    }
+  },
+  "artifacts": [
+    {
+      "role": "appPermissions",
+      "packageName": "@octokit/app-permissions",
+      "version": "2.1.0",
+      "lockIdentity": "@octokit/app-permissions@2.1.0",
+      "integrity": "sha512-enxS7BhjntGdKl+xmrU8by9Sxa940/msBQEJGBjts+HKzAOKA//ayh7FuIC2ksNDuLVZG0VIwDYIj/nIqT5mxQ==",
+      "repository": "github:octokit/app-permissions",
+      "packageJson": {
+        "path": "node_modules/@octokit/app-permissions/package.json",
+        "bytes": 1141,
+        "sha256": "405f361953ac8c42f16b353117178dd64df523761fad47f7744a0b42e99f0d1d"
+      },
+      "dataFiles": [
+        {
+          "path": "node_modules/@octokit/app-permissions/generated/api.github.com.json",
+          "bytes": 80716,
+          "sha256": "5caad37a801392a22ea4969efeab789c0b89e141aa663df80de538a0a8cb3600"
+        }
+      ]
+    },
+    {
+      "role": "octokit",
+      "packageName": "octokit",
+      "version": "5.0.5",
+      "lockIdentity": "octokit@5.0.5",
+      "integrity": "sha512-4+/OFSqOjoyULo7eN7EA97DE0Xydj/PW5aIckxqQIoFjFwqXKuFCvXUJObyJfBF9Khu4RL/jlDRI9FPaMGfPnw==",
+      "repository": "github:octokit/octokit.js",
+      "packageJson": {
+        "path": "node_modules/octokit/package.json",
+        "bytes": 1550,
+        "sha256": "434518838d0d8e3c7393894efc87530a159079c2a4714ee7780486549b026804"
+      },
+      "dataFiles": []
+    },
+    {
+      "role": "openApi",
+      "packageName": "@octokit/openapi",
+      "version": "22.0.0",
+      "lockIdentity": "@octokit/openapi@22.0.0",
+      "integrity": "sha512-Rpif7FjTjFEBSU+amIRHUAIAHwgg+tVJdTiQuU2GEWDniZxmWjxZCgJ4V9GEp2GXnq/Bl+TrjEvwAl9PB29NAQ==",
+      "repository": "github:octokit/openapi",
+      "packageJson": {
+        "path": "node_modules/@octokit/openapi/package.json",
+        "bytes": 1605,
+        "sha256": "1997b58e266127c922ab600c30190b72d7c06ea2e1e1e1fc2f5bae412a832ff5"
+      },
+      "dataFiles": [
+        {
+          "path": "node_modules/@octokit/openapi/generated/api.github.com.json",
+          "bytes": 11781766,
+          "sha256": "3e8065e9059605343c997b736154b12f7f2bb2b8f409b1a6b40b16b6728c2eaa"
+        }
+      ]
+    },
+    {
+      "role": "probot",
+      "packageName": "probot",
+      "version": "14.3.2",
+      "lockIdentity": "probot@14.3.2",
+      "integrity": "sha512-Bprr2KwlVF4Jpb6bnIcfadA4Dtns8nDJxSEEPNy3FhRrtHUYxZGiczReG5Vo6M7t4iS8Kcvek7CDUTTXgkaSBw==",
+      "repository": "github:probot/probot",
+      "packageJson": {
+        "path": "node_modules/probot/package.json",
+        "bytes": 3913,
+        "sha256": "1eddf7b9122ad048efb2a9946709e7d036372be5bb56196bd931161ccf19d727"
+      },
+      "dataFiles": []
+    },
+    {
+      "role": "runtimeEndpointMethods",
+      "packageName": "@octokit/plugin-rest-endpoint-methods",
+      "version": "17.0.0",
+      "lockIdentity": "@octokit/plugin-rest-endpoint-methods@17.0.0",
+      "integrity": "sha512-B5yCyIlOJFPqUUeiD0cnBJwWJO8lkJs5d8+ze9QDP6SvfiXSz1BF+91+0MeI1d2yxgOhU/O+CvtiZ9jSkHhFAw==",
+      "repository": "github:octokit/plugin-rest-endpoint-methods.js",
+      "packageJson": {
+        "path": "node_modules/.pnpm/@octokit+plugin-rest-endpoint-methods@17.0.0_@octokit+core@7.0.7/node_modules/@octokit/plugin-rest-endpoint-methods/package.json",
+        "bytes": 1434,
+        "sha256": "15af8b786835c74de4eebc59cae95198f6abb8eaabc8454d252eb0b91c37cad8"
+      },
+      "dataFiles": [
+        {
+          "path": "node_modules/.pnpm/@octokit+plugin-rest-endpoint-methods@17.0.0_@octokit+core@7.0.7/node_modules/@octokit/plugin-rest-endpoint-methods/dist-src/generated/endpoints.js",
+          "bytes": 95773,
+          "sha256": "6326e53030d9e12713a7003da416806a3df07f58c78bac5d1d0e9ed4795db7cf"
+        }
+      ]
+    },
+    {
+      "role": "standaloneEndpointMethods",
+      "packageName": "@octokit/plugin-rest-endpoint-methods",
+      "version": "18.0.0",
+      "lockIdentity": "@octokit/plugin-rest-endpoint-methods@18.0.0",
+      "integrity": "sha512-1wM02pQTHEarWYij0Bb4gu8X8fBy2FJdI4HMTSFDxtYLbOkJErGVx5ywmM6jeS8tOmC0iCiRLrn6YsSIecUeOQ==",
+      "repository": "github:octokit/plugin-rest-endpoint-methods.js",
+      "packageJson": {
+        "path": "node_modules/@octokit/plugin-rest-endpoint-methods/package.json",
+        "bytes": 1440,
+        "sha256": "65f802f7b742a6c2cedb1e984f8681d1d83d0540d8328b10d34cf27778de1587"
+      },
+      "dataFiles": [
+        {
+          "path": "node_modules/@octokit/plugin-rest-endpoint-methods/dist-src/generated/endpoints.js",
+          "bytes": 97148,
+          "sha256": "944ef7df536acfcbf6da66982fd4eb4d13a83f8e639761b6d0d6cdbe6de76a72"
+        }
+      ]
+    },
+    {
+      "role": "typescript",
+      "packageName": "typescript",
+      "version": "6.0.2",
+      "lockIdentity": "typescript@6.0.2",
+      "integrity": "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ==",
+      "repository": "https://github.com/microsoft/TypeScript.git",
+      "packageJson": {
+        "path": "node_modules/typescript/package.json",
+        "bytes": 3527,
+        "sha256": "bb6ee7e709ae60426e30b8d393df4d939ee61407794b4f053ce6338d6eaa8c63"
+      },
+      "dataFiles": []
+    }
+  ],
+  "runtimeEndpointSelection": {
+    "selectedRole": "runtimeEndpointMethods",
+    "peerContext": "@octokit/core@7.0.7",
+    "consumers": [
+      {
+        "packageName": "octokit",
+        "version": "5.0.5",
+        "declaredRange": "^17.0.0",
+        "resolvedLockIdentity": "17.0.0(@octokit/core@7.0.7)"
+      },
+      {
+        "packageName": "probot",
+        "version": "14.3.2",
+        "declaredRange": "^17.0.0",
+        "resolvedLockIdentity": "17.0.0(@octokit/core@7.0.7)"
+      }
+    ]
+  },
+  "contentSha256": "705cd5088e0c9d0c7e073dede81f32c51695c6efc2feae4f03c95b530a88f4ec"
+}

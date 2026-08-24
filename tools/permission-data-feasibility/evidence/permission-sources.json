@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "documentation": {
+    "sourceUrl": "https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-issues",
+    "versioning": "unversioned-live",
+    "retrievalStatus": "captured",
+    "reviewStatus": "reviewed",
+    "reviewedOn": "2026-08-24"
+  },
+  "facts": [
+    {
+      "operationId": "issues/list-for-repo",
+      "verb": "GET",
+      "path": "/repos/{owner}/{repo}/issues",
+      "requirement": {
+        "type": "permission",
+        "permission": "issues",
+        "level": "read"
+      },
+      "sourceUrl": "https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-issues",
+      "evidenceSha256": "beaedc5113d1b93a0deb4ce80dba6fb9d0b2f07c5bb4761caf86d4f80e52b875"
+    },
+    {
+      "operationId": "issues/create",
+      "verb": "POST",
+      "path": "/repos/{owner}/{repo}/issues",
+      "requirement": {
+        "type": "permission",
+        "permission": "issues",
+        "level": "write"
+      },
+      "sourceUrl": "https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-issues",
+      "evidenceSha256": "c9d3d18bf2c97d0a30cbb3a768b1729cf25d2c1ec761a4771bece1f83a9094cd"
+    }
+  ],
+  "contentSha256": "8e240cb0a1b9b9f5fc2d33a84c52b4d4079b30515133525eff618577bb39e32b"
+}
