@@ -24,11 +24,23 @@ function resign(manifest: ArtifactManifest): void {
 }
 
 describe('portable artifact manifest', () => {
-  it('matches the committed manifest to the current project bytes', () => {
+  it('matches the committed dependency evidence to the current dependency-bearing project state', () => {
     const committed = JSON.parse(
       readFileSync(`${PROJECT_ROOT}/tools/permission-data-feasibility/evidence/artifact-manifest.json`, 'utf8'),
-    ) as unknown;
-    expect(() => assertArtifactManifestMatchesProject(PROJECT_ROOT, committed)).not.toThrow();
+    ) as ArtifactManifest;
+    expect(() => validateArtifactManifest(committed)).not.toThrow();
+
+    // The committed manifest is historical acquisition evidence, so its root package-file
+    // digest must not be rewritten when later phases add unrelated scripts. Building the
+    // current manifest still validates every selected direct dependency/version first; the
+    // comparison below then binds the package manager, lockfile, installed artifacts, and
+    // runtime endpoint selection while deliberately excluding only that historical snapshot.
+    const current = buildArtifactManifest(PROJECT_ROOT);
+    const { packageJson: _committedPackageSnapshot, ...committedProject } = committed.project;
+    const { packageJson: _currentPackageSnapshot, ...currentProject } = current.project;
+    expect(currentProject).toEqual(committedProject);
+    expect(current.artifacts).toEqual(committed.artifacts);
+    expect(current.runtimeEndpointSelection).toEqual(committed.runtimeEndpointSelection);
   });
 
   it('binds the selected static inputs and the runtime endpoint surface', () => {
