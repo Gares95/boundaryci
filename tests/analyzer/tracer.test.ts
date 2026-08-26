@@ -303,9 +303,12 @@ describe('direct Octokit tracer', () => {
     expect(issues?.permission).toBe('issues');
     expect(issues?.level).toBe('write');
     expect(issues?.contributors).toHaveLength(2);
-    expect(issues?.contributors.map((contributor) => contributor.source.span)).toEqual(
-      expect.arrayContaining([listSpan, createSpan]),
-    );
+    expect(
+      issues?.contributors.map((contributor) => {
+        if (contributor.source === null) throw new Error('expected source evidence');
+        return contributor.source.span;
+      }),
+    ).toEqual(expect.arrayContaining([listSpan, createSpan]));
   });
 
   it('follows immutable constructor and client aliases without widening the authorized origin', async () => {

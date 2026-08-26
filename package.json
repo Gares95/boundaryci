@@ -10,6 +10,7 @@
   },
   "scripts": {
     "test:permission-data-feasibility": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot",
+    "test:analyzer": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot tests/analyzer",
     "typecheck": "node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
     "quality:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/quality-checks.mjs"
   },
