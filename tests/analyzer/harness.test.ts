@@ -13,8 +13,10 @@ import {
   DEFAULT_ANALYSIS_LIMITS,
   validateAnalysisRequest,
   validateAnalysisResult,
+  type AnalysisLimits,
   type AnalysisRequest,
   type AnalyzerCause,
+  type AnalyzerCauseResource,
   type AnalyzerIdentity,
   type CandidateRecord,
   type CompleteAnalysisResult,
@@ -171,7 +173,20 @@ function causeRecord(overrides: Partial<AnalyzerCause> = {}): AnalyzerCause {
     scope: 'candidate',
     path: 'src/lookalike.ts',
     span: { start: { line: 1, column: 1 }, end: { line: 1, column: 10 } },
+    resource: null,
     detail: 'the receiver origin could not be proven',
+    ...overrides,
+  };
+}
+
+function resourceOf(limitKey: keyof AnalysisLimits, overrides: Partial<AnalyzerCauseResource> = {}): AnalyzerCauseResource {
+  return {
+    limitKey,
+    configured: 10,
+    consumed: 10,
+    frontier: 'src/app.ts',
+    processedSources: 10,
+    unprocessedSources: 5,
     ...overrides,
   };
 }
@@ -478,6 +493,194 @@ describe('complete, incomplete, and failed result validation', () => {
       validateAnalysisResult(result);
     }).toThrow(TypeError);
   });
+});
+
+describe('resource cause code/limitKey/scope/path semantics', () => {
+  function withCause(cause: AnalyzerCause): IncompleteAnalysisResult {
+    return { ...populatedIncompleteResult(), causes: [cause] };
+  }
+
+  const accepted: readonly [string, AnalyzerCause][] = [
+    [
+      'source-file-limit with maxSourceFiles, repository scope, and no path',
+      causeRecord({
+        code: 'source-file-limit',
+        scope: 'repository',
+        path: null,
+        span: null,
+        resource: resourceOf('maxSourceFiles'),
+      }),
+    ],
+    [
+      'source-work-limit with maxSourceWork, repository scope, and no path',
+      causeRecord({
+        code: 'source-work-limit',
+        scope: 'repository',
+        path: null,
+        span: null,
+        resource: resourceOf('maxSourceWork'),
+      }),
+    ],
+    [
+      'source-byte-limit with maxSourceFileBytes, source scope, and a path equal to its frontier',
+      causeRecord({
+        code: 'source-byte-limit',
+        scope: 'source',
+        path: 'src/app.ts',
+        span: null,
+        resource: resourceOf('maxSourceFileBytes', { frontier: 'src/app.ts' }),
+      }),
+    ],
+    [
+      'source-byte-limit with maxTotalSourceBytes, repository scope, and no path',
+      causeRecord({
+        code: 'source-byte-limit',
+        scope: 'repository',
+        path: null,
+        span: null,
+        resource: resourceOf('maxTotalSourceBytes'),
+      }),
+    ],
+  ];
+
+  for (const [label, cause] of accepted) {
+    it(`accepts ${label}`, () => {
+      expect(() => {
+        validateAnalysisResult(withCause(cause));
+      }).not.toThrow();
+    });
+  }
+
+  const rejected: readonly [string, AnalyzerCause][] = [
+    [
+      'source-file-limit carrying the maxSourceWork limit key',
+      causeRecord({
+        code: 'source-file-limit',
+        scope: 'repository',
+        path: null,
+        span: null,
+        resource: resourceOf('maxSourceWork'),
+      }),
+    ],
+    [
+      'source-file-limit scoped to source instead of repository',
+      causeRecord({
+        code: 'source-file-limit',
+        scope: 'source',
+        path: 'src/app.ts',
+        span: null,
+        resource: resourceOf('maxSourceFiles'),
+      }),
+    ],
+    [
+      'source-file-limit carrying a non-null path',
+      causeRecord({
+        code: 'source-file-limit',
+        scope: 'repository',
+        path: 'src/app.ts',
+        span: null,
+        resource: resourceOf('maxSourceFiles'),
+      }),
+    ],
+    [
+      'source-work-limit carrying the maxSourceFiles limit key',
+      causeRecord({
+        code: 'source-work-limit',
+        scope: 'repository',
+        path: null,
+        span: null,
+        resource: resourceOf('maxSourceFiles'),
+      }),
+    ],
+    [
+      'source-work-limit scoped to source instead of repository',
+      causeRecord({
+        code: 'source-work-limit',
+        scope: 'source',
+        path: 'src/app.ts',
+        span: null,
+        resource: resourceOf('maxSourceWork'),
+      }),
+    ],
+    [
+      'source-work-limit carrying a non-null path',
+      causeRecord({
+        code: 'source-work-limit',
+        scope: 'repository',
+        path: 'src/app.ts',
+        span: null,
+        resource: resourceOf('maxSourceWork'),
+      }),
+    ],
+    [
+      'per-file source-byte-limit scoped to repository instead of source',
+      causeRecord({
+        code: 'source-byte-limit',
+        scope: 'repository',
+        path: null,
+        span: null,
+        resource: resourceOf('maxSourceFileBytes', { frontier: 'src/app.ts' }),
+      }),
+    ],
+    [
+      'per-file source-byte-limit carrying no path',
+      causeRecord({
+        code: 'source-byte-limit',
+        scope: 'source',
+        path: null,
+        span: null,
+        resource: resourceOf('maxSourceFileBytes', { frontier: 'src/app.ts' }),
+      }),
+    ],
+    [
+      'per-file source-byte-limit whose path does not equal its own frontier',
+      causeRecord({
+        code: 'source-byte-limit',
+        scope: 'source',
+        path: 'src/other.ts',
+        span: null,
+        resource: resourceOf('maxSourceFileBytes', { frontier: 'src/app.ts' }),
+      }),
+    ],
+    [
+      'scan-wide source-byte-limit scoped to source instead of repository',
+      causeRecord({
+        code: 'source-byte-limit',
+        scope: 'source',
+        path: 'src/app.ts',
+        span: null,
+        resource: resourceOf('maxTotalSourceBytes'),
+      }),
+    ],
+    [
+      'scan-wide source-byte-limit carrying a non-null path',
+      causeRecord({
+        code: 'source-byte-limit',
+        scope: 'repository',
+        path: 'src/app.ts',
+        span: null,
+        resource: resourceOf('maxTotalSourceBytes'),
+      }),
+    ],
+    [
+      'source-byte-limit carrying a limit key that is neither byte budget',
+      causeRecord({
+        code: 'source-byte-limit',
+        scope: 'repository',
+        path: null,
+        span: null,
+        resource: resourceOf('maxSourceFiles'),
+      }),
+    ],
+  ];
+
+  for (const [label, cause] of rejected) {
+    it(`rejects ${label}`, () => {
+      expect(() => {
+        validateAnalysisResult(withCause(cause));
+      }).toThrow(TypeError);
+    });
+  }
 });
 
 describe('rejects unknown keys on nested result records', () => {

@@ -25,8 +25,6 @@
  */
 
 import { createHash } from 'node:crypto';
-import { readFile, readdir, realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import ts from 'typescript';
 
@@ -51,6 +49,7 @@ import type {
   AnalysisResult,
   AnalyzerCause,
   AnalyzerCauseCode,
+  AnalyzerCauseResource,
   AnalyzerCauseScope,
   AnalyzerIdentity,
   CandidateClassification,
@@ -63,6 +62,7 @@ import type {
   ReceiverProvenance,
   SourceRecord,
 } from './contract.js';
+import { discoverSources } from './discovery.js';
 import { ANALYZER_ENDPOINT_PROFILE, ANALYZER_PROFILE_IDENTITY } from './profile.js';
 import type { EndpointMemberRecord } from './profile.js';
 
@@ -97,6 +97,7 @@ interface PendingCause {
   scope: AnalyzerCauseScope;
   path: string | null;
   span: SourceSpan | null;
+  resource: AnalyzerCauseResource | null;
   detail: string;
 }
 
@@ -125,12 +126,17 @@ function compareBytes(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+/** Normalizes a declarative pattern/path array so caller order and duplicates never leak into evidence. */
+function sortedUnique(values: readonly string[]): string[] {
+  return [...new Set(values)].sort(compareBytes);
+}
+
 function ordinalId(prefix: string, index: number): string {
   return `${prefix}-${String(index + 1).padStart(4, '0')}`;
 }
 
 function causeKey(cause: PendingCause): string {
-  return JSON.stringify([cause.code, cause.path ?? '', cause.span, cause.scope, cause.detail]);
+  return JSON.stringify([cause.code, cause.path ?? '', cause.span, cause.scope, cause.resource, cause.detail]);
 }
 
 function causeOrder(cause: PendingCause): string {
@@ -156,132 +162,13 @@ function failed(reason: AnalysisFailureReason, code: AnalyzerCauseCode, detail: 
     status: 'failed',
     identity: ANALYZER_IDENTITY,
     reason,
-    causes: [{ id: ordinalId('cause', 0), code, scope: 'repository', path: null, span: null, detail }],
+    causes: [{ id: ordinalId('cause', 0), code, scope: 'repository', path: null, span: null, resource: null, detail }],
   };
 }
 
 function requestFailureDetail(error: unknown): string {
   const message = error instanceof TypeError ? error.message : 'the analysis request is not a valid object';
   return message.length > 200 ? `${message.slice(0, 200)}…` : message;
-}
-
-/* ------------------------------------------------------------------ *
- * Limited glob grammar (see ANALYSIS_DISCOVERY_PROFILE_ID).
- * ------------------------------------------------------------------ */
-
-const SEGMENT_CACHE = new Map<string, RegExp>();
-
-function segmentMatcher(segment: string): RegExp {
-  const cached = SEGMENT_CACHE.get(segment);
-  if (cached !== undefined) return cached;
-  let body = '';
-  for (const character of segment) {
-    if (character === '*') body += '[^/]*';
-    else if (character === '?') body += '[^/]';
-    else body += character.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-  }
-  const matcher = new RegExp(`^${body}$`, 'u');
-  SEGMENT_CACHE.set(segment, matcher);
-  return matcher;
-}
-
-function matchSegments(patternSegments: readonly string[], pathSegments: readonly string[], p: number, s: number): boolean {
-  if (p === patternSegments.length) return s === pathSegments.length;
-  const segment = patternSegments[p];
-  if (segment === '**') {
-    for (let next = s; next <= pathSegments.length; next += 1) {
-      if (matchSegments(patternSegments, pathSegments, p + 1, next)) return true;
-    }
-    return false;
-  }
-  if (s >= pathSegments.length) return false;
-  const candidate = pathSegments[s];
-  if (segment === undefined || candidate === undefined) return false;
-  if (!segmentMatcher(segment).test(candidate)) return false;
-  return matchSegments(patternSegments, pathSegments, p + 1, s + 1);
-}
-
-function matchesPattern(path: string, pattern: string): boolean {
-  return matchSegments(pattern.split('/'), path.split('/'), 0, 0);
-}
-
-function matchesAny(path: string, patterns: readonly string[]): boolean {
-  return patterns.some((pattern) => matchesPattern(path, pattern));
-}
-
-function hasSourceExtension(path: string): boolean {
-  if (path.endsWith('.d.ts') || path.endsWith('.d.mts')) return false;
-  return ANALYZER_SOURCE_EXTENSIONS.some((extension) => path.endsWith(extension));
-}
-
-/* ------------------------------------------------------------------ *
- * Bounded local discovery.
- * ------------------------------------------------------------------ */
-
-interface Discovery {
-  files: string[];
-  causes: PendingCause[];
-}
-
-/**
- * Walks the canonicalized root, reading regular files only.
- *
- * Symbolic links are never followed and never read. A link or other non-regular entry that
- * could have contributed source becomes a scoped discovery cause instead of silent absence;
- * an explicitly excluded entry is irrelevant and does not affect completeness.
- */
-async function discover(rootPath: string, include: readonly string[], exclude: readonly string[]): Promise<Discovery> {
-  const files: string[] = [];
-  const causes: PendingCause[] = [];
-
-  const isExcluded = (path: string): boolean => matchesAny(path, exclude);
-  const prunesDirectory = (path: string): boolean =>
-    exclude.some((pattern) => pattern === path || pattern === `${path}/**` || matchesPattern(path, pattern));
-  const isRelevantFile = (path: string): boolean =>
-    hasSourceExtension(path) && matchesAny(path, include) && !isExcluded(path);
-
-  const walk = async (absoluteDirectory: string, relativeDirectory: string): Promise<void> => {
-    const entries = await readdir(absoluteDirectory, { withFileTypes: true });
-    entries.sort((left, right) => compareBytes(left.name, right.name));
-    for (const entry of entries) {
-      const relative = relativeDirectory === '' ? entry.name : `${relativeDirectory}/${entry.name}`;
-      if (entry.isSymbolicLink()) {
-        if (prunesDirectory(relative)) continue;
-        if (isRelevantFile(relative) || !hasSourceExtension(relative)) {
-          causes.push({
-            code: 'discovery-symlink-entry',
-            scope: 'source',
-            path: relative,
-            span: null,
-            detail: 'a symbolic link was not followed and not read',
-          });
-        }
-        continue;
-      }
-      if (entry.isDirectory()) {
-        if (prunesDirectory(relative)) continue;
-        await walk(join(absoluteDirectory, entry.name), relative);
-        continue;
-      }
-      if (!entry.isFile()) {
-        if (isRelevantFile(relative)) {
-          causes.push({
-            code: 'discovery-non-regular-entry',
-            scope: 'source',
-            path: relative,
-            span: null,
-            detail: 'a non-regular filesystem entry was not read',
-          });
-        }
-        continue;
-      }
-      if (isRelevantFile(relative)) files.push(relative);
-    }
-  };
-
-  await walk(rootPath, '');
-  files.sort(compareBytes);
-  return { files, causes };
 }
 
 /* ------------------------------------------------------------------ *
@@ -493,7 +380,7 @@ function incompleteCandidate(
     span,
     classification: 'incomplete',
     reason,
-    causes: [{ code, scope: 'candidate', path, span, detail }],
+    causes: [{ code, scope: 'candidate', path, span, resource: null, detail }],
     observation: null,
   };
 }
@@ -658,112 +545,51 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
     return failed('invalid-analysis-request', 'invalid-analysis-request', requestFailureDetail(error));
   }
 
-  let rootPath: string;
-  try {
-    rootPath = await realpath(request.rootPath);
-    const rootStat = await stat(rootPath);
-    if (!rootStat.isDirectory()) {
-      return failed(
-        'analysis-root-not-a-directory',
-        'unresolvable-analysis-root',
-        'the analysis root is not a directory',
-      );
-    }
-  } catch {
-    return failed(
-      'unresolvable-analysis-root',
-      'unresolvable-analysis-root',
-      'the analysis root could not be canonicalized',
-    );
-  }
-
   const boundary: AnalysisBoundary = {
-    include: [...request.include],
-    exclude: [...request.exclude],
-    probotEntrypoints: [...request.probotEntrypoints],
+    include: sortedUnique(request.include),
+    exclude: sortedUnique(request.exclude),
+    probotEntrypoints: sortedUnique(request.probotEntrypoints),
     limits: { ...request.limits },
     sourceExtensions: [...ANALYZER_SOURCE_EXTENSIONS],
   };
 
-  let discovery: Discovery;
-  try {
-    discovery = await discover(rootPath, boundary.include, boundary.exclude);
-  } catch {
-    return failed(
-      'unresolvable-analysis-root',
-      'unresolvable-analysis-root',
-      'the analysis root could not be traversed',
-    );
+  const discovery = await discoverSources(request.rootPath, boundary.include, boundary.exclude, boundary.limits);
+  if (discovery.status === 'failed') {
+    const causeCode: AnalyzerCauseCode = discovery.reason === 'invalid-analysis-request' ? 'invalid-analysis-request' : 'unresolvable-analysis-root';
+    return failed(discovery.reason, causeCode, discovery.detail);
   }
 
-  const discovered = new Set(discovery.files);
-  for (const entrypoint of boundary.probotEntrypoints) {
-    if (!discovered.has(entrypoint)) {
-      return failed(
-        'probot-entrypoint-outside-source-universe',
-        'invalid-analysis-request',
-        'a designated Probot entrypoint is not part of the effective included source set',
-      );
+  const discovered = new Set(discovery.effectiveSources);
+  if (discovery.universeComplete) {
+    for (const entrypoint of boundary.probotEntrypoints) {
+      if (!discovered.has(entrypoint)) {
+        return failed(
+          'probot-entrypoint-outside-source-universe',
+          'invalid-analysis-request',
+          'a designated Probot entrypoint is not part of the effective included source set',
+        );
+      }
     }
   }
 
-  const causes: PendingCause[] = [...discovery.causes];
+  const causes: PendingCause[] = discovery.causes.map((cause) => ({
+    code: cause.code,
+    scope: cause.scope,
+    path: cause.path,
+    span: null,
+    resource: cause.resource,
+    detail: cause.detail,
+  }));
   const sources: SourceRecord[] = [];
   const candidates: PendingCandidate[] = [];
-  const limits = boundary.limits;
-  let consumedFiles = 0;
-  let consumedBytes = 0;
 
-  for (const relative of discovery.files) {
-    if (consumedFiles >= limits.maxSourceFiles) {
-      causes.push({
-        code: 'limit-file-count-exhausted',
-        scope: 'repository',
-        path: null,
-        span: null,
-        detail: `the source-file budget of ${String(limits.maxSourceFiles)} stopped analysis at source ${String(consumedFiles + 1)} of ${String(discovery.files.length)}`,
-      });
-      break;
-    }
-    let raw: Buffer;
-    try {
-      raw = await readFile(join(rootPath, relative));
-    } catch {
-      causes.push({
-        code: 'discovery-non-regular-entry',
-        scope: 'source',
-        path: relative,
-        span: null,
-        detail: 'an included source could not be read as a regular file',
-      });
-      continue;
-    }
-    if (raw.byteLength > limits.maxSourceFileBytes) {
-      causes.push({
-        code: 'source-too-large',
-        scope: 'source',
-        path: relative,
-        span: null,
-        detail: `the source exceeds the per-file budget of ${String(limits.maxSourceFileBytes)} bytes`,
-      });
-      continue;
-    }
-    if (consumedBytes + raw.byteLength > limits.maxTotalSourceBytes) {
-      causes.push({
-        code: 'limit-byte-budget-exhausted',
-        scope: 'repository',
-        path: null,
-        span: null,
-        detail: `the scan byte budget of ${String(limits.maxTotalSourceBytes)} stopped analysis at source ${String(consumedFiles + 1)} of ${String(discovery.files.length)} after ${String(consumedBytes)} bytes`,
-      });
-      break;
-    }
-    consumedFiles += 1;
-    consumedBytes += raw.byteLength;
+  for (const discoveredSource of discovery.sources) {
+    const relative = discoveredSource.path;
+    const raw = discoveredSource.bytes;
     sources.push({
       id: '',
       path: relative,
-      byteSize: raw.byteLength,
+      byteSize: discoveredSource.byteSize,
       contentSha256: createHash('sha256').update(raw).digest('hex'),
     });
 
@@ -774,6 +600,7 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
         scope: 'source',
         path: relative,
         span: null,
+        resource: null,
         detail: 'the source is not valid UTF-8 and was not parsed',
       });
       continue;
@@ -788,6 +615,7 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
         scope: 'source',
         path: relative,
         span: null,
+        resource: null,
         detail: `the source produced ${String(parseDiagnostics.length)} parser diagnostics and contributed no observation`,
       });
       continue;
@@ -801,6 +629,7 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
       scope: 'source',
       path: entrypoint,
       span: null,
+      resource: null,
       detail: 'Probot entrypoint provenance is not part of this analyzer grammar',
     });
   }
@@ -868,6 +697,7 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
       scope: 'repository',
       path: null,
       span: null,
+      resource: null,
       detail: `the bounded permission catalog could not resolve every proven operation: ${permissionBoundary.reasons.join(', ')}`,
     });
   }
@@ -881,7 +711,15 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
   const causeRecords: AnalyzerCause[] = orderedCauses.map((cause, index) => {
     const id = ordinalId('cause', index);
     causeIds.set(causeKey(cause), id);
-    return { id, code: cause.code, scope: cause.scope, path: cause.path, span: cause.span, detail: cause.detail };
+    return {
+      id,
+      code: cause.code,
+      scope: cause.scope,
+      path: cause.path,
+      span: cause.span,
+      resource: cause.resource,
+      detail: cause.detail,
+    };
   });
 
   candidates.forEach((candidate, index) => {

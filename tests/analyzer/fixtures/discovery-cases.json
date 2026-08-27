@@ -1,0 +1,66 @@
+{
+  "validPatterns": [
+    {
+      "name": "single segment wildcard",
+      "pattern": "src/*.ts",
+      "matches": ["src/app.ts", "src/a.ts"],
+      "nonMatches": ["src/deep/app.ts", "app.ts", "src/app.tsx"]
+    },
+    {
+      "name": "double star full subtree",
+      "pattern": "src/**/*.ts",
+      "matches": ["src/app.ts", "src/deep/app.ts", "src/a/b/c.ts"],
+      "nonMatches": ["app.ts", "lib/app.ts", "src/app.js"]
+    },
+    {
+      "name": "leading double star",
+      "pattern": "**/*.test.ts",
+      "matches": ["a.test.ts", "src/a.test.ts", "src/deep/a.test.ts"],
+      "nonMatches": ["a.test.js", "a.tests.ts"]
+    },
+    {
+      "name": "question mark single character",
+      "pattern": "src/index.?s",
+      "matches": ["src/index.js", "src/index.ts"],
+      "nonMatches": ["src/index.jsx", "src/index.s"]
+    },
+    {
+      "name": "exact literal file",
+      "pattern": "src/app.ts",
+      "matches": ["src/app.ts"],
+      "nonMatches": ["src/app.tsx", "app.ts", "src/deep/app.ts"]
+    }
+  ],
+  "invalidPatterns": [
+    { "name": "absolute pattern", "pattern": "/src/**/*.ts" },
+    { "name": "parent segment", "pattern": "../src/**/*.ts" },
+    { "name": "current segment", "pattern": "src/./app.ts" },
+    { "name": "backslash separator", "pattern": "src\\**\\*.ts" },
+    { "name": "uninterpreted negation operator", "pattern": "!(src)/**/*.ts" },
+    { "name": "brace expansion", "pattern": "src/{a,b}.ts" },
+    { "name": "character class", "pattern": "src/[ab].ts" },
+    { "name": "malformed double star", "pattern": "src/**foo/*.ts" },
+    { "name": "empty pattern", "pattern": "" },
+    { "name": "empty segment", "pattern": "src//*.ts" },
+    { "name": "trailing slash", "pattern": "src/" }
+  ],
+  "directoryFrontier": [
+    { "name": "double star covers immediate directory", "pattern": "src/**/*.ts", "directory": "src", "coversDirectory": true },
+    { "name": "double star covers nested directory", "pattern": "src/**/*.ts", "directory": "src/deep", "coversDirectory": true },
+    { "name": "unrelated directory is not covered", "pattern": "src/**/*.ts", "directory": "docs", "coversDirectory": false },
+    { "name": "single segment pattern covers its own directory", "pattern": "src/*.ts", "directory": "src", "coversDirectory": true },
+    { "name": "single segment pattern does not cover a deeper directory", "pattern": "src/*.ts", "directory": "src/deep", "coversDirectory": false },
+    { "name": "exact file pattern covers its immediate parent directory", "pattern": "src/app.ts", "directory": "src", "coversDirectory": true },
+    { "name": "exact file pattern does not cover a different directory", "pattern": "src/app.ts", "directory": "src/other", "coversDirectory": false }
+  ],
+  "subtreeExclusion": [
+    { "name": "whole-subtree pattern excludes its own directory", "pattern": "src/**", "directory": "src", "excludesSubtree": true },
+    { "name": "whole-subtree pattern excludes a nested directory", "pattern": "src/**", "directory": "src/nested", "excludesSubtree": true },
+    { "name": "single-segment pattern does not prove a subtree excluded", "pattern": "src/*", "directory": "src/nested", "excludesSubtree": false },
+    { "name": "bare double star excludes every directory", "pattern": "**", "directory": "src/nested", "excludesSubtree": true },
+    { "name": "wildcard subtree pattern excludes the matched directory", "pattern": "src/*/**", "directory": "src/nested", "excludesSubtree": true },
+    { "name": "wildcard subtree pattern does not exclude its parent", "pattern": "src/*/**", "directory": "src", "excludesSubtree": false },
+    { "name": "file-tail pattern never proves a subtree excluded", "pattern": "src/**/*.ts", "directory": "src/nested", "excludesSubtree": false },
+    { "name": "unrelated subtree pattern does not exclude", "pattern": "docs/**", "directory": "src", "excludesSubtree": false }
+  ]
+}

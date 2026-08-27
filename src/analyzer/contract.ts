@@ -78,11 +78,20 @@ export const ANALYZER_SOURCE_EXTENSIONS: readonly string[] = Object.freeze([
   '.tsx',
 ]);
 
-/** Deterministic scan-wide bounds. Zero is a meaningful value and is not repaired. */
+/**
+ * Deterministic scan-wide bounds. Zero is a meaningful value and is not repaired.
+ *
+ * `maxSourceFiles` and `maxTotalSourceBytes` are scan-wide frontiers charged in bytewise
+ * sorted source order. `maxSourceFileBytes` is a file-scoped budget: a file that exceeds it
+ * is individually omitted and independent sorted files continue. `maxSourceWork` bounds
+ * discovery itself — one work unit is one filesystem entry inspected during deterministic
+ * no-follow traversal, charged before any file-count or byte budget.
+ */
 export interface AnalysisLimits {
   maxSourceFiles: number;
   maxSourceFileBytes: number;
   maxTotalSourceBytes: number;
+  maxSourceWork: number;
 }
 
 /** Conservative defaults for callers that do not carry their own limit profile. */
@@ -90,6 +99,7 @@ export const DEFAULT_ANALYSIS_LIMITS: Readonly<AnalysisLimits> = Object.freeze({
   maxSourceFiles: 5000,
   maxSourceFileBytes: 2_000_000,
   maxTotalSourceBytes: 64_000_000,
+  maxSourceWork: 50_000,
 });
 
 /**
@@ -115,17 +125,20 @@ export type AnalysisFailureReason =
   | 'unresolvable-analysis-root';
 
 export type AnalyzerCauseCode =
-  | 'discovery-non-regular-entry'
-  | 'discovery-symlink-entry'
   | 'invalid-analysis-request'
   | 'invalid-analysis-result'
-  | 'limit-byte-budget-exhausted'
-  | 'limit-file-count-exhausted'
+  | 'matching-non-regular-entry'
+  | 'matching-source-symlink'
   | 'permission-catalog-incomplete'
   | 'probot-entrypoint-unsupported'
+  | 'relevant-directory-symlink'
+  | 'source-byte-limit'
   | 'source-decode-failed'
+  | 'source-discovery-error'
+  | 'source-file-limit'
   | 'source-parse-diagnostics'
-  | 'source-too-large'
+  | 'source-read-error'
+  | 'source-work-limit'
   | 'unproven-receiver-provenance'
   | 'unresolvable-analysis-root'
   | 'unsupported-endpoint-surface'
@@ -133,6 +146,25 @@ export type AnalyzerCauseCode =
   | 'unsupported-static-member-access';
 
 export type AnalyzerCauseScope = 'candidate' | 'repository' | 'source';
+
+/**
+ * Machine-readable resource-frontier evidence for a resource-exhaustion cause.
+ *
+ * Present only on the three resource cause codes ({@link AnalyzerCauseCode}
+ * `source-file-limit`, `source-byte-limit`, and `source-work-limit`); `null` everywhere else.
+ * `frontier` is the normalized root-relative POSIX path where the budget stopped or omitted
+ * work, when one is available. `processedSources`/`unprocessedSources` count known completed
+ * and known-remaining sources; either is `null` when the count is not knowable, such as when
+ * work exhaustion stopped traversal before the remaining universe could be enumerated.
+ */
+export interface AnalyzerCauseResource {
+  limitKey: keyof AnalysisLimits;
+  configured: number;
+  consumed: number;
+  frontier: string | null;
+  processedSources: number | null;
+  unprocessedSources: number | null;
+}
 
 /**
  * One deduplicated causal record.
@@ -146,6 +178,7 @@ export interface AnalyzerCause {
   scope: AnalyzerCauseScope;
   path: string | null;
   span: SourceSpan | null;
+  resource: AnalyzerCauseResource | null;
   detail: string;
 }
 
@@ -319,23 +352,29 @@ const FAILURE_REASONS: readonly AnalysisFailureReason[] = [
 ];
 
 const CAUSE_CODES: readonly AnalyzerCauseCode[] = [
-  'discovery-non-regular-entry',
-  'discovery-symlink-entry',
   'invalid-analysis-request',
   'invalid-analysis-result',
-  'limit-byte-budget-exhausted',
-  'limit-file-count-exhausted',
+  'matching-non-regular-entry',
+  'matching-source-symlink',
   'permission-catalog-incomplete',
   'probot-entrypoint-unsupported',
+  'relevant-directory-symlink',
+  'source-byte-limit',
   'source-decode-failed',
+  'source-discovery-error',
+  'source-file-limit',
   'source-parse-diagnostics',
-  'source-too-large',
+  'source-read-error',
+  'source-work-limit',
   'unproven-receiver-provenance',
   'unresolvable-analysis-root',
   'unsupported-endpoint-surface',
   'unsupported-optional-chain',
   'unsupported-static-member-access',
 ];
+
+/** Cause codes that carry a non-null {@link AnalyzerCauseResource}; every other code is null. */
+const RESOURCE_CAUSE_CODES: readonly AnalyzerCauseCode[] = ['source-byte-limit', 'source-file-limit', 'source-work-limit'];
 
 const CAUSE_SCOPES: readonly AnalyzerCauseScope[] = ['candidate', 'repository', 'source'];
 
@@ -360,7 +399,12 @@ const CANDIDATE_REASONS: readonly CandidateReason[] = [
   'unsupported-static-member-access',
 ];
 
-const LIMIT_KEYS: readonly (keyof AnalysisLimits)[] = ['maxSourceFileBytes', 'maxSourceFiles', 'maxTotalSourceBytes'];
+const LIMIT_KEYS: readonly (keyof AnalysisLimits)[] = [
+  'maxSourceFileBytes',
+  'maxSourceFiles',
+  'maxSourceWork',
+  'maxTotalSourceBytes',
+];
 
 function assertPlainObject(value: unknown, label: string): asserts value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -665,15 +709,81 @@ function assertIdentity(value: unknown, label: string): asserts value is Analyze
   assertSha256(value.permissionCatalogScopeSha256, `${label}.permissionCatalogScopeSha256`);
 }
 
+function assertCauseResource(value: unknown, label: string): asserts value is AnalyzerCauseResource {
+  assertPlainObject(value, label);
+  assertExactKeys(
+    value,
+    ['configured', 'consumed', 'frontier', 'limitKey', 'processedSources', 'unprocessedSources'],
+    label,
+  );
+  if (!LIMIT_KEYS.includes(value.limitKey as keyof AnalysisLimits)) throw new TypeError(`${label}.limitKey is invalid`);
+  assertBudget(value.configured, `${label}.configured`);
+  assertBudget(value.consumed, `${label}.consumed`);
+  if (value.frontier !== null) assertRootRelativePosixPath(value.frontier, `${label}.frontier`);
+  if (value.processedSources !== null) assertBudget(value.processedSources, `${label}.processedSources`);
+  if (value.unprocessedSources !== null) assertBudget(value.unprocessedSources, `${label}.unprocessedSources`);
+}
+
+/**
+ * Accepts only the exact code/limitKey/scope/path pairing each resource cause may carry.
+ *
+ * `source-file-limit` and `source-work-limit` are always repository-scoped, scan-wide
+ * frontiers with no cause path. `source-byte-limit` is file-scoped with a cause path equal to
+ * its own frontier when it carries `maxSourceFileBytes`, and repository-scoped with no cause
+ * path when it carries `maxTotalSourceBytes`. No other code/key pairing is valid.
+ */
+function assertResourceCauseSemantics(
+  code: AnalyzerCauseCode,
+  scope: AnalyzerCauseScope,
+  path: string | null,
+  resource: AnalyzerCauseResource,
+  label: string,
+): void {
+  if (code === 'source-file-limit' || code === 'source-work-limit') {
+    const expectedKey: keyof AnalysisLimits = code === 'source-file-limit' ? 'maxSourceFiles' : 'maxSourceWork';
+    if (resource.limitKey !== expectedKey) throw new TypeError(`${label}.resource.limitKey must be ${expectedKey}`);
+    if (scope !== 'repository') throw new TypeError(`${label} must be repository-scoped`);
+    if (path !== null) throw new TypeError(`${label} must carry no path`);
+    return;
+  }
+  if (resource.limitKey === 'maxSourceFileBytes') {
+    if (scope !== 'source') throw new TypeError(`${label} must be source-scoped for maxSourceFileBytes`);
+    if (path === null || path !== resource.frontier) {
+      throw new TypeError(`${label} path must equal its resource frontier`);
+    }
+    return;
+  }
+  if (resource.limitKey === 'maxTotalSourceBytes') {
+    if (scope !== 'repository') throw new TypeError(`${label} must be repository-scoped for maxTotalSourceBytes`);
+    if (path !== null) throw new TypeError(`${label} must carry no path for maxTotalSourceBytes`);
+    return;
+  }
+  throw new TypeError(`${label}.resource.limitKey is not valid for ${code}`);
+}
+
 function assertCause(value: unknown, label: string): asserts value is AnalyzerCause {
   assertPlainObject(value, label);
-  assertExactKeys(value, ['code', 'detail', 'id', 'path', 'scope', 'span'], label);
+  assertExactKeys(value, ['code', 'detail', 'id', 'path', 'resource', 'scope', 'span'], label);
   assertOrdinalId(value.id, `${label}.id`);
   if (!CAUSE_CODES.includes(value.code as AnalyzerCauseCode)) throw new TypeError(`${label}.code is invalid`);
   if (!CAUSE_SCOPES.includes(value.scope as AnalyzerCauseScope)) throw new TypeError(`${label}.scope is invalid`);
   if (value.path !== null) assertRootRelativePosixPath(value.path, `${label}.path`);
   if (value.span !== null) assertSpan(value.span, `${label}.span`);
   if (value.span !== null && value.path === null) throw new TypeError(`${label}.span requires a path`);
+  const isResourceCause = RESOURCE_CAUSE_CODES.includes(value.code as AnalyzerCauseCode);
+  if (isResourceCause) {
+    if (value.resource === null) throw new TypeError(`${label}.resource is required for a resource cause`);
+    assertCauseResource(value.resource, `${label}.resource`);
+    assertResourceCauseSemantics(
+      value.code as AnalyzerCauseCode,
+      value.scope as AnalyzerCauseScope,
+      value.path as string | null,
+      value.resource,
+      label,
+    );
+  } else if (value.resource !== null) {
+    throw new TypeError(`${label}.resource must be null for a non-resource cause`);
+  }
   assertNonEmptyString(value.detail, `${label}.detail`);
 }
 
