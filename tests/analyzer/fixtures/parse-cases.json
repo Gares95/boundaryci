@@ -1,0 +1,150 @@
+{
+  "scriptKinds": [
+    { "name": "plain JavaScript", "path": "src/app.js", "scriptKind": "JS" },
+    { "name": "ES module JavaScript", "path": "src/app.mjs", "scriptKind": "JS" },
+    { "name": "JavaScript with JSX syntax", "path": "src/view.jsx", "scriptKind": "JSX" },
+    { "name": "plain TypeScript", "path": "src/app.ts", "scriptKind": "TS" },
+    { "name": "ES module TypeScript", "path": "src/app.mts", "scriptKind": "TS" },
+    { "name": "TypeScript with JSX syntax", "path": "src/view.tsx", "scriptKind": "TSX" },
+    { "name": "nested path keeps its extension decision", "path": "a/b/c/deep.tsx", "scriptKind": "TSX" },
+    {
+      "name": "a declaration file is excluded by discovery, not by a missing script kind",
+      "path": "src/types.d.ts",
+      "scriptKind": "TS"
+    },
+    { "name": "CommonJS JavaScript is outside the source universe", "path": "src/legacy.cjs", "scriptKind": null },
+    { "name": "CommonJS TypeScript is outside the source universe", "path": "src/legacy.cts", "scriptKind": null },
+    { "name": "data is not source", "path": "src/data.json", "scriptKind": null },
+    { "name": "the extension match is case-sensitive", "path": "src/app.JS", "scriptKind": null },
+    { "name": "a longer suffix is not one of the six extensions", "path": "src/app.tsxx", "scriptKind": null },
+    { "name": "an extensionless path has no script kind", "path": "src/app", "scriptKind": null },
+    { "name": "an extension-like directory name is not an extension", "path": "src/app.ts/inner.txt", "scriptKind": null }
+  ],
+  "spans": [
+    {
+      "name": "LF terminates each line",
+      "text": "a\nbb\nccc\n",
+      "offsets": [
+        { "start": 0, "end": 1, "expected": { "start": { "line": 1, "column": 1 }, "end": { "line": 1, "column": 2 } } },
+        { "start": 2, "end": 4, "expected": { "start": { "line": 2, "column": 1 }, "end": { "line": 2, "column": 3 } } },
+        { "start": 5, "end": 8, "expected": { "start": { "line": 3, "column": 1 }, "end": { "line": 3, "column": 4 } } },
+        { "start": 8, "end": 9, "expected": { "start": { "line": 3, "column": 4 }, "end": { "line": 4, "column": 1 } } },
+        { "start": 0, "end": 9, "expected": { "start": { "line": 1, "column": 1 }, "end": { "line": 4, "column": 1 } } }
+      ]
+    },
+    {
+      "name": "CRLF terminates exactly one line and both of its code units belong to that line",
+      "text": "a\r\nbb\r\n",
+      "offsets": [
+        { "start": 3, "end": 5, "expected": { "start": { "line": 2, "column": 1 }, "end": { "line": 2, "column": 3 } } },
+        { "start": 1, "end": 2, "expected": { "start": { "line": 1, "column": 2 }, "end": { "line": 1, "column": 3 } } },
+        { "start": 7, "end": 7, "expected": { "start": { "line": 3, "column": 1 }, "end": { "line": 3, "column": 1 } } }
+      ]
+    },
+    {
+      "name": "a lone CR terminates a line",
+      "text": "a\rb\n",
+      "offsets": [
+        { "start": 2, "end": 3, "expected": { "start": { "line": 2, "column": 1 }, "end": { "line": 2, "column": 2 } } },
+        { "start": 0, "end": 2, "expected": { "start": { "line": 1, "column": 1 }, "end": { "line": 2, "column": 1 } } },
+        { "start": 4, "end": 4, "expected": { "start": { "line": 3, "column": 1 }, "end": { "line": 3, "column": 1 } } }
+      ]
+    },
+    {
+      "name": "an astral character counts as two UTF-16 code units",
+      "text": "𝒳y\n",
+      "offsets": [
+        { "start": 0, "end": 2, "expected": { "start": { "line": 1, "column": 1 }, "end": { "line": 1, "column": 3 } } },
+        { "start": 2, "end": 3, "expected": { "start": { "line": 1, "column": 3 }, "end": { "line": 1, "column": 4 } } },
+        { "start": 0, "end": 4, "expected": { "start": { "line": 1, "column": 1 }, "end": { "line": 2, "column": 1 } } }
+      ]
+    },
+    {
+      "name": "a source without a trailing newline ends on its own line",
+      "text": "abc",
+      "offsets": [
+        { "start": 0, "end": 3, "expected": { "start": { "line": 1, "column": 1 }, "end": { "line": 1, "column": 4 } } },
+        { "start": 3, "end": 3, "expected": { "start": { "line": 1, "column": 4 }, "end": { "line": 1, "column": 4 } } }
+      ]
+    },
+    {
+      "name": "an empty source has exactly one position",
+      "text": "",
+      "offsets": [
+        { "start": 0, "end": 0, "expected": { "start": { "line": 1, "column": 1 }, "end": { "line": 1, "column": 1 } } }
+      ]
+    },
+    {
+      "name": "consecutive terminators produce empty lines",
+      "text": "\n\n",
+      "offsets": [
+        { "start": 1, "end": 1, "expected": { "start": { "line": 2, "column": 1 }, "end": { "line": 2, "column": 1 } } },
+        { "start": 2, "end": 2, "expected": { "start": { "line": 3, "column": 1 }, "end": { "line": 3, "column": 1 } } }
+      ]
+    },
+    {
+      "name": "U+2028 is ordinary text under this convention, not a line terminator",
+      "text": "a b",
+      "offsets": [
+        { "start": 2, "end": 3, "expected": { "start": { "line": 1, "column": 3 }, "end": { "line": 1, "column": 4 } } }
+      ]
+    },
+    {
+      "name": "a U+FEFF that is not the leading byte-order mark is ordinary text",
+      "text": "a﻿b\n",
+      "offsets": [
+        { "start": 2, "end": 3, "expected": { "start": { "line": 1, "column": 3 }, "end": { "line": 1, "column": 4 } } }
+      ]
+    }
+  ],
+  "candidateRules": [
+    {
+      "name": "an extensionless specifier probes exactly the six discovered extensions",
+      "specifierExtension": "",
+      "candidateExtensions": [".js", ".jsx", ".mjs", ".ts", ".tsx", ".mts"],
+      "eligibleCandidateExtensions": [".js", ".jsx", ".mjs", ".ts", ".tsx", ".mts"]
+    },
+    {
+      "name": "an explicit .js specifier also names its emitted TypeScript sources",
+      "specifierExtension": ".js",
+      "candidateExtensions": [".js", ".ts", ".tsx"],
+      "eligibleCandidateExtensions": [".js", ".ts", ".tsx"]
+    },
+    {
+      "name": "an explicit .jsx specifier also names .tsx",
+      "specifierExtension": ".jsx",
+      "candidateExtensions": [".jsx", ".tsx"],
+      "eligibleCandidateExtensions": [".jsx", ".tsx"]
+    },
+    {
+      "name": "an explicit .mjs specifier also names .mts",
+      "specifierExtension": ".mjs",
+      "candidateExtensions": [".mjs", ".mts"],
+      "eligibleCandidateExtensions": [".mjs", ".mts"]
+    },
+    {
+      "name": "an explicit .ts specifier names only itself",
+      "specifierExtension": ".ts",
+      "candidateExtensions": [".ts"],
+      "eligibleCandidateExtensions": [".ts"]
+    },
+    {
+      "name": "an explicit .tsx specifier names only itself",
+      "specifierExtension": ".tsx",
+      "candidateExtensions": [".tsx"],
+      "eligibleCandidateExtensions": [".tsx"]
+    },
+    {
+      "name": "an explicit .mts specifier names only itself",
+      "specifierExtension": ".mts",
+      "candidateExtensions": [".mts"],
+      "eligibleCandidateExtensions": [".mts"]
+    },
+    {
+      "name": "the documented .cjs mapping has no eligible candidate in the Phase 3 universe",
+      "specifierExtension": ".cjs",
+      "candidateExtensions": [".cjs", ".cts"],
+      "eligibleCandidateExtensions": []
+    }
+  ]
+}

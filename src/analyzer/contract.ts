@@ -127,16 +127,16 @@ export type AnalysisFailureReason =
 export type AnalyzerCauseCode =
   | 'invalid-analysis-request'
   | 'invalid-analysis-result'
+  | 'invalid-source-encoding'
   | 'matching-non-regular-entry'
   | 'matching-source-symlink'
   | 'permission-catalog-incomplete'
   | 'probot-entrypoint-unsupported'
   | 'relevant-directory-symlink'
   | 'source-byte-limit'
-  | 'source-decode-failed'
   | 'source-discovery-error'
   | 'source-file-limit'
-  | 'source-parse-diagnostics'
+  | 'source-parse-error'
   | 'source-read-error'
   | 'source-work-limit'
   | 'unproven-receiver-provenance'
@@ -354,16 +354,16 @@ const FAILURE_REASONS: readonly AnalysisFailureReason[] = [
 const CAUSE_CODES: readonly AnalyzerCauseCode[] = [
   'invalid-analysis-request',
   'invalid-analysis-result',
+  'invalid-source-encoding',
   'matching-non-regular-entry',
   'matching-source-symlink',
   'permission-catalog-incomplete',
   'probot-entrypoint-unsupported',
   'relevant-directory-symlink',
   'source-byte-limit',
-  'source-decode-failed',
   'source-discovery-error',
   'source-file-limit',
-  'source-parse-diagnostics',
+  'source-parse-error',
   'source-read-error',
   'source-work-limit',
   'unproven-receiver-provenance',

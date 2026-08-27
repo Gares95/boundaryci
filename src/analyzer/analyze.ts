@@ -1,11 +1,13 @@
 /**
  * The independently usable BoundaryCI source analyzer.
  *
- * This module walks a trusted analysis root, reads bounded regular-file bytes, and parses
- * each included source with `ts.createSourceFile`. It never installs, resolves, imports,
- * transpiles, builds, or executes anything from the analyzed repository, and it never reads
- * the target's package manifest, lockfile, `node_modules`, or build configuration. The only
- * interaction with target content is byte reading followed by syntactic parsing.
+ * This module orchestrates the analysis: `./discovery.js` establishes the bounded regular-file
+ * source universe and reads its bytes, `./parse.js` turns exactly those bytes into portable
+ * source records, syntax, and spans, and this module censuses candidates, proves receivers,
+ * and resolves permissions. It never installs, resolves, imports, transpiles, builds, or
+ * executes anything from the analyzed repository, and it never reads the target's package
+ * manifest, lockfile, `node_modules`, or build configuration. The only interaction with target
+ * content is byte reading followed by syntactic parsing.
  *
  * The retained slice of the Phase 3 grammar is deliberately narrow:
  *
@@ -23,8 +25,6 @@
  * bounded two-row catalog cannot authorize stays fully visible and merely makes the
  * permission side of the result incomplete.
  */
-
-import { createHash } from 'node:crypto';
 
 import ts from 'typescript';
 
@@ -63,6 +63,8 @@ import type {
   SourceRecord,
 } from './contract.js';
 import { discoverSources } from './discovery.js';
+import { parseSourceRecord, spanOfNode } from './parse.js';
+import type { ParsedSource } from './parse.js';
 import { ANALYZER_ENDPOINT_PROFILE, ANALYZER_PROFILE_IDENTITY } from './profile.js';
 import type { EndpointMemberRecord } from './profile.js';
 
@@ -172,24 +174,8 @@ function requestFailureDetail(error: unknown): string {
 }
 
 /* ------------------------------------------------------------------ *
- * Parsing and provenance.
+ * Provenance.
  * ------------------------------------------------------------------ */
-
-function scriptKindFor(path: string): ts.ScriptKind {
-  if (path.endsWith('.tsx')) return ts.ScriptKind.TSX;
-  if (path.endsWith('.jsx')) return ts.ScriptKind.JSX;
-  if (path.endsWith('.ts') || path.endsWith('.mts')) return ts.ScriptKind.TS;
-  return ts.ScriptKind.JS;
-}
-
-function spanOf(sourceFile: ts.SourceFile, node: ts.Node): SourceSpan {
-  const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
-  const end = sourceFile.getLineAndCharacterOfPosition(node.getEnd());
-  return {
-    start: { line: start.line + 1, column: start.character + 1 },
-    end: { line: end.line + 1, column: end.character + 1 },
-  };
-}
 
 function forEachNode(node: ts.Node, visit: (child: ts.Node) => void): void {
   visit(node);
@@ -392,10 +378,10 @@ function incompleteCandidate(
  * names such as `rest`, `octokit`, or `create`. Each anchored call receives exactly one
  * terminal classification here.
  */
-function censusFile(sourceFile: ts.SourceFile, path: string, provenance: FileProvenance): PendingCandidate[] {
+function censusFile(parsed: ParsedSource, path: string, provenance: FileProvenance): PendingCandidate[] {
   const candidates: PendingCandidate[] = [];
 
-  forEachNode(sourceFile, (node) => {
+  forEachNode(parsed.sourceFile, (node) => {
     if (!ts.isCallExpression(node)) return;
     const callee = node.expression;
 
@@ -412,7 +398,7 @@ function censusFile(sourceFile: ts.SourceFile, path: string, provenance: FilePro
           if (member !== undefined) {
             const receiver = restAccess.expression;
             const spelling = `${receiverSpelling(receiver)}.rest.${member.scope}.${member.method}`;
-            const span = spanOf(sourceFile, node);
+            const span = spanOfNode(parsed, node);
             const optional =
               restAccess.questionDotToken !== undefined ||
               scopeAccess.questionDotToken !== undefined ||
@@ -487,7 +473,7 @@ function censusFile(sourceFile: ts.SourceFile, path: string, provenance: FilePro
                 'client-endpoint-shorthand-call',
                 `${scopeAccess.expression.text}.${member.scope}.${member.method}`,
                 path,
-                spanOf(sourceFile, node),
+                spanOfNode(parsed, node),
                 'unsupported-endpoint-surface',
                 'unsupported-endpoint-surface',
                 'no pinned client surface authorizes the direct endpoint shorthand',
@@ -514,7 +500,7 @@ function censusFile(sourceFile: ts.SourceFile, path: string, provenance: FilePro
           'bracket-member-call',
           `${receiverSpelling(restAccess.expression)}["rest"]["${member.scope}"]["${member.method}"]`,
           path,
-          spanOf(sourceFile, node),
+          spanOfNode(parsed, node),
           'unsupported-static-member-access',
           'unsupported-static-member-access',
           'static bracket member access is outside the supported call grammar',
@@ -583,44 +569,18 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
   const sources: SourceRecord[] = [];
   const candidates: PendingCandidate[] = [];
 
+  // Every discovered file becomes exactly one raw source record, whether or not its bytes can
+  // be decoded and parsed: a file that fails is evidence about the repository, and its
+  // file-fatal cause makes the repository incomplete without withdrawing any other file's
+  // independently proven findings.
   for (const discoveredSource of discovery.sources) {
-    const relative = discoveredSource.path;
-    const raw = discoveredSource.bytes;
-    sources.push({
-      id: '',
-      path: relative,
-      byteSize: discoveredSource.byteSize,
-      contentSha256: createHash('sha256').update(raw).digest('hex'),
-    });
-
-    const decoded = raw.toString('utf8');
-    if (!Buffer.from(decoded, 'utf8').equals(raw)) {
-      causes.push({
-        code: 'source-decode-failed',
-        scope: 'source',
-        path: relative,
-        span: null,
-        resource: null,
-        detail: 'the source is not valid UTF-8 and was not parsed',
-      });
+    const parsed = parseSourceRecord(discoveredSource);
+    sources.push({ id: '', ...parsed.record });
+    if (parsed.status === 'unparsed') {
+      causes.push({ ...parsed.cause, span: null, resource: null });
       continue;
     }
-    const text = decoded.charCodeAt(0) === 0xfeff ? decoded.slice(1) : decoded;
-    const sourceFile = ts.createSourceFile(relative, text, ts.ScriptTarget.Latest, false, scriptKindFor(relative));
-    const parseDiagnostics =
-      (sourceFile as ts.SourceFile & { parseDiagnostics?: readonly ts.Diagnostic[] }).parseDiagnostics ?? [];
-    if (parseDiagnostics.length > 0) {
-      causes.push({
-        code: 'source-parse-diagnostics',
-        scope: 'source',
-        path: relative,
-        span: null,
-        resource: null,
-        detail: `the source produced ${String(parseDiagnostics.length)} parser diagnostics and contributed no observation`,
-      });
-      continue;
-    }
-    candidates.push(...censusFile(sourceFile, relative, resolveProvenance(sourceFile)));
+    candidates.push(...censusFile(parsed, parsed.record.path, resolveProvenance(parsed.sourceFile)));
   }
 
   for (const entrypoint of boundary.probotEntrypoints) {
