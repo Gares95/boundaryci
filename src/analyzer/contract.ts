@@ -124,25 +124,56 @@ export type AnalysisFailureReason =
   | 'probot-entrypoint-outside-source-universe'
   | 'unresolvable-analysis-root';
 
+/**
+ * The stable causal vocabulary.
+ *
+ * Discovery and parse codes come from the source universe. The resolution codes describe the
+ * bounded included-source graph: a relative specifier that names zero or several included
+ * candidates, an unsupported module or binding form, a cycle that actually blocked a required
+ * question, and the four finite resolution budgets. The provenance codes describe why an
+ * authorized Octokit receiver could not be established. The grammar codes describe a censused
+ * obligation whose call grammar this analyzer does not yet interpret.
+ *
+ * None of these ever means "proven absent". Each one means a specific question stayed open.
+ */
 export type AnalyzerCauseCode =
+  | 'ambiguous-relative-source'
   | 'invalid-analysis-request'
   | 'invalid-analysis-result'
   | 'invalid-source-encoding'
+  | 'invalidated-private-field'
   | 'matching-non-regular-entry'
   | 'matching-source-symlink'
+  | 'mutable-provenance-binding'
   | 'permission-catalog-incomplete'
   | 'probot-entrypoint-unsupported'
   | 'relevant-directory-symlink'
+  | 'relevant-resolution-cycle'
+  | 'resolution-byte-limit'
+  | 'resolution-depth-limit'
+  | 'resolution-file-limit'
+  | 'resolution-work-limit'
   | 'source-byte-limit'
   | 'source-discovery-error'
   | 'source-file-limit'
   | 'source-parse-error'
   | 'source-read-error'
   | 'source-work-limit'
+  | 'unproven-octokit-origin'
   | 'unproven-receiver-provenance'
   | 'unresolvable-analysis-root'
+  | 'unresolved-relative-source'
+  | 'unsupported-commonjs-form'
+  | 'unsupported-dynamic-member-access'
+  | 'unsupported-endpoint-extraction'
   | 'unsupported-endpoint-surface'
+  | 'unsupported-export-form'
+  | 'unsupported-import-form'
+  | 'unsupported-object-state'
+  | 'unsupported-octokit-constructor'
   | 'unsupported-optional-chain'
+  | 'unsupported-probot-registration'
+  | 'unsupported-request-grammar'
   | 'unsupported-static-member-access';
 
 export type AnalyzerCauseScope = 'candidate' | 'repository' | 'source';
@@ -182,7 +213,22 @@ export interface AnalyzerCause {
   detail: string;
 }
 
-export type CandidateKind = 'bracket-member-call' | 'client-endpoint-shorthand-call' | 'direct-rest-member-call';
+/**
+ * The finite anchored candidate vocabulary.
+ *
+ * These are the syntactic obligations the census raises before any receiver is proven, not the
+ * forms this analyzer can currently prove. `direct-endpoint` is the only kind whose grammar is
+ * implemented; every other kind exists so that a relevant-looking site stays visible and
+ * explicitly incomplete rather than silently absent.
+ */
+export type CandidateKind =
+  | 'direct-endpoint'
+  | 'dynamic-member'
+  | 'endpoint-extraction'
+  | 'object-request'
+  | 'positional-request'
+  | 'probot-registration'
+  | 'static-bracket-member';
 
 export type CandidateClassification = 'incomplete' | 'proven-irrelevant' | 'proven-operation';
 
@@ -190,8 +236,12 @@ export type CandidateReason =
   | 'proven-direct-rest-member-call'
   | 'proven-non-octokit-origin'
   | 'unproven-receiver-provenance'
+  | 'unsupported-dynamic-member-access'
+  | 'unsupported-endpoint-extraction'
   | 'unsupported-endpoint-surface'
   | 'unsupported-optional-chain'
+  | 'unsupported-probot-registration'
+  | 'unsupported-request-grammar'
   | 'unsupported-static-member-access';
 
 /**
@@ -222,9 +272,49 @@ export interface SourceRecord {
   contentSha256: string;
 }
 
+/** The exact authorized ways an `Octokit` constructor identity may enter a source file. */
+export type ReceiverOrigin = 'octokit-package-named-import' | 'octokit-package-require-destructuring';
+
+/** How the proven client was reached at the call site. */
+export type ReceiverAccess = 'local-binding' | 'private-instance-field';
+
+/** One replayable edge of a provenance proof. */
+export type ProvenanceStepKind =
+  | 'direct-new'
+  | 'local-alias'
+  | 'named-export'
+  | 'named-import'
+  | 'named-reexport'
+  | 'private-field-access'
+  | 'private-field-assignment'
+  | 'relative-source-resolution'
+  | 'require-destructuring';
+
+/**
+ * One portable proof step.
+ *
+ * `binding` retains the original source spelling of the name the step traversed, which is
+ * evidence about the target program rather than analyzer-authored text. `specifier`,
+ * `resolvedPath`, `ruleId`, and `ruleRow` are populated exactly on a
+ * `relative-source-resolution` step, so every followed relative edge can be replayed against
+ * the exact row of the fixed candidate table that authorized it. A module step that did not
+ * resolve a relative source — an authorized package import, for example — carries its
+ * `specifier` and nothing else.
+ */
+export interface ProvenanceStep {
+  kind: ProvenanceStepKind;
+  path: string;
+  span: SourceSpan;
+  binding: string;
+  specifier: string | null;
+  resolvedPath: string | null;
+  ruleId: string | null;
+  ruleRow: number | null;
+}
+
 /** The proof chain that authorized a receiver, retaining its original source spelling. */
 export interface ReceiverProvenance {
-  origin: 'octokit-package-named-import';
+  origin: ReceiverOrigin;
   packageSpecifier: string;
   exportName: string;
   constructorBinding: string;
@@ -232,6 +322,8 @@ export interface ReceiverProvenance {
   construction: 'direct-new';
   clientBinding: string;
   clientAliasChain: string[];
+  access: ReceiverAccess;
+  steps: ProvenanceStep[];
 }
 
 /** The pinned profile member that supplied the canonical operation identity. */
@@ -352,24 +444,43 @@ const FAILURE_REASONS: readonly AnalysisFailureReason[] = [
 ];
 
 const CAUSE_CODES: readonly AnalyzerCauseCode[] = [
+  'ambiguous-relative-source',
   'invalid-analysis-request',
   'invalid-analysis-result',
   'invalid-source-encoding',
+  'invalidated-private-field',
   'matching-non-regular-entry',
   'matching-source-symlink',
+  'mutable-provenance-binding',
   'permission-catalog-incomplete',
   'probot-entrypoint-unsupported',
   'relevant-directory-symlink',
+  'relevant-resolution-cycle',
+  'resolution-byte-limit',
+  'resolution-depth-limit',
+  'resolution-file-limit',
+  'resolution-work-limit',
   'source-byte-limit',
   'source-discovery-error',
   'source-file-limit',
   'source-parse-error',
   'source-read-error',
   'source-work-limit',
+  'unproven-octokit-origin',
   'unproven-receiver-provenance',
   'unresolvable-analysis-root',
+  'unresolved-relative-source',
+  'unsupported-commonjs-form',
+  'unsupported-dynamic-member-access',
+  'unsupported-endpoint-extraction',
   'unsupported-endpoint-surface',
+  'unsupported-export-form',
+  'unsupported-import-form',
+  'unsupported-object-state',
+  'unsupported-octokit-constructor',
   'unsupported-optional-chain',
+  'unsupported-probot-registration',
+  'unsupported-request-grammar',
   'unsupported-static-member-access',
 ];
 
@@ -379,9 +490,13 @@ const RESOURCE_CAUSE_CODES: readonly AnalyzerCauseCode[] = ['source-byte-limit',
 const CAUSE_SCOPES: readonly AnalyzerCauseScope[] = ['candidate', 'repository', 'source'];
 
 const CANDIDATE_KINDS: readonly CandidateKind[] = [
-  'bracket-member-call',
-  'client-endpoint-shorthand-call',
-  'direct-rest-member-call',
+  'direct-endpoint',
+  'dynamic-member',
+  'endpoint-extraction',
+  'object-request',
+  'positional-request',
+  'probot-registration',
+  'static-bracket-member',
 ];
 
 const CANDIDATE_CLASSIFICATIONS: readonly CandidateClassification[] = [
@@ -394,9 +509,32 @@ const CANDIDATE_REASONS: readonly CandidateReason[] = [
   'proven-direct-rest-member-call',
   'proven-non-octokit-origin',
   'unproven-receiver-provenance',
+  'unsupported-dynamic-member-access',
+  'unsupported-endpoint-extraction',
   'unsupported-endpoint-surface',
   'unsupported-optional-chain',
+  'unsupported-probot-registration',
+  'unsupported-request-grammar',
   'unsupported-static-member-access',
+];
+
+const RECEIVER_ORIGINS: readonly ReceiverOrigin[] = [
+  'octokit-package-named-import',
+  'octokit-package-require-destructuring',
+];
+
+const RECEIVER_ACCESSES: readonly ReceiverAccess[] = ['local-binding', 'private-instance-field'];
+
+const PROVENANCE_STEP_KINDS: readonly ProvenanceStepKind[] = [
+  'direct-new',
+  'local-alias',
+  'named-export',
+  'named-import',
+  'named-reexport',
+  'private-field-access',
+  'private-field-assignment',
+  'relative-source-resolution',
+  'require-destructuring',
 ];
 
 const LIMIT_KEYS: readonly (keyof AnalysisLimits)[] = [
@@ -827,6 +965,84 @@ function assertCandidate(value: unknown, label: string): asserts value is Candid
   }
 }
 
+/**
+ * Accepts only an exact-shape {@link ProvenanceStep}.
+ *
+ * A `relative-source-resolution` step is the only kind that may name a resolved source and a
+ * candidate-table row, and it must name both plus the specifier it started from: those four
+ * fields together are what makes a followed relative edge replayable. Every other kind must
+ * leave them null, so a step can never imply a resolution that never happened.
+ */
+function assertProvenanceStep(value: unknown, label: string): asserts value is ProvenanceStep {
+  assertPlainObject(value, label);
+  assertExactKeys(value, ['binding', 'kind', 'path', 'resolvedPath', 'ruleId', 'ruleRow', 'span', 'specifier'], label);
+  if (!PROVENANCE_STEP_KINDS.includes(value.kind as ProvenanceStepKind)) {
+    throw new TypeError(`${label}.kind is invalid`);
+  }
+  assertRootRelativePosixPath(value.path, `${label}.path`);
+  assertSpan(value.span, `${label}.span`);
+  assertNonEmptyString(value.binding, `${label}.binding`);
+  if (value.specifier !== null) assertNonEmptyString(value.specifier, `${label}.specifier`);
+  const resolves = value.kind === 'relative-source-resolution';
+  if (resolves) {
+    assertRootRelativePosixPath(value.resolvedPath, `${label}.resolvedPath`);
+    assertNonEmptyString(value.ruleId, `${label}.ruleId`);
+    assertBudget(value.ruleRow, `${label}.ruleRow`);
+    assertNonEmptyString(value.specifier, `${label}.specifier`);
+    return;
+  }
+  if (value.resolvedPath !== null) throw new TypeError(`${label}.resolvedPath requires a relative-source resolution`);
+  if (value.ruleId !== null || value.ruleRow !== null) {
+    throw new TypeError(`${label} names a candidate-table row without resolving a relative source`);
+  }
+}
+
+/**
+ * Accepts only an exact-shape {@link ReceiverProvenance}.
+ *
+ * The origin, construction, and access values are closed sets, so a serialized result cannot
+ * describe a receiver this analyzer is not authorized to prove. `steps` must be non-empty:
+ * a proven receiver without a replayable chain would be an assertion rather than evidence.
+ */
+function assertReceiverProvenance(value: unknown, label: string): asserts value is ReceiverProvenance {
+  assertPlainObject(value, label);
+  assertExactKeys(
+    value,
+    [
+      'access',
+      'clientAliasChain',
+      'clientBinding',
+      'construction',
+      'constructorAliasChain',
+      'constructorBinding',
+      'exportName',
+      'origin',
+      'packageSpecifier',
+      'steps',
+    ],
+    label,
+  );
+  if (!RECEIVER_ORIGINS.includes(value.origin as ReceiverOrigin)) {
+    throw new TypeError(`${label}.origin is not an authorized origin`);
+  }
+  if (value.construction !== 'direct-new') {
+    throw new TypeError(`${label}.construction is not an authorized construction`);
+  }
+  if (!RECEIVER_ACCESSES.includes(value.access as ReceiverAccess)) {
+    throw new TypeError(`${label}.access is not an authorized access`);
+  }
+  assertNonEmptyString(value.packageSpecifier, `${label}.packageSpecifier`);
+  assertNonEmptyString(value.exportName, `${label}.exportName`);
+  assertNonEmptyString(value.constructorBinding, `${label}.constructorBinding`);
+  assertNonEmptyString(value.clientBinding, `${label}.clientBinding`);
+  assertStringArray(value.constructorAliasChain, `${label}.constructorAliasChain`);
+  assertStringArray(value.clientAliasChain, `${label}.clientAliasChain`);
+  if (!Array.isArray(value.steps) || value.steps.length === 0) {
+    throw new TypeError(`${label}.steps must record at least one proof step`);
+  }
+  value.steps.forEach((step: unknown, index: number) => assertProvenanceStep(step, `${label}.steps[${index}]`));
+}
+
 function assertObservation(value: unknown, label: string): asserts value is OperationObservation {
   assertPlainObject(value, label);
   assertExactKeys(
@@ -849,33 +1065,7 @@ function assertObservation(value: unknown, label: string): asserts value is Oper
     throw new TypeError(`${label}.member.memberId does not match its scope and method`);
   }
   assertOperationIdentity(value.operation, `${label}.operation`);
-  assertPlainObject(value.receiver, `${label}.receiver`);
-  assertExactKeys(
-    value.receiver,
-    [
-      'clientAliasChain',
-      'clientBinding',
-      'construction',
-      'constructorAliasChain',
-      'constructorBinding',
-      'exportName',
-      'origin',
-      'packageSpecifier',
-    ],
-    `${label}.receiver`,
-  );
-  if (value.receiver.origin !== 'octokit-package-named-import') {
-    throw new TypeError(`${label}.receiver.origin is not an authorized origin`);
-  }
-  if (value.receiver.construction !== 'direct-new') {
-    throw new TypeError(`${label}.receiver.construction is not an authorized construction`);
-  }
-  assertNonEmptyString(value.receiver.packageSpecifier, `${label}.receiver.packageSpecifier`);
-  assertNonEmptyString(value.receiver.exportName, `${label}.receiver.exportName`);
-  assertNonEmptyString(value.receiver.constructorBinding, `${label}.receiver.constructorBinding`);
-  assertNonEmptyString(value.receiver.clientBinding, `${label}.receiver.clientBinding`);
-  assertStringArray(value.receiver.constructorAliasChain, `${label}.receiver.constructorAliasChain`);
-  assertStringArray(value.receiver.clientAliasChain, `${label}.receiver.clientAliasChain`);
+  assertReceiverProvenance(value.receiver, `${label}.receiver`);
   validateSourceEvidence(value.source);
 }
 
@@ -1016,6 +1206,14 @@ export function validateAnalysisResult(value: unknown): asserts value is Analysi
     }
     if (!sourcePaths.has(observation.source.path)) {
       throw new TypeError(`${observation.id} references an unanalyzed source`);
+    }
+    // A proof step may only cite files this run actually analyzed, so a serialized chain can
+    // never rest on a source outside the declared boundary.
+    for (const step of observation.receiver.steps) {
+      if (!sourcePaths.has(step.path)) throw new TypeError(`${observation.id} proves through an unanalyzed source`);
+      if (step.resolvedPath !== null && !sourcePaths.has(step.resolvedPath)) {
+        throw new TypeError(`${observation.id} resolves to an unanalyzed source`);
+      }
     }
   }
   for (const resolution of resolutions) {

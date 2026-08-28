@@ -3,35 +3,33 @@
  *
  * This module orchestrates the analysis: `./discovery.js` establishes the bounded regular-file
  * source universe and reads its bytes, `./parse.js` turns exactly those bytes into portable
- * source records, syntax, and spans, and this module censuses candidates, proves receivers,
- * and resolves permissions. It never installs, resolves, imports, transpiles, builds, or
- * executes anything from the analyzed repository, and it never reads the target's package
- * manifest, lockfile, `node_modules`, or build configuration. The only interaction with target
- * content is byte reading followed by syntactic parsing.
+ * source records, syntax, and spans, `./candidates.js` censuses every anchored obligation in
+ * each parsed file, and `./resolve.js` builds the request-local included-source graph and proves
+ * each candidate's receiver against it. This module never installs, resolves, imports,
+ * transpiles, builds, or executes anything from the analyzed repository, and it never reads the
+ * target's package manifest, lockfile, `node_modules`, or build configuration. The only
+ * interaction with target content is byte reading followed by syntactic parsing.
  *
- * The retained slice of the Phase 3 grammar is deliberately narrow:
+ * The operation-proving slice of the Phase 3 grammar is deliberately narrow:
  *
  *   import { Octokit } from 'octokit';   // exact named ESM import, exact specifier
  *   const client = new Octokit();        // direct `new` on an immutable binding
- *   client.rest.issues.create({ ... });  // exact pinned `scope.method` member
+ *   client.rest.issues.create({ ... });  // exact pinned `scope.method` member, non-optional
  *
- * Immutable `const` aliases of the constructor and of the client are followed. Everything
- * else that *looks* like one of those calls is censused and recorded as an explicit
- * incomplete candidate: recognized-looking syntax alone never proves an operation, and an
- * unproved relevant candidate never disappears into a clean result.
- *
- * Operation recognition and permission inference are separate steps. Every proven
- * observation is emitted before the Phase 2 catalog is consulted, so an operation that the
- * bounded two-row catalog cannot authorize stays fully visible and merely makes the
- * permission side of the result incomplete.
+ * `./candidates.js` also anchors a broader grammar — alternate endpoint surfaces, static/dynamic
+ * bracket chains, uninvoked or destructured extractions, `request()` shapes, and designated
+ * Probot registrations — so that every one of those sites stays visible as an explicit
+ * incomplete candidate rather than disappearing into a clean result. This analyzer does not yet
+ * prove an operation from any of them; a proven receiver is necessary but never itself sufficient
+ * to emit one.
  */
-
-import ts from 'typescript';
 
 import { BOUNDARYCI_PERMISSION_CATALOG, BOUNDARYCI_PERMISSION_CATALOG_IDENTITY } from '../permission-model/bounded-catalog.js';
 import { aggregatePermissionFindings, resolveRequirementFinding } from '../permission-model/model.js';
 import type { PermissionBoundary, RequirementFinding, SourceEvidence, SourceSpan } from '../permission-model/model.js';
 
+import type { CandidateSite } from './candidates.js';
+import { censusCandidates } from './candidates.js';
 import {
   ANALYSIS_DISCOVERY_PROFILE_ID,
   ANALYSIS_LIMIT_PROFILE_ID,
@@ -63,22 +61,15 @@ import type {
   SourceRecord,
 } from './contract.js';
 import { discoverSources } from './discovery.js';
-import { parseSourceRecord, spanOfNode } from './parse.js';
+import { parseSourceRecord } from './parse.js';
 import type { ParsedSource } from './parse.js';
 import { ANALYZER_ENDPOINT_PROFILE, ANALYZER_PROFILE_IDENTITY } from './profile.js';
 import type { EndpointMemberRecord } from './profile.js';
+import { buildSourceGraph, proveCandidateReceiver } from './resolve.js';
+import type { ReceiverProofResult, ResolverCause, SourceGraph } from './resolve.js';
 
-/** The exact package specifier that may export an authorized Octokit constructor. */
-const AUTHORIZED_PACKAGE_SPECIFIER = 'octokit';
-
-/** The exact named export that may become an authorized Octokit constructor. */
-const AUTHORIZED_EXPORT_NAME = 'Octokit';
-
-/** The single anchor class censused by this slice. */
-const CANDIDATE_ANCHOR = 'pinned-endpoint-member-spelling';
-
-/** Bound on alias-chain fixpoint iterations, so hostile source cannot spin the resolver. */
-const MAX_ALIAS_PASSES = 32;
+/** The pinned anchor of the two-link `.<scope>.<method>(...)` alternate surface. */
+const ALTERNATE_SURFACE_ANCHOR = 'pinned-endpoint-alternate-surface';
 
 const MEMBER_INDEX: ReadonlyMap<string, EndpointMemberRecord> = new Map(
   ANALYZER_ENDPOINT_PROFILE.members.map((member) => [`${member.scope}.${member.method}`, member]),
@@ -115,6 +106,7 @@ interface PendingObservation {
 
 interface PendingCandidate {
   kind: CandidateKind;
+  anchor: string;
   spelling: string;
   path: string;
   span: SourceSpan;
@@ -174,342 +166,185 @@ function requestFailureDetail(error: unknown): string {
 }
 
 /* ------------------------------------------------------------------ *
- * Provenance.
+ * Candidate classification.
  * ------------------------------------------------------------------ */
-
-function forEachNode(node: ts.Node, visit: (child: ts.Node) => void): void {
-  visit(node);
-  ts.forEachChild(node, (child) => {
-    forEachNode(child, visit);
-  });
-}
-
-interface ConstructorBinding {
-  packageSpecifier: string;
-  exportName: string;
-  constructorBinding: string;
-  constructorAliasChain: string[];
-}
-
-interface FileProvenance {
-  constructors: Map<string, ConstructorBinding>;
-  clients: Map<string, ReceiverProvenance>;
-}
-
-interface ConstDeclaration {
-  name: string;
-  aliasOf: string | null;
-  constructedWith: string | null;
-}
-
-/**
- * Establishes the authorized receiver chain for one parsed file.
- *
- * A name is usable only when it is declared exactly once in the file and never assigned to.
- * That is deliberately coarse: shadowing or reassignment anywhere in the file withdraws the
- * binding rather than risking a receiver proof the analyzer cannot actually justify.
- */
-function resolveProvenance(sourceFile: ts.SourceFile): FileProvenance {
-  const declarationCounts = new Map<string, number>();
-  const mutated = new Set<string>();
-  const constDeclarations: ConstDeclaration[] = [];
-
-  const countDeclaration = (name: string): void => {
-    declarationCounts.set(name, (declarationCounts.get(name) ?? 0) + 1);
-  };
-
-  forEachNode(sourceFile, (node) => {
-    if ((ts.isVariableDeclaration(node) || ts.isBindingElement(node) || ts.isParameter(node)) && ts.isIdentifier(node.name)) {
-      countDeclaration(node.name.text);
-    } else if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name !== undefined) {
-      countDeclaration(node.name.text);
-    } else if (ts.isImportSpecifier(node) || ts.isNamespaceImport(node)) {
-      countDeclaration(node.name.text);
-    } else if (ts.isImportClause(node) && node.name !== undefined) {
-      countDeclaration(node.name.text);
-    } else if (ts.isBinaryExpression(node) && ts.isIdentifier(node.left)) {
-      const operator = node.operatorToken.kind;
-      if (operator >= ts.SyntaxKind.FirstAssignment && operator <= ts.SyntaxKind.LastAssignment) {
-        mutated.add(node.left.text);
-      }
-    } else if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) && ts.isIdentifier(node.operand)) {
-      if (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) {
-        mutated.add(node.operand.text);
-      }
-    }
-
-    if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const) !== 0) {
-      for (const declaration of node.declarations) {
-        if (!ts.isIdentifier(declaration.name)) continue;
-        const initializer = declaration.initializer;
-        if (initializer === undefined) continue;
-        if (ts.isIdentifier(initializer)) {
-          constDeclarations.push({ name: declaration.name.text, aliasOf: initializer.text, constructedWith: null });
-        } else if (ts.isNewExpression(initializer) && ts.isIdentifier(initializer.expression)) {
-          constDeclarations.push({
-            name: declaration.name.text,
-            aliasOf: null,
-            constructedWith: initializer.expression.text,
-          });
-        }
-      }
-    }
-  });
-
-  const usable = (name: string): boolean => declarationCounts.get(name) === 1 && !mutated.has(name);
-
-  const constructors = new Map<string, ConstructorBinding>();
-  for (const statement of sourceFile.statements) {
-    if (!ts.isImportDeclaration(statement)) continue;
-    const specifier = statement.moduleSpecifier;
-    if (!ts.isStringLiteral(specifier) || specifier.text !== AUTHORIZED_PACKAGE_SPECIFIER) continue;
-    const clause = statement.importClause;
-    if (clause === undefined || clause.isTypeOnly) continue;
-    const bindings = clause.namedBindings;
-    if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
-    for (const element of bindings.elements) {
-      if (element.isTypeOnly) continue;
-      const imported = element.propertyName?.text ?? element.name.text;
-      if (imported !== AUTHORIZED_EXPORT_NAME) continue;
-      const local = element.name.text;
-      if (!usable(local)) continue;
-      constructors.set(local, {
-        packageSpecifier: AUTHORIZED_PACKAGE_SPECIFIER,
-        exportName: AUTHORIZED_EXPORT_NAME,
-        constructorBinding: local,
-        constructorAliasChain: [local],
-      });
-    }
-  }
-
-  for (let pass = 0; pass < MAX_ALIAS_PASSES; pass += 1) {
-    let changed = false;
-    for (const declaration of constDeclarations) {
-      if (declaration.aliasOf === null) continue;
-      if (constructors.has(declaration.name) || !usable(declaration.name)) continue;
-      const source = constructors.get(declaration.aliasOf);
-      if (source === undefined) continue;
-      constructors.set(declaration.name, {
-        ...source,
-        constructorAliasChain: [...source.constructorAliasChain, declaration.name],
-      });
-      changed = true;
-    }
-    if (!changed) break;
-  }
-
-  const clients = new Map<string, ReceiverProvenance>();
-  for (const declaration of constDeclarations) {
-    if (declaration.constructedWith === null || !usable(declaration.name)) continue;
-    const constructor = constructors.get(declaration.constructedWith);
-    if (constructor === undefined) continue;
-    clients.set(declaration.name, {
-      origin: 'octokit-package-named-import',
-      packageSpecifier: constructor.packageSpecifier,
-      exportName: constructor.exportName,
-      constructorBinding: constructor.constructorBinding,
-      constructorAliasChain: [...constructor.constructorAliasChain],
-      construction: 'direct-new',
-      clientBinding: declaration.name,
-      clientAliasChain: [declaration.name],
-    });
-  }
-
-  for (let pass = 0; pass < MAX_ALIAS_PASSES; pass += 1) {
-    let changed = false;
-    for (const declaration of constDeclarations) {
-      if (declaration.aliasOf === null) continue;
-      if (clients.has(declaration.name) || !usable(declaration.name)) continue;
-      const source = clients.get(declaration.aliasOf);
-      if (source === undefined) continue;
-      clients.set(declaration.name, {
-        ...source,
-        clientAliasChain: [...source.clientAliasChain, declaration.name],
-      });
-      changed = true;
-    }
-    if (!changed) break;
-  }
-
-  return { constructors, clients };
-}
-
-/* ------------------------------------------------------------------ *
- * Candidate census.
- * ------------------------------------------------------------------ */
-
-function receiverSpelling(expression: ts.Expression): string {
-  return ts.isIdentifier(expression) ? expression.text : '<expression>';
-}
-
-function literalTextOf(node: ts.Node): string | null {
-  return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : null;
-}
 
 function memberFor(scope: string, method: string): EndpointMemberRecord | undefined {
   return MEMBER_INDEX.get(`${scope}.${method}`);
 }
 
-function incompleteCandidate(
-  kind: CandidateKind,
-  spelling: string,
-  path: string,
-  span: SourceSpan,
+function anchoredIncomplete(
+  site: CandidateSite,
   reason: CandidateReason,
   code: AnalyzerCauseCode,
   detail: string,
 ): PendingCandidate {
   return {
-    kind,
-    spelling,
-    path,
-    span,
+    kind: site.kind,
+    anchor: site.anchor,
+    spelling: site.spelling,
+    path: site.path,
+    span: site.span,
     classification: 'incomplete',
     reason,
-    causes: [{ code, scope: 'candidate', path, span, resource: null, detail }],
+    causes: [{ code, scope: 'candidate', path: site.path, span: site.span, resource: null, detail }],
+    observation: null,
+  };
+}
+
+function pendingCausesFromResolver(resolverCauses: readonly ResolverCause[]): PendingCause[] {
+  return resolverCauses.map((cause) => ({
+    code: cause.code,
+    scope: 'candidate',
+    path: cause.path,
+    span: cause.span,
+    resource: null,
+    detail: cause.detail,
+  }));
+}
+
+function unprovenCandidate(site: CandidateSite, resolverCauses: readonly ResolverCause[]): PendingCandidate {
+  return {
+    kind: site.kind,
+    anchor: site.anchor,
+    spelling: site.spelling,
+    path: site.path,
+    span: site.span,
+    classification: 'incomplete',
+    reason: 'unproven-receiver-provenance',
+    causes: pendingCausesFromResolver(resolverCauses),
     observation: null,
   };
 }
 
 /**
- * Censuses every anchored endpoint-member call in one parsed file.
- *
- * The census is anchored on exact pinned member spellings, never on bare occurrences of
- * names such as `rest`, `octokit`, or `create`. Each anchored call receives exactly one
- * terminal classification here.
+ * Attaches the resolver's exact receiver-provenance causes to a candidate that is already
+ * incomplete for an independent syntax reason, so an unsupported call grammar never hides an
+ * unproven receiver behind its own cause.
  */
-function censusFile(parsed: ParsedSource, path: string, provenance: FileProvenance): PendingCandidate[] {
-  const candidates: PendingCandidate[] = [];
+function withUnprovenReceiverCauses(candidate: PendingCandidate, proof: ReceiverProofResult): PendingCandidate {
+  if (proof.status !== 'unproven') return candidate;
+  return { ...candidate, causes: [...candidate.causes, ...pendingCausesFromResolver(proof.causes)] };
+}
 
-  forEachNode(parsed.sourceFile, (node) => {
-    if (!ts.isCallExpression(node)) return;
-    const callee = node.expression;
+function provenCandidate(site: CandidateSite, member: EndpointMemberRecord, receiver: ReceiverProvenance): PendingCandidate {
+  return {
+    kind: site.kind,
+    anchor: site.anchor,
+    spelling: site.spelling,
+    path: site.path,
+    span: site.span,
+    classification: 'proven-operation',
+    reason: 'proven-direct-rest-member-call',
+    causes: [],
+    observation: {
+      callForm: site.kind,
+      spelling: site.spelling,
+      optional: site.optional,
+      member: {
+        profileId: ANALYZER_ENDPOINT_PROFILE.identity.profileId,
+        memberId: `${member.scope}.${member.method}`,
+        scope: member.scope,
+        method: member.method,
+      },
+      operation: {
+        method: member.httpMethod,
+        normalizedRoute: member.normalizedRoute,
+        operationId: member.operationId,
+      },
+      receiver,
+      source: { path: site.path, span: site.span },
+    },
+  };
+}
 
-    if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.name)) {
-      const scopeAccess = callee.expression;
-      if (ts.isPropertyAccessExpression(scopeAccess) && ts.isIdentifier(scopeAccess.name)) {
-        const restAccess = scopeAccess.expression;
-        if (
-          ts.isPropertyAccessExpression(restAccess) &&
-          ts.isIdentifier(restAccess.name) &&
-          restAccess.name.text === 'rest'
-        ) {
-          const member = memberFor(scopeAccess.name.text, callee.name.text);
-          if (member !== undefined) {
-            const receiver = restAccess.expression;
-            const spelling = `${receiverSpelling(receiver)}.rest.${member.scope}.${member.method}`;
-            const span = spanOfNode(parsed, node);
-            const optional =
-              restAccess.questionDotToken !== undefined ||
-              scopeAccess.questionDotToken !== undefined ||
-              callee.questionDotToken !== undefined ||
-              node.questionDotToken !== undefined;
-            if (optional) {
-              candidates.push(
-                incompleteCandidate(
-                  'direct-rest-member-call',
-                  spelling,
-                  path,
-                  span,
-                  'unsupported-optional-chain',
-                  'unsupported-optional-chain',
-                  'optional member access or invocation is outside the supported call grammar',
-                ),
-              );
-              return;
-            }
-            const client = ts.isIdentifier(receiver) ? provenance.clients.get(receiver.text) : undefined;
-            if (client === undefined) {
-              candidates.push(
-                incompleteCandidate(
-                  'direct-rest-member-call',
-                  spelling,
-                  path,
-                  span,
-                  'unproven-receiver-provenance',
-                  'unproven-receiver-provenance',
-                  'the receiver was not proven to originate from an authorized Octokit constructor',
-                ),
-              );
-              return;
-            }
-            candidates.push({
-              kind: 'direct-rest-member-call',
-              spelling,
-              path,
-              span,
-              classification: 'proven-operation',
-              reason: 'proven-direct-rest-member-call',
-              causes: [],
-              observation: {
-                callForm: 'direct-rest-member-call',
-                spelling,
-                optional: false,
-                member: {
-                  profileId: ANALYZER_ENDPOINT_PROFILE.identity.profileId,
-                  memberId: `${member.scope}.${member.method}`,
-                  scope: member.scope,
-                  method: member.method,
-                },
-                operation: {
-                  method: member.httpMethod,
-                  normalizedRoute: member.normalizedRoute,
-                  operationId: member.operationId,
-                },
-                receiver: { ...client, constructorAliasChain: [...client.constructorAliasChain], clientAliasChain: [...client.clientAliasChain] },
-                source: { path, span },
-              },
-            });
-            return;
-          }
-        }
-        // `client.<scope>.<method>(...)`: a pinned member spelling on a proven client, but
-        // DIRECT_SHORTHAND_AUTHORIZATIONS is empty, so no pinned surface proves equivalence.
-        if (ts.isIdentifier(scopeAccess.expression) && provenance.clients.has(scopeAccess.expression.text)) {
-          const member = memberFor(scopeAccess.name.text, callee.name.text);
-          if (member !== undefined) {
-            candidates.push(
-              incompleteCandidate(
-                'client-endpoint-shorthand-call',
-                `${scopeAccess.expression.text}.${member.scope}.${member.method}`,
-                path,
-                spanOfNode(parsed, node),
-                'unsupported-endpoint-surface',
-                'unsupported-endpoint-surface',
-                'no pinned client surface authorizes the direct endpoint shorthand',
-              ),
-            );
-          }
-        }
-      }
-      return;
-    }
-
-    if (ts.isElementAccessExpression(callee)) {
-      const method = literalTextOf(callee.argumentExpression);
-      const scopeAccess = callee.expression;
-      if (method === null || !ts.isElementAccessExpression(scopeAccess)) return;
-      const scope = literalTextOf(scopeAccess.argumentExpression);
-      const restAccess = scopeAccess.expression;
-      if (scope === null || !ts.isElementAccessExpression(restAccess)) return;
-      if (literalTextOf(restAccess.argumentExpression) !== 'rest') return;
-      const member = memberFor(scope, method);
-      if (member === undefined) return;
-      candidates.push(
-        incompleteCandidate(
-          'bracket-member-call',
-          `${receiverSpelling(restAccess.expression)}["rest"]["${member.scope}"]["${member.method}"]`,
-          path,
-          spanOfNode(parsed, node),
-          'unsupported-static-member-access',
-          'unsupported-static-member-access',
-          'static bracket member access is outside the supported call grammar',
-        ),
+/** Classifies every anchored kind Plan 03-04 has not yet authorized an operation from. */
+function classifyUnsupportedKind(site: CandidateSite): PendingCandidate {
+  switch (site.kind) {
+    case 'static-bracket-member':
+      return anchoredIncomplete(
+        site,
+        'unsupported-static-member-access',
+        'unsupported-static-member-access',
+        'static bracket member access is outside the supported call grammar',
       );
-    }
-  });
+    case 'dynamic-member':
+      return anchoredIncomplete(
+        site,
+        'unsupported-dynamic-member-access',
+        'unsupported-dynamic-member-access',
+        'a computed member chain position is outside the supported call grammar',
+      );
+    case 'endpoint-extraction':
+      return anchoredIncomplete(
+        site,
+        'unsupported-endpoint-extraction',
+        'unsupported-endpoint-extraction',
+        'an uninvoked or destructured endpoint member is outside the supported call grammar',
+      );
+    case 'positional-request':
+    case 'object-request':
+      return anchoredIncomplete(
+        site,
+        'unsupported-request-grammar',
+        'unsupported-request-grammar',
+        'the request() call grammar is outside the supported call grammar',
+      );
+    case 'probot-registration':
+      return anchoredIncomplete(
+        site,
+        'unsupported-probot-registration',
+        'unsupported-probot-registration',
+        'Probot registration provenance is outside the supported call grammar',
+      );
+    case 'direct-endpoint':
+      throw new Error('a direct-endpoint candidate must be classified by classifyCandidate, not classifyUnsupportedKind');
+  }
+}
 
-  return candidates;
+/**
+ * Classifies one censused candidate into its exactly one terminal record.
+ *
+ * The receiver is proven independently of whether the call grammar is one this analyzer proves
+ * an operation from: a proven receiver alone never emits an observation, and only the exact
+ * pinned, non-optional `.rest.<scope>.<method>(...)` anchor may.
+ */
+function classifyCandidate(site: CandidateSite, graph: SourceGraph): PendingCandidate {
+  const proof = proveCandidateReceiver(graph, site);
+
+  if (site.kind !== 'direct-endpoint') return withUnprovenReceiverCauses(classifyUnsupportedKind(site), proof);
+
+  if (site.anchor === ALTERNATE_SURFACE_ANCHOR) {
+    return withUnprovenReceiverCauses(
+      anchoredIncomplete(
+        site,
+        'unsupported-endpoint-surface',
+        'unsupported-endpoint-surface',
+        'no pinned client surface authorizes the direct endpoint shorthand',
+      ),
+      proof,
+    );
+  }
+
+  if (site.optional) {
+    return withUnprovenReceiverCauses(
+      anchoredIncomplete(
+        site,
+        'unsupported-optional-chain',
+        'unsupported-optional-chain',
+        'optional member access or invocation is outside the supported call grammar',
+      ),
+      proof,
+    );
+  }
+
+  if (proof.status === 'unproven') return unprovenCandidate(site, proof.causes);
+
+  const member = site.member === null ? undefined : memberFor(site.member.scope, site.member.method);
+  if (member === undefined) {
+    throw new Error('a pinned endpoint candidate named a member outside the analyzer profile');
+  }
+  return provenCandidate(site, member, proof.provenance);
 }
 
 /* ------------------------------------------------------------------ *
@@ -567,12 +402,13 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
     detail: cause.detail,
   }));
   const sources: SourceRecord[] = [];
-  const candidates: PendingCandidate[] = [];
+  const parsedSources: ParsedSource[] = [];
 
   // Every discovered file becomes exactly one raw source record, whether or not its bytes can
   // be decoded and parsed: a file that fails is evidence about the repository, and its
   // file-fatal cause makes the repository incomplete without withdrawing any other file's
-  // independently proven findings.
+  // independently proven findings. Only successfully parsed sources enter the source graph, so a
+  // chain that needed a failed file becomes incomplete rather than silently resolving elsewhere.
   for (const discoveredSource of discovery.sources) {
     const parsed = parseSourceRecord(discoveredSource);
     sources.push({ id: '', ...parsed.record });
@@ -580,7 +416,7 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
       causes.push({ ...parsed.cause, span: null, resource: null });
       continue;
     }
-    candidates.push(...censusFile(parsed, parsed.record.path, resolveProvenance(parsed.sourceFile)));
+    parsedSources.push(parsed);
   }
 
   for (const entrypoint of boundary.probotEntrypoints) {
@@ -592,6 +428,14 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
       resource: null,
       detail: 'Probot entrypoint provenance is not part of this analyzer grammar',
     });
+  }
+
+  const graph = buildSourceGraph(parsedSources);
+  const probotEntrypoints = new Set(boundary.probotEntrypoints);
+  const candidates: PendingCandidate[] = [];
+  for (const parsed of parsedSources) {
+    const sites = censusCandidates(parsed, { probotEntrypoint: probotEntrypoints.has(parsed.record.path) });
+    for (const site of sites) candidates.push(classifyCandidate(site, graph));
   }
 
   sources.sort((left, right) => compareBytes(left.path, right.path));
@@ -629,7 +473,7 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
     candidateRecords.push({
       id,
       kind: candidate.kind,
-      anchor: CANDIDATE_ANCHOR,
+      anchor: candidate.anchor,
       spelling: candidate.spelling,
       path: candidate.path,
       span: candidate.span,

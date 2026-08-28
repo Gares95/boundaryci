@@ -125,7 +125,7 @@ function observation(overrides: Partial<OperationObservation> = {}): OperationOb
   return {
     id: 'operation-0001',
     candidateId: 'candidate-0001',
-    callForm: 'direct-rest-member-call',
+    callForm: 'direct-endpoint',
     spelling: 'client.rest.issues.listForRepo',
     optional: false,
     member: {
@@ -144,6 +144,11 @@ function observation(overrides: Partial<OperationObservation> = {}): OperationOb
       construction: 'direct-new',
       clientBinding: 'client',
       clientAliasChain: ['client'],
+      access: 'local-binding',
+      steps: [
+        { kind: 'named-import', path: 'src/app.ts', span: { start: { line: 1, column: 9 }, end: { line: 1, column: 16 } }, binding: 'Octokit', specifier: 'octokit', resolvedPath: null, ruleId: null, ruleRow: null },
+        { kind: 'direct-new', path: 'src/app.ts', span: { start: { line: 3, column: 7 }, end: { line: 3, column: 13 } }, binding: 'client', specifier: null, resolvedPath: null, ruleId: null, ruleRow: null },
+      ],
     },
     source: { path: 'src/app.ts', span: { start: { line: 6, column: 3 }, end: { line: 6, column: 50 } } },
     ...overrides,
@@ -153,7 +158,7 @@ function observation(overrides: Partial<OperationObservation> = {}): OperationOb
 function candidateRecord(overrides: Partial<CandidateRecord> = {}): CandidateRecord {
   return {
     id: 'candidate-0001',
-    kind: 'direct-rest-member-call',
+    kind: 'direct-endpoint',
     anchor: 'pinned-endpoint-member-spelling',
     spelling: 'client.rest.issues.listForRepo',
     path: 'src/app.ts',

@@ -235,10 +235,10 @@ describe('direct Octokit tracer', () => {
     const createSpan = spanOfSnippet(ISSUES_SOURCE, "client.rest.issues.create({ owner, repo, title: 'Boundary' })");
 
     expect(result.observations).toHaveLength(2);
-    expect(result.observations[0]).toEqual({
+    expect(result.observations[0]).toMatchObject({
       id: 'operation-0001',
       candidateId: 'candidate-0001',
-      callForm: 'direct-rest-member-call',
+      callForm: 'direct-endpoint',
       spelling: 'client.rest.issues.listForRepo',
       optional: false,
       member: {
@@ -261,9 +261,11 @@ describe('direct Octokit tracer', () => {
         construction: 'direct-new',
         clientBinding: 'client',
         clientAliasChain: ['client'],
+        access: 'local-binding',
       },
       source: { path: 'src/app.ts', span: listSpan },
     });
+    expect(result.observations[0]?.receiver.steps.map((step) => step.kind)).toEqual(['named-import', 'direct-new']);
     expect(result.observations[1]).toMatchObject({
       id: 'operation-0002',
       candidateId: 'candidate-0002',
@@ -328,7 +330,7 @@ describe('direct Octokit tracer', () => {
     const result = expectComplete(await analyzeSourceTree(requestFor(root)));
 
     expect(result.observations).toHaveLength(1);
-    expect(result.observations[0]?.receiver).toEqual({
+    expect(result.observations[0]?.receiver).toMatchObject({
       origin: 'octokit-package-named-import',
       packageSpecifier: 'octokit',
       exportName: 'Octokit',
@@ -337,7 +339,14 @@ describe('direct Octokit tracer', () => {
       construction: 'direct-new',
       clientBinding: 'primary',
       clientAliasChain: ['primary', 'github'],
+      access: 'local-binding',
     });
+    expect(result.observations[0]?.receiver.steps.map((step) => step.kind)).toEqual([
+      'named-import',
+      'local-alias',
+      'direct-new',
+      'local-alias',
+    ]);
     expect(result.observations[0]?.operation.operationId).toBe('issues/create');
   });
 });
@@ -386,7 +395,10 @@ describe('operation recognition independent of permission authority', () => {
     ]);
     expect(result.permissionBoundary).toMatchObject({ status: 'complete' });
     expect(result.candidates.filter((candidate) => candidate.classification === 'incomplete')).toHaveLength(1);
-    expect(result.causes.map((cause) => cause.code)).toEqual(['unproven-receiver-provenance']);
+    expect(result.candidates.find((candidate) => candidate.classification === 'incomplete')?.reason).toBe(
+      'unproven-receiver-provenance',
+    );
+    expect(result.causes.map((cause) => cause.code)).toEqual(['unproven-octokit-origin']);
   });
 });
 
@@ -452,14 +464,41 @@ describe('receiver provenance', () => {
     const result = expectIncomplete(await analyzeSourceTree(requestFor(root)));
 
     expect(result.observations).toEqual([]);
-    expect(result.candidates.map((candidate) => [candidate.kind, candidate.reason])).toEqual([
-      ['client-endpoint-shorthand-call', 'unsupported-endpoint-surface'],
-      ['bracket-member-call', 'unsupported-static-member-access'],
+    expect(result.candidates.map((candidate) => [candidate.kind, candidate.anchor, candidate.reason])).toEqual([
+      ['direct-endpoint', 'pinned-endpoint-alternate-surface', 'unsupported-endpoint-surface'],
+      ['static-bracket-member', 'pinned-endpoint-bracket-chain', 'unsupported-static-member-access'],
     ]);
     expect([...result.causes.map((cause) => cause.code)].sort()).toEqual([
       'unsupported-endpoint-surface',
       'unsupported-static-member-access',
     ]);
+  });
+
+  it('links the syntax cause and the resolver receiver-provenance cause on an unsupported-syntax candidate with an unproven receiver', async () => {
+    const source = [
+      'const client = { rest: { issues: { create: async (): Promise<void> => undefined } } };',
+      '',
+      'export async function report(): Promise<void> {',
+      "  await client['rest']['issues']['create']();",
+      '}',
+      '',
+    ].join('\n');
+    const root = await makeTree({ 'src/unsupported-unproven.ts': source });
+    const result = expectIncomplete(await analyzeSourceTree(requestFor(root)));
+
+    expect(result.observations).toEqual([]);
+    expect(result.candidates).toHaveLength(1);
+    const candidate = result.candidates[0];
+    expect(candidate?.kind).toBe('static-bracket-member');
+    expect(candidate?.anchor).toBe('pinned-endpoint-bracket-chain');
+    expect(candidate?.classification).toBe('incomplete');
+    expect(candidate?.reason).toBe('unsupported-static-member-access');
+
+    const causeCodes = (candidate?.causeIds ?? [])
+      .map((id) => result.causes.find((cause) => cause.id === id)?.code)
+      .sort();
+    expect(causeCodes).toEqual(['unproven-octokit-origin', 'unsupported-static-member-access']);
+    expect(result.candidates.some((entry) => entry.classification === 'proven-irrelevant')).toBe(false);
   });
 });
 
