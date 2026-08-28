@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "direct": [
+    {
+      "member": "issues.listForRepo",
+      "method": "GET",
+      "normalizedRoute": "/repos/{owner}/{repo}/issues",
+      "operationId": "issues/list-for-repo"
+    },
+    {
+      "member": "issues.create",
+      "method": "POST",
+      "normalizedRoute": "/repos/{owner}/{repo}/issues",
+      "operationId": "issues/create"
+    },
+    {
+      "member": "pulls.list",
+      "method": "GET",
+      "normalizedRoute": "/repos/{owner}/{repo}/pulls",
+      "operationId": "pulls/list"
+    }
+  ],
+  "positional": [
+    "GET /repos/{owner}/{repo}/issues",
+    "POST /repos/{owner}/{repo}/issues",
+    "GET /repos/{owner}/{repo}/pulls"
+  ],
+  "object": [
+    {
+      "method": "GET",
+      "url": "/repos/{owner}/{repo}/issues"
+    },
+    {
+      "method": "POST",
+      "url": "/repos/{owner}/{repo}/issues"
+    }
+  ]
+}

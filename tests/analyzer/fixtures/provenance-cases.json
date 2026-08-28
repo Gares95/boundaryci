@@ -1106,7 +1106,16 @@
           ]
         }
       ],
-      "sites": []
+      "sites": [
+        {
+          "path": "src/decoys.js",
+          "line": 6,
+          "kind": "positional-request",
+          "spelling": "service.request(alpha)",
+          "status": "unproven",
+          "causes": ["unproven-octokit-origin"]
+        }
+      ]
     },
     {
       "name": "a structural non-Octokit lookalike is censused but never proven",

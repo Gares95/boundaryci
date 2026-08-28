@@ -772,6 +772,7 @@ describe('analyzer import boundary', () => {
       'src/analyzer/candidates.ts',
       'src/analyzer/contract.ts',
       'src/analyzer/discovery.ts',
+      'src/analyzer/operations.ts',
       'src/analyzer/parse.ts',
       'src/analyzer/profile.ts',
       'src/analyzer/resolve.ts',
