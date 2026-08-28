@@ -10,18 +10,18 @@
  * target's package manifest, lockfile, `node_modules`, or build configuration. The only
  * interaction with target content is byte reading followed by syntactic parsing.
  *
- * The operation-proving slice of the Phase 3 grammar is deliberately narrow:
+ * The operation-proving slice of the Phase 3 grammar is deliberately finite:
  *
  *   import { Octokit } from 'octokit';   // exact named ESM import, exact specifier
  *   const client = new Octokit();        // direct `new` on an immutable binding
- *   client.rest.issues.create({ ... });  // exact pinned `scope.method` member, non-optional
+ *   client.rest.issues.create({ ... });  // exact pinned `scope.method` member
+ *   client.request('GET /repos/{owner}/{repo}/issues'); // exact static pinned route
  *
  * `./candidates.js` also anchors a broader grammar — alternate endpoint surfaces, static/dynamic
- * bracket chains, uninvoked or destructured extractions, `request()` shapes, and designated
- * Probot registrations — so that every one of those sites stays visible as an explicit
- * incomplete candidate rather than disappearing into a clean result. This analyzer does not yet
- * prove an operation from any of them; a proven receiver is necessary but never itself sufficient
- * to emit one.
+ * bracket chains, uninvoked or destructured extractions, static `request()` shapes, and
+ * designated Probot registrations — so that unsupported relevant sites stay visible as explicit
+ * incomplete candidates rather than disappearing into a clean result. A proven receiver remains
+ * necessary but never sufficient: the call grammar and exact pinned operation must also resolve.
  */
 
 import { BOUNDARYCI_PERMISSION_CATALOG, BOUNDARYCI_PERMISSION_CATALOG_IDENTITY } from '../permission-model/bounded-catalog.js';
@@ -63,17 +63,11 @@ import type {
 import { discoverSources } from './discovery.js';
 import { parseSourceRecord } from './parse.js';
 import type { ParsedSource } from './parse.js';
-import { ANALYZER_ENDPOINT_PROFILE, ANALYZER_PROFILE_IDENTITY } from './profile.js';
-import type { EndpointMemberRecord } from './profile.js';
+import { resolveOperationCandidate } from './operations.js';
+import type { OperationCandidateResolution } from './operations.js';
+import { ANALYZER_PROFILE_IDENTITY } from './profile.js';
 import { buildSourceGraph, proveCandidateReceiver } from './resolve.js';
 import type { ReceiverProofResult, ResolverCause, SourceGraph } from './resolve.js';
-
-/** The pinned anchor of the two-link `.<scope>.<method>(...)` alternate surface. */
-const ALTERNATE_SURFACE_ANCHOR = 'pinned-endpoint-alternate-surface';
-
-const MEMBER_INDEX: ReadonlyMap<string, EndpointMemberRecord> = new Map(
-  ANALYZER_ENDPOINT_PROFILE.members.map((member) => [`${member.scope}.${member.method}`, member]),
-);
 
 const ANALYZER_IDENTITY: Readonly<AnalyzerIdentity> = Object.freeze({
   schemaId: ANALYSIS_SCHEMA_ID,
@@ -98,7 +92,7 @@ interface PendingObservation {
   callForm: CandidateKind;
   spelling: string;
   optional: boolean;
-  member: ProfileMemberReference;
+  member: ProfileMemberReference | null;
   operation: { method: string; normalizedRoute: string; operationId: string };
   receiver: ReceiverProvenance;
   source: SourceEvidence;
@@ -169,10 +163,6 @@ function requestFailureDetail(error: unknown): string {
  * Candidate classification.
  * ------------------------------------------------------------------ */
 
-function memberFor(scope: string, method: string): EndpointMemberRecord | undefined {
-  return MEMBER_INDEX.get(`${scope}.${method}`);
-}
-
 function anchoredIncomplete(
   site: CandidateSite,
   reason: CandidateReason,
@@ -227,7 +217,27 @@ function withUnprovenReceiverCauses(candidate: PendingCandidate, proof: Receiver
   return { ...candidate, causes: [...candidate.causes, ...pendingCausesFromResolver(proof.causes)] };
 }
 
-function provenCandidate(site: CandidateSite, member: EndpointMemberRecord, receiver: ReceiverProvenance): PendingCandidate {
+function normalizedCandidate(site: CandidateSite, resolution: OperationCandidateResolution): PendingCandidate {
+  if (resolution.status === 'incomplete') {
+    return {
+      kind: site.kind,
+      anchor: site.anchor,
+      spelling: site.spelling,
+      path: site.path,
+      span: site.span,
+      classification: 'incomplete',
+      reason: resolution.reason,
+      causes: resolution.causes.map((cause) => ({
+        code: cause.code,
+        scope: 'candidate',
+        path: cause.path ?? site.path,
+        span: cause.span ?? site.span,
+        resource: null,
+        detail: cause.detail,
+      })),
+      observation: null,
+    };
+  }
   return {
     kind: site.kind,
     anchor: site.anchor,
@@ -235,24 +245,15 @@ function provenCandidate(site: CandidateSite, member: EndpointMemberRecord, rece
     path: site.path,
     span: site.span,
     classification: 'proven-operation',
-    reason: 'proven-direct-rest-member-call',
+    reason: resolution.reason,
     causes: [],
     observation: {
       callForm: site.kind,
       spelling: site.spelling,
-      optional: site.optional,
-      member: {
-        profileId: ANALYZER_ENDPOINT_PROFILE.identity.profileId,
-        memberId: `${member.scope}.${member.method}`,
-        scope: member.scope,
-        method: member.method,
-      },
-      operation: {
-        method: member.httpMethod,
-        normalizedRoute: member.normalizedRoute,
-        operationId: member.operationId,
-      },
-      receiver,
+      optional: resolution.optional,
+      member: resolution.member,
+      operation: resolution.operation,
+      receiver: resolution.receiver,
       source: { path: site.path, span: site.span },
     },
   };
@@ -312,39 +313,11 @@ function classifyUnsupportedKind(site: CandidateSite): PendingCandidate {
 function classifyCandidate(site: CandidateSite, graph: SourceGraph): PendingCandidate {
   const proof = proveCandidateReceiver(graph, site);
 
-  if (site.kind !== 'direct-endpoint') return withUnprovenReceiverCauses(classifyUnsupportedKind(site), proof);
-
-  if (site.anchor === ALTERNATE_SURFACE_ANCHOR) {
-    return withUnprovenReceiverCauses(
-      anchoredIncomplete(
-        site,
-        'unsupported-endpoint-surface',
-        'unsupported-endpoint-surface',
-        'no pinned client surface authorizes the direct endpoint shorthand',
-      ),
-      proof,
-    );
+  if (site.kind === 'direct-endpoint' || site.kind === 'positional-request' || site.kind === 'object-request') {
+    if (proof.status === 'unproven') return unprovenCandidate(site, proof.causes);
+    return normalizedCandidate(site, resolveOperationCandidate(site, graph, proof.provenance));
   }
-
-  if (site.optional) {
-    return withUnprovenReceiverCauses(
-      anchoredIncomplete(
-        site,
-        'unsupported-optional-chain',
-        'unsupported-optional-chain',
-        'optional member access or invocation is outside the supported call grammar',
-      ),
-      proof,
-    );
-  }
-
-  if (proof.status === 'unproven') return unprovenCandidate(site, proof.causes);
-
-  const member = site.member === null ? undefined : memberFor(site.member.scope, site.member.method);
-  if (member === undefined) {
-    throw new Error('a pinned endpoint candidate named a member outside the analyzer profile');
-  }
-  return provenCandidate(site, member, proof.provenance);
+  return withUnprovenReceiverCauses(classifyUnsupportedKind(site), proof);
 }
 
 /* ------------------------------------------------------------------ *
@@ -477,7 +450,7 @@ async function runAnalysis(request: AnalysisRequest): Promise<AnalysisResult> {
         callForm: candidate.observation.callForm,
         spelling: candidate.observation.spelling,
         optional: candidate.observation.optional,
-        member: { ...candidate.observation.member },
+        member: candidate.observation.member === null ? null : { ...candidate.observation.member },
         operation: { ...candidate.observation.operation },
         receiver: candidate.observation.receiver,
         source: {

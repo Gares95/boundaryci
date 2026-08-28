@@ -94,6 +94,7 @@ export interface ResolverCause {
 const RESOLVER_CAUSE_DETAILS: Readonly<Partial<Record<AnalyzerCauseCode, string>>> = Object.freeze({
   'ambiguous-relative-source':
     'a relative specifier matched several included sources under the fixed candidate table and was not resolved',
+  'dynamic-request-route': 'the request route binding is not one exact supported immutable string value',
   'invalidated-private-field':
     'a private client field received a second or unsupported write, which withdraws its provenance',
   'mutable-provenance-binding': 'the binding is reassigned or declared more than once and cannot carry provenance',
@@ -164,11 +165,14 @@ interface ScopeRecord {
 type BindingFact =
   | { readonly kind: 'call'; readonly calleeName: string; readonly span: SourceSpan }
   | { readonly kind: 'construction'; readonly constructorName: string; readonly span: SourceSpan }
+  | { readonly kind: 'inline-object'; readonly span: SourceSpan }
+  | { readonly kind: 'literal-string'; readonly span: SourceSpan; readonly value: string }
   | { readonly kind: 'local-alias'; readonly span: SourceSpan; readonly target: string }
   | { readonly kind: 'named-import'; readonly importedName: string; readonly span: SourceSpan; readonly specifier: string }
   | { readonly kind: 'private-alias'; readonly classStart: number | null; readonly field: string; readonly span: SourceSpan }
   | { readonly kind: 'require-named'; readonly importedName: string; readonly span: SourceSpan; readonly specifier: string }
   | { readonly kind: 'require-namespace'; readonly span: SourceSpan; readonly specifier: string }
+  | { readonly kind: 'unsupported-static-value'; readonly span: SourceSpan }
   | { readonly kind: 'unsupported'; readonly code: AnalyzerCauseCode; readonly span: SourceSpan };
 
 /**
@@ -593,6 +597,15 @@ function collectFileFacts(parsed: ParsedSource): FileFacts {
       setFact(scopeId, local, unsupportedFact('unsupported-import-form', declaration));
       return;
     }
+    const literal = stringLiteralText(initializer);
+    if (literal !== null) {
+      setFact(scopeId, local, { kind: 'literal-string', value: literal, span: span(declaration) });
+      return;
+    }
+    if (ts.isObjectLiteralExpression(initializer)) {
+      setFact(scopeId, local, { kind: 'inline-object', span: span(declaration) });
+      return;
+    }
     if (ts.isIdentifier(initializer)) {
       setFact(scopeId, local, { kind: 'local-alias', target: initializer.text, span: span(declaration) });
       return;
@@ -626,7 +639,9 @@ function collectFileFacts(parsed: ParsedSource): FileFacts {
         classStart,
         span: span(declaration),
       });
+      return;
     }
+    setFact(scopeId, local, { kind: 'unsupported-static-value', span: span(declaration) });
   };
 
   /** Declares every name one variable declaration list introduces, in its correct scope. */
@@ -1178,6 +1193,10 @@ function resolveBindingRecord(state: ResolutionState, file: FileFacts, record: B
       if (inner.kind !== 'unknown') return unknown(cause('unsupported-octokit-constructor', path, fact.span));
       return unknown(cause('unproven-octokit-origin', path, fact.span));
     }
+    case 'inline-object':
+    case 'literal-string':
+    case 'unsupported-static-value':
+      return unknown(cause('unproven-octokit-origin', path, fact.span));
     case 'private-alias': {
       const inner = provePrivateField(state, path, fact.classStart, fact.field);
       return extendValue(inner, name, [step('private-field-access', path, fact.span, name)]);
@@ -1185,6 +1204,131 @@ function resolveBindingRecord(state: ResolutionState, file: FileFacts, record: B
     case 'unsupported':
       return unknown(cause(fact.code, path, fact.span));
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Static request-route values.
+ * ------------------------------------------------------------------ */
+
+/** The finite value needed by the positional `request()` grammar. */
+export type StaticRouteValue =
+  | { readonly kind: 'string'; readonly value: string }
+  | { readonly kind: 'unsupported-object' }
+  | { readonly kind: 'unknown'; readonly causes: readonly ResolverCause[] };
+
+function resolveRouteName(state: ResolutionState, path: string, scopeId: number, name: string): StaticRouteValue {
+  const exhausted = charge(state, path);
+  if (exhausted !== null) return { kind: 'unknown', causes: [exhausted] };
+  const file = state.graph.files.get(path);
+  if (file === undefined) return { kind: 'unknown', causes: [cause('unresolved-relative-source', null, null)] };
+  const blocked = enterFile(file, state.budget);
+  if (blocked !== null) return { kind: 'unknown', causes: [blocked] };
+
+  const record = lookupBinding(file, scopeId, name);
+  if (record === null) return { kind: 'unknown', causes: [cause('dynamic-request-route', path, null)] };
+  const key = stackKey('route-binding', path, String(record.scopeId), name);
+  if (state.stack.includes(key)) {
+    return { kind: 'unknown', causes: [cause('relevant-resolution-cycle', path, record.span)] };
+  }
+  state.stack.push(key);
+  try {
+    return resolveRouteBindingRecord(state, file, record);
+  } finally {
+    state.stack.pop();
+  }
+}
+
+function resolveRouteBindingRecord(
+  state: ResolutionState,
+  file: FileFacts,
+  record: BindingRecord,
+): StaticRouteValue {
+  if (record.declarations > 1 || record.mutated) {
+    return { kind: 'unknown', causes: [cause('mutable-provenance-binding', file.path, record.span)] };
+  }
+
+  const fact = record.fact;
+  switch (fact.kind) {
+    case 'literal-string':
+      return { kind: 'string', value: fact.value };
+    case 'inline-object':
+      return { kind: 'unsupported-object' };
+    case 'local-alias':
+      return resolveRouteName(state, file.path, record.scopeId, fact.target);
+    case 'named-import':
+    case 'require-named': {
+      if (fact.kind === 'require-named' && file.requireShadowed) {
+        return { kind: 'unknown', causes: [cause('unsupported-commonjs-form', file.path, fact.span)] };
+      }
+      if (!isRelativeSpecifier(fact.specifier)) {
+        return { kind: 'unknown', causes: [cause('unproven-octokit-origin', file.path, fact.span)] };
+      }
+      const resolved = resolveRelativeSource(state.graph, file.path, fact.specifier);
+      if (resolved.status !== 'resolved') {
+        const code: AnalyzerCauseCode =
+          resolved.status === 'ambiguous' ? 'ambiguous-relative-source' : 'unresolved-relative-source';
+        return { kind: 'unknown', causes: [cause(code, file.path, fact.span)] };
+      }
+      return resolveRouteExport(state, resolved.path, fact.importedName);
+    }
+    case 'unsupported':
+      return { kind: 'unknown', causes: [cause(fact.code, file.path, fact.span)] };
+    case 'unsupported-static-value':
+      return { kind: 'unknown', causes: [cause('dynamic-request-route', file.path, fact.span)] };
+    case 'call':
+    case 'construction':
+    case 'private-alias':
+    case 'require-namespace':
+      return { kind: 'unknown', causes: [cause('dynamic-request-route', file.path, fact.span)] };
+  }
+}
+
+function resolveRouteExport(state: ResolutionState, path: string, exportName: string): StaticRouteValue {
+  const exhausted = charge(state, path);
+  if (exhausted !== null) return { kind: 'unknown', causes: [exhausted] };
+  const file = state.graph.files.get(path);
+  if (file === undefined) return { kind: 'unknown', causes: [cause('unresolved-relative-source', null, null)] };
+  const blocked = enterFile(file, state.budget);
+  if (blocked !== null) return { kind: 'unknown', causes: [blocked] };
+
+  const key = stackKey('route-export', path, exportName);
+  if (state.stack.includes(key)) {
+    return { kind: 'unknown', causes: [cause('relevant-resolution-cycle', path, null)] };
+  }
+  state.stack.push(key);
+  try {
+    const fact = file.exports.get(exportName);
+    if (fact === undefined) {
+      const code: AnalyzerCauseCode = file.usesCommonJsExports ? 'unsupported-commonjs-form' : 'unsupported-export-form';
+      return { kind: 'unknown', causes: [cause(code, path, null)] };
+    }
+    if (fact.kind === 'unsupported') return { kind: 'unknown', causes: [cause(fact.code, path, fact.span)] };
+    if (fact.kind === 'local') return resolveRouteName(state, path, MODULE_SCOPE_ID, fact.local);
+    if (!isRelativeSpecifier(fact.specifier)) {
+      return { kind: 'unknown', causes: [cause('unsupported-export-form', path, fact.span)] };
+    }
+    const resolved = resolveRelativeSource(state.graph, path, fact.specifier);
+    if (resolved.status !== 'resolved') {
+      const code: AnalyzerCauseCode =
+        resolved.status === 'ambiguous' ? 'ambiguous-relative-source' : 'unresolved-relative-source';
+      return { kind: 'unknown', causes: [cause(code, path, fact.span)] };
+    }
+    return resolveRouteExport(state, resolved.path, fact.importedName);
+  } finally {
+    state.stack.pop();
+  }
+}
+
+/** Resolves one lexical route binding at its exact use offset under a fresh request-local budget. */
+export function resolveStaticRouteValueAtOffset(
+  graph: SourceGraph,
+  path: string,
+  name: string,
+  useOffset: number,
+): StaticRouteValue {
+  const file = graph.files.get(path);
+  const scopeId = file === undefined ? MODULE_SCOPE_ID : scopeAtOffset(file, useOffset);
+  return resolveRouteName({ graph, budget: newBudget(), stack: [] }, path, scopeId, name);
 }
 
 function resolveExport(state: ResolutionState, path: string, exportName: string): StaticValue {

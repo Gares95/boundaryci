@@ -143,6 +143,9 @@ export type AnalysisFailureReason =
  */
 export type AnalyzerCauseCode =
   | 'ambiguous-relative-source'
+  | 'ambiguous-endpoint-member'
+  | 'ambiguous-request-route'
+  | 'dynamic-request-route'
   | 'internal-analyzer-error'
   | 'invalid-analysis-request'
   | 'invalid-analysis-result'
@@ -150,6 +153,7 @@ export type AnalyzerCauseCode =
   | 'invalidated-private-field'
   | 'matching-non-regular-entry'
   | 'matching-source-symlink'
+  | 'malformed-request-route'
   | 'mutable-provenance-binding'
   | 'permission-catalog-incomplete'
   | 'probot-entrypoint-unsupported'
@@ -169,6 +173,8 @@ export type AnalyzerCauseCode =
   | 'unproven-receiver-provenance'
   | 'unresolvable-analysis-root'
   | 'unresolved-relative-source'
+  | 'unknown-request-route'
+  | 'unknown-endpoint-member'
   | 'unsupported-commonjs-form'
   | 'unsupported-dynamic-member-access'
   | 'unsupported-endpoint-extraction'
@@ -180,6 +186,7 @@ export type AnalyzerCauseCode =
   | 'unsupported-optional-chain'
   | 'unsupported-probot-registration'
   | 'unsupported-request-grammar'
+  | 'unsupported-request-object'
   | 'unsupported-static-member-access';
 
 export type AnalyzerCauseScope = 'candidate' | 'repository' | 'source';
@@ -223,9 +230,9 @@ export interface AnalyzerCause {
  * The finite anchored candidate vocabulary.
  *
  * These are the syntactic obligations the census raises before any receiver is proven, not the
- * forms this analyzer can currently prove. `direct-endpoint` is the only kind whose grammar is
- * implemented; every other kind exists so that a relevant-looking site stays visible and
- * explicitly incomplete rather than silently absent.
+ * forms this analyzer can currently prove. Direct endpoints and the finite positional/object
+ * request subsets have implemented grammar; every other kind exists so that a relevant-looking
+ * site stays visible and explicitly incomplete rather than silently absent.
  */
 export type CandidateKind =
   | 'direct-endpoint'
@@ -240,14 +247,22 @@ export type CandidateClassification = 'incomplete' | 'proven-irrelevant' | 'prov
 
 export type CandidateReason =
   | 'proven-direct-rest-member-call'
+  | 'proven-static-request-call'
   | 'proven-non-octokit-origin'
   | 'unproven-receiver-provenance'
+  | 'ambiguous-request-route'
+  | 'ambiguous-endpoint-member'
+  | 'dynamic-request-route'
+  | 'malformed-request-route'
   | 'unsupported-dynamic-member-access'
   | 'unsupported-endpoint-extraction'
   | 'unsupported-endpoint-surface'
   | 'unsupported-optional-chain'
   | 'unsupported-probot-registration'
   | 'unsupported-request-grammar'
+  | 'unsupported-request-object'
+  | 'unknown-request-route'
+  | 'unknown-endpoint-member'
   | 'unsupported-static-member-access';
 
 /**
@@ -352,7 +367,7 @@ export interface OperationObservation {
   callForm: CandidateKind;
   spelling: string;
   optional: boolean;
-  member: ProfileMemberReference;
+  member: ProfileMemberReference | null;
   operation: RestOperationIdentity;
   receiver: ReceiverProvenance;
   source: SourceEvidence;
@@ -451,7 +466,10 @@ const FAILURE_REASONS: readonly AnalysisFailureReason[] = [
 ];
 
 const CAUSE_CODES: readonly AnalyzerCauseCode[] = [
+  'ambiguous-endpoint-member',
   'ambiguous-relative-source',
+  'ambiguous-request-route',
+  'dynamic-request-route',
   'internal-analyzer-error',
   'invalid-analysis-request',
   'invalid-analysis-result',
@@ -459,6 +477,7 @@ const CAUSE_CODES: readonly AnalyzerCauseCode[] = [
   'invalidated-private-field',
   'matching-non-regular-entry',
   'matching-source-symlink',
+  'malformed-request-route',
   'mutable-provenance-binding',
   'permission-catalog-incomplete',
   'probot-entrypoint-unsupported',
@@ -478,6 +497,8 @@ const CAUSE_CODES: readonly AnalyzerCauseCode[] = [
   'unproven-receiver-provenance',
   'unresolvable-analysis-root',
   'unresolved-relative-source',
+  'unknown-request-route',
+  'unknown-endpoint-member',
   'unsupported-commonjs-form',
   'unsupported-dynamic-member-access',
   'unsupported-endpoint-extraction',
@@ -489,6 +510,7 @@ const CAUSE_CODES: readonly AnalyzerCauseCode[] = [
   'unsupported-optional-chain',
   'unsupported-probot-registration',
   'unsupported-request-grammar',
+  'unsupported-request-object',
   'unsupported-static-member-access',
 ];
 
@@ -515,14 +537,22 @@ const CANDIDATE_CLASSIFICATIONS: readonly CandidateClassification[] = [
 
 const CANDIDATE_REASONS: readonly CandidateReason[] = [
   'proven-direct-rest-member-call',
+  'proven-static-request-call',
   'proven-non-octokit-origin',
   'unproven-receiver-provenance',
+  'ambiguous-request-route',
+  'ambiguous-endpoint-member',
+  'dynamic-request-route',
+  'malformed-request-route',
   'unsupported-dynamic-member-access',
   'unsupported-endpoint-extraction',
   'unsupported-endpoint-surface',
   'unsupported-optional-chain',
   'unsupported-probot-registration',
   'unsupported-request-grammar',
+  'unsupported-request-object',
+  'unknown-request-route',
+  'unknown-endpoint-member',
   'unsupported-static-member-access',
 ];
 
@@ -973,7 +1003,9 @@ function assertCandidate(value: unknown, label: string): asserts value is Candid
    */
   if (value.classification === 'proven-operation') {
     if (value.observationId === null) throw new TypeError(`${label} is proven without an observation`);
-    if (value.reason !== 'proven-direct-rest-member-call') throw new TypeError(`${label}.reason is not a proof reason`);
+    if (value.reason !== 'proven-direct-rest-member-call' && value.reason !== 'proven-static-request-call') {
+      throw new TypeError(`${label}.reason is not a proof reason`);
+    }
     if (value.causeIds.length !== 0) throw new TypeError(`${label} is proven but still carries a cause`);
   } else if (value.classification === 'proven-irrelevant') {
     if (value.observationId !== null) throw new TypeError(`${label} is irrelevant but references an observation`);
@@ -983,7 +1015,11 @@ function assertCandidate(value: unknown, label: string): asserts value is Candid
     if (value.causeIds.length !== 0) throw new TypeError(`${label} is irrelevant but still carries a cause`);
   } else {
     if (value.observationId !== null) throw new TypeError(`${label} references an observation it did not prove`);
-    if (value.reason === 'proven-direct-rest-member-call' || value.reason === 'proven-non-octokit-origin') {
+    if (
+      value.reason === 'proven-direct-rest-member-call' ||
+      value.reason === 'proven-static-request-call' ||
+      value.reason === 'proven-non-octokit-origin'
+    ) {
       throw new TypeError(`${label} is incomplete but carries a proof reason`);
     }
     if (value.causeIds.length === 0) throw new TypeError(`${label} is incomplete without a cause`);
@@ -1080,14 +1116,22 @@ function assertObservation(value: unknown, label: string): asserts value is Oper
   if (!CANDIDATE_KINDS.includes(value.callForm as CandidateKind)) throw new TypeError(`${label}.callForm is invalid`);
   assertNonEmptyString(value.spelling, `${label}.spelling`);
   if (typeof value.optional !== 'boolean') throw new TypeError(`${label}.optional must be a boolean`);
-  assertPlainObject(value.member, `${label}.member`);
-  assertExactKeys(value.member, ['memberId', 'method', 'profileId', 'scope'], `${label}.member`);
-  assertNonEmptyString(value.member.profileId, `${label}.member.profileId`);
-  assertNonEmptyString(value.member.memberId, `${label}.member.memberId`);
-  assertNonEmptyString(value.member.scope, `${label}.member.scope`);
-  assertNonEmptyString(value.member.method, `${label}.member.method`);
-  if (value.member.memberId !== `${String(value.member.scope)}.${String(value.member.method)}`) {
-    throw new TypeError(`${label}.member.memberId does not match its scope and method`);
+  if (value.member !== null) {
+    assertPlainObject(value.member, `${label}.member`);
+    assertExactKeys(value.member, ['memberId', 'method', 'profileId', 'scope'], `${label}.member`);
+    assertNonEmptyString(value.member.profileId, `${label}.member.profileId`);
+    assertNonEmptyString(value.member.memberId, `${label}.member.memberId`);
+    assertNonEmptyString(value.member.scope, `${label}.member.scope`);
+    assertNonEmptyString(value.member.method, `${label}.member.method`);
+    if (value.member.memberId !== `${String(value.member.scope)}.${String(value.member.method)}`) {
+      throw new TypeError(`${label}.member.memberId does not match its scope and method`);
+    }
+  }
+  if (value.callForm === 'direct-endpoint' && value.member === null) {
+    throw new TypeError(`${label}.member is required for a direct endpoint observation`);
+  }
+  if ((value.callForm === 'positional-request' || value.callForm === 'object-request') && value.member !== null) {
+    throw new TypeError(`${label}.member must be null for a request observation`);
   }
   assertOperationIdentity(value.operation, `${label}.operation`);
   assertReceiverProvenance(value.receiver, `${label}.receiver`);
@@ -1264,6 +1308,12 @@ export function validateAnalysisResult(value: unknown): asserts value is Analysi
     }
     if (candidate.observationId !== observation.id) {
       throw new TypeError(`${observation.id} and ${candidate.id} do not reference each other`);
+    }
+    if (
+      (candidate.reason === 'proven-static-request-call') !==
+      (observation.callForm === 'positional-request' || observation.callForm === 'object-request')
+    ) {
+      throw new TypeError(`${observation.id} call form contradicts ${candidate.id} proof reason`);
     }
     if (!sourcePaths.has(observation.source.path)) {
       throw new TypeError(`${observation.id} references an unanalyzed source`);

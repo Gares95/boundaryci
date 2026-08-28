@@ -54,6 +54,7 @@ const ANCHOR_COMPUTED_CHAIN = 'computed-endpoint-chain-position';
 const ANCHOR_PINNED_EXTRACTION = 'pinned-endpoint-member-extraction';
 const ANCHOR_REQUEST_POSITIONAL = 'request-positional-route-argument';
 const ANCHOR_REQUEST_OBJECT = 'request-object-argument';
+const ANCHOR_REQUEST_BRACKET = 'request-static-bracket-access';
 const ANCHOR_PROBOT_REGISTRATION = 'designated-probot-registration';
 
 const MEMBER_IDS: ReadonlySet<string> = new Set(
@@ -84,6 +85,25 @@ export interface CandidateMember {
   readonly method: string;
 }
 
+/** Portable syntax-only description of a positional `request()` route argument. */
+export type CandidateRouteArgument =
+  | { readonly kind: 'binding'; readonly name: string; readonly useStart: number }
+  | { readonly kind: 'dynamic' }
+  | { readonly kind: 'literal'; readonly value: string }
+  | { readonly kind: 'missing' };
+
+/** Exact route-defining subset of one fresh inline request object. */
+export interface CandidateRequestObject {
+  readonly supportedShape: boolean;
+  readonly method: string | null;
+  readonly url: string | null;
+}
+
+/** Internal request syntax retained until receiver proof and operation normalization. */
+export type CandidateRequest =
+  | { readonly form: 'object'; readonly object: CandidateRequestObject }
+  | { readonly form: 'positional'; readonly argument: CandidateRouteArgument; readonly supportedArity: boolean };
+
 /**
  * One censused obligation.
  *
@@ -109,6 +129,8 @@ export interface CandidateSite {
   readonly member: CandidateMember | null;
   /** The static route text of a positional `request()` argument, when it was a literal. */
   readonly route: string | null;
+  /** Exact request syntax needed by the bounded Task 1 call grammar, or `null` otherwise. */
+  readonly request: CandidateRequest | null;
   readonly enclosingClassStart: number | null;
 }
 
@@ -276,6 +298,7 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
         receiverStart: receiverStartOf(first.object),
         member: { scope, method },
         route: null,
+        request: null,
         enclosingClassStart: classStart,
       });
       return true;
@@ -297,6 +320,7 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
       receiverStart: receiverStartOf(first.object),
       member,
       route: null,
+      request: null,
       enclosingClassStart: classStart,
     });
     return true;
@@ -333,12 +357,73 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
       receiverStart: receiverStartOf(scopeLink.object),
       member: { scope: scopeLink.text, method: methodLink.text },
       route: null,
+      request: null,
       enclosingClassStart: classStart,
     });
     return true;
   };
 
-  /** Censuses the two documented `request()` argument shapes and nothing else. */
+  /** Describes the exact fresh-inline object subset without retaining parser nodes. */
+  const describeRequestObject = (object: ts.ObjectLiteralExpression): CandidateRequestObject => {
+    let method: string | null = null;
+    let url: string | null = null;
+    let methodCount = 0;
+    let urlCount = 0;
+    let supportedShape = true;
+
+    for (const property of object.properties) {
+      if (ts.isSpreadAssignment(property) || ts.isGetAccessorDeclaration(property) || ts.isSetAccessorDeclaration(property)) {
+        supportedShape = false;
+        continue;
+      }
+      if (ts.isShorthandPropertyAssignment(property)) {
+        if (property.name.text === 'method' || property.name.text === 'url') supportedShape = false;
+        continue;
+      }
+      if (!ts.isPropertyAssignment(property)) {
+        supportedShape = false;
+        continue;
+      }
+      if (property.name.kind === ts.SyntaxKind.ComputedPropertyName) {
+        supportedShape = false;
+        continue;
+      }
+      const name =
+        ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : null;
+      if (name === 'baseUrl') {
+        supportedShape = false;
+        continue;
+      }
+      if (name !== 'method' && name !== 'url') continue;
+      const value = literalTextOf(property.initializer);
+      if (name === 'method') {
+        methodCount += 1;
+        if (value === null) supportedShape = false;
+        else method = value;
+      } else {
+        urlCount += 1;
+        if (value === null) supportedShape = false;
+        else url = value;
+      }
+    }
+
+    if (methodCount !== 1 || urlCount !== 1 || method === null || url === null || /^(?:[a-z][a-z+.-]*:)?\/\//iu.test(url)) {
+      supportedShape = false;
+    }
+    return { supportedShape, method, url };
+  };
+
+  const describeRouteArgument = (argument: ts.Expression | undefined): CandidateRouteArgument => {
+    if (argument === undefined) return { kind: 'missing' };
+    const literal = literalTextOf(argument);
+    if (literal !== null) return { kind: 'literal', value: literal };
+    if (ts.isIdentifier(argument)) {
+      return { kind: 'binding', name: argument.text, useStart: argument.getStart(parsed.sourceFile) };
+    }
+    return { kind: 'dynamic' };
+  };
+
+  /** Censuses the two documented `request()` argument shapes and malformed empty calls. */
   const censusRequest = (node: ts.CallExpression, link: ChainLink, classStart: number | null): void => {
     const args = node.arguments;
     const receiver = describeReceiver(link.object);
@@ -346,7 +431,25 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
     const span = spanOfNode(parsed, node);
     const optional = link.optional || node.questionDotToken !== undefined;
     const first = args[0];
-    if (args.length === 1 && first !== undefined && ts.isObjectLiteralExpression(first)) {
+    if (link.bracket) {
+      push({
+        kind: 'static-bracket-member',
+        anchor: ANCHOR_REQUEST_BRACKET,
+        spelling: `${base}`,
+        path,
+        span,
+        optional,
+        receiver,
+        receiverStart: receiverStartOf(link.object),
+        member: null,
+        route: null,
+        request: null,
+        enclosingClassStart: classStart,
+      });
+      return;
+    }
+    if (first !== undefined && ts.isObjectLiteralExpression(first)) {
+      const object = describeRequestObject(first);
       push({
         kind: 'object-request',
         anchor: ANCHOR_REQUEST_OBJECT,
@@ -358,18 +461,31 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
         receiverStart: receiverStartOf(link.object),
         member: null,
         route: null,
+        request: {
+          form: 'object',
+          object: args.length === 1 ? object : { ...object, supportedShape: false },
+        },
         enclosingClassStart: classStart,
       });
       return;
     }
-    // `request(route, parameters?)`: exactly the documented positional arity, so neither a
-    // zero-argument call nor an unrelated three-argument method becomes a route obligation.
-    if (args.length < 1 || args.length > 2 || first === undefined) return;
-    const route = literalTextOf(first);
+    // Every exact dot-form `request()` call is an accounting obligation. Missing and over-arity
+    // calls remain explicit even when the route itself is dynamic; provenance evaluation, not
+    // the census, decides whether the receiver is actually authorized.
+    const route = first === undefined ? null : literalTextOf(first);
+    const argument = describeRouteArgument(first);
+    const argumentSpelling =
+      argument.kind === 'missing'
+        ? ''
+        : argument.kind === 'binding'
+          ? argument.name
+          : argument.kind === 'literal'
+            ? argument.value
+            : '<dynamic>';
     push({
       kind: 'positional-request',
       anchor: ANCHOR_REQUEST_POSITIONAL,
-      spelling: `${base}(${route === null ? '<dynamic>' : route})`,
+      spelling: `${base}(${argumentSpelling})`,
       path,
       span,
       optional,
@@ -377,6 +493,11 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
       receiverStart: receiverStartOf(link.object),
       member: null,
       route,
+      request: {
+        form: 'positional',
+        argument,
+        supportedArity: args.length >= 1 && args.length <= 2,
+      },
       enclosingClassStart: classStart,
     });
   };
@@ -406,6 +527,7 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
       receiverStart: receiverStartOf(link.object),
       member: null,
       route: null,
+      request: null,
       enclosingClassStart: classStart,
     });
   };
@@ -444,6 +566,7 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
         receiverStart: receiverStartOf(restLink.object),
         member: { scope, method },
         route: null,
+        request: null,
         enclosingClassStart: classStart,
       });
     }
