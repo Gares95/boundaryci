@@ -119,6 +119,7 @@ export interface AnalysisRequest {
 
 export type AnalysisFailureReason =
   | 'analysis-root-not-a-directory'
+  | 'internal-analyzer-error'
   | 'invalid-analysis-request'
   | 'invalid-analysis-result'
   | 'probot-entrypoint-outside-source-universe'
@@ -134,10 +135,15 @@ export type AnalysisFailureReason =
  * authorized Octokit receiver could not be established. The grammar codes describe a censused
  * obligation whose call grammar this analyzer does not yet interpret.
  *
+ * `internal-analyzer-error` is the one exception to all of that: it does not describe an open
+ * question about the target program, it describes the analyzer itself failing closed after an
+ * unexpected internal-state exception, and it appears only on a diagnostic-only `failed` result.
+ *
  * None of these ever means "proven absent". Each one means a specific question stayed open.
  */
 export type AnalyzerCauseCode =
   | 'ambiguous-relative-source'
+  | 'internal-analyzer-error'
   | 'invalid-analysis-request'
   | 'invalid-analysis-result'
   | 'invalid-source-encoding'
@@ -437,6 +443,7 @@ const DATED_API_VERSION = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u;
 
 const FAILURE_REASONS: readonly AnalysisFailureReason[] = [
   'analysis-root-not-a-directory',
+  'internal-analyzer-error',
   'invalid-analysis-request',
   'invalid-analysis-result',
   'probot-entrypoint-outside-source-universe',
@@ -445,6 +452,7 @@ const FAILURE_REASONS: readonly AnalysisFailureReason[] = [
 
 const CAUSE_CODES: readonly AnalyzerCauseCode[] = [
   'ambiguous-relative-source',
+  'internal-analyzer-error',
   'invalid-analysis-request',
   'invalid-analysis-result',
   'invalid-source-encoding',
@@ -954,14 +962,31 @@ function assertCandidate(value: unknown, label: string): asserts value is Candid
   if (value.observationId !== null) assertOrdinalId(value.observationId, `${label}.observationId`);
   assertStringArray(value.causeIds, `${label}.causeIds`);
   value.causeIds.forEach((id, index) => assertOrdinalId(id, `${label}.causeIds[${index}]`));
+  assertUniqueIds(value.causeIds, `${label}.causeIds`);
+
+  /**
+   * Each of the three terminal classifications is an exact, mutually exclusive shape: a
+   * `proven-operation` carries its one observation and no cause; a `proven-irrelevant` carries
+   * its one affirmative non-Octokit reason and no observation or cause; an `incomplete`
+   * candidate carries neither a proof reason nor an observation, and at least one cause. No
+   * other combination of classification, reason, observation, and cause presence validates.
+   */
   if (value.classification === 'proven-operation') {
     if (value.observationId === null) throw new TypeError(`${label} is proven without an observation`);
     if (value.reason !== 'proven-direct-rest-member-call') throw new TypeError(`${label}.reason is not a proof reason`);
-  } else if (value.observationId !== null) {
-    throw new TypeError(`${label} references an observation it did not prove`);
-  }
-  if (value.classification === 'incomplete' && value.causeIds.length === 0) {
-    throw new TypeError(`${label} is incomplete without a cause`);
+    if (value.causeIds.length !== 0) throw new TypeError(`${label} is proven but still carries a cause`);
+  } else if (value.classification === 'proven-irrelevant') {
+    if (value.observationId !== null) throw new TypeError(`${label} is irrelevant but references an observation`);
+    if (value.reason !== 'proven-non-octokit-origin') {
+      throw new TypeError(`${label}.reason is not an irrelevance proof reason`);
+    }
+    if (value.causeIds.length !== 0) throw new TypeError(`${label} is irrelevant but still carries a cause`);
+  } else {
+    if (value.observationId !== null) throw new TypeError(`${label} references an observation it did not prove`);
+    if (value.reason === 'proven-direct-rest-member-call' || value.reason === 'proven-non-octokit-origin') {
+      throw new TypeError(`${label} is incomplete but carries a proof reason`);
+    }
+    if (value.causeIds.length === 0) throw new TypeError(`${label} is incomplete without a cause`);
   }
 }
 
@@ -1092,6 +1117,26 @@ function assertUniqueIds(ids: readonly string[], label: string): void {
   if (new Set(ids).size !== ids.length) throw new TypeError(`${label} repeats an identifier`);
 }
 
+/** Canonical semantic identity of one already validated cause, excluding only its ordinal ID. */
+function causeBodyKey(cause: AnalyzerCause): string {
+  const span =
+    cause.span === null
+      ? null
+      : [cause.span.start.line, cause.span.start.column, cause.span.end.line, cause.span.end.column];
+  const resource =
+    cause.resource === null
+      ? null
+      : [
+          cause.resource.limitKey,
+          cause.resource.configured,
+          cause.resource.consumed,
+          cause.resource.frontier,
+          cause.resource.processedSources,
+          cause.resource.unprocessedSources,
+        ];
+  return JSON.stringify([cause.code, cause.scope, cause.path, span, resource, cause.detail]);
+}
+
 /**
  * Accepts only an exact-shape analysis result of one of the three declared variants.
  *
@@ -1178,6 +1223,10 @@ export function validateAnalysisResult(value: unknown): asserts value is Analysi
     'analysis result causes',
   );
   assertUniqueIds(
+    causes.map(causeBodyKey),
+    'analysis result cause bodies',
+  );
+  assertUniqueIds(
     observations.map((entry) => entry.id),
     'analysis result observations',
   );
@@ -1188,7 +1237,7 @@ export function validateAnalysisResult(value: unknown): asserts value is Analysi
 
   const sourcePaths = new Set(sources.map((entry) => entry.path));
   const causeIds = new Set(causes.map((entry) => entry.id));
-  const candidateIds = new Set(candidates.map((entry) => entry.id));
+  const candidatesById = new Map(candidates.map((entry) => [entry.id, entry]));
   const observationIds = new Set(observations.map((entry) => entry.id));
 
   for (const candidate of candidates) {
@@ -1200,9 +1249,21 @@ export function validateAnalysisResult(value: unknown): asserts value is Analysi
       throw new TypeError(`${candidate.id} references an unknown observation`);
     }
   }
+  // A `proven-operation` candidate's `observationId` and an observation's `candidateId` are one
+  // relationship recorded twice; no observation may be claimed by more than one candidate, and
+  // the two directions must name each other exactly, or the cross-reference is contradictory
+  // rather than merely unresolved.
+  assertUniqueIds(
+    candidates.flatMap((entry) => (entry.observationId === null ? [] : [entry.observationId])),
+    'analysis result candidates observationId',
+  );
   for (const observation of observations) {
-    if (!candidateIds.has(observation.candidateId)) {
+    const candidate = candidatesById.get(observation.candidateId);
+    if (candidate === undefined) {
       throw new TypeError(`${observation.id} references an unknown candidate`);
+    }
+    if (candidate.observationId !== observation.id) {
+      throw new TypeError(`${observation.id} and ${candidate.id} do not reference each other`);
     }
     if (!sourcePaths.has(observation.source.path)) {
       throw new TypeError(`${observation.id} references an unanalyzed source`);
@@ -1216,6 +1277,13 @@ export function validateAnalysisResult(value: unknown): asserts value is Analysi
       }
     }
   }
+  // Every observation is resolved by exactly one permission resolution: `resolutions.length`
+  // already forces the count, uniqueness of `observationId` forces no observation to be
+  // resolved twice, and membership in `observationIds` forces no resolution to dangle.
+  assertUniqueIds(
+    resolutions.map((entry) => entry.observationId),
+    'analysis result permissionResolutions observationId',
+  );
   for (const resolution of resolutions) {
     if (!observationIds.has(resolution.observationId)) {
       throw new TypeError(`${resolution.id} references an unknown observation`);

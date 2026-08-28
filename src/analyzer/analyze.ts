@@ -358,6 +358,13 @@ function classifyCandidate(site: CandidateSite, graph: SourceGraph): PendingCand
  * boundary was resolved, `incomplete` when analysis ran safely but something remains
  * unresolved, and `failed` when the request, root, or analyzer state cannot support
  * trustworthy semantic output. A `failed` result carries diagnostics and nothing else.
+ *
+ * Trusted request validation is the one boundary this function checks itself; everything past
+ * it runs in {@link runAnalysis} under a closing catch, so an unexpected analyzer-state
+ * exception — an internal invariant this module or one of its collaborators violated, never a
+ * declared limit or cycle, both of which already return normally — still produces a
+ * structurally diagnostic-only `failed` result instead of an unhandled rejection or a result
+ * that serializes accumulated evidence no one has actually validated.
  */
 export async function analyzeSourceTree(request: AnalysisRequest): Promise<AnalysisResult> {
   try {
@@ -366,6 +373,18 @@ export async function analyzeSourceTree(request: AnalysisRequest): Promise<Analy
     return failed('invalid-analysis-request', 'invalid-analysis-request', requestFailureDetail(error));
   }
 
+  try {
+    return await runAnalysis(request);
+  } catch {
+    return failed(
+      'internal-analyzer-error',
+      'internal-analyzer-error',
+      'the analyzer encountered an unexpected internal state and produced no trusted evidence',
+    );
+  }
+}
+
+async function runAnalysis(request: AnalysisRequest): Promise<AnalysisResult> {
   const boundary: AnalysisBoundary = {
     include: sortedUnique(request.include),
     exclude: sortedUnique(request.exclude),

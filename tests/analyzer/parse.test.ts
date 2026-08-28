@@ -769,10 +769,12 @@ describe('analyzer import boundary', () => {
     const reached = [...reports.keys()].map((path) => path.slice(path.indexOf('/src/') + 1)).sort();
     expect(reached).toEqual([
       'src/analyzer/analyze.ts',
+      'src/analyzer/candidates.ts',
       'src/analyzer/contract.ts',
       'src/analyzer/discovery.ts',
       'src/analyzer/parse.ts',
       'src/analyzer/profile.ts',
+      'src/analyzer/resolve.ts',
       'src/permission-model/bounded-catalog.ts',
       'src/permission-model/model.ts',
     ]);
