@@ -231,6 +231,26 @@ describe('discoverSources: deterministic ordering', () => {
     expect(result.effectiveSources).toEqual(['lib.ts', 'lib/inner.ts']);
   });
 
+  it('uses UTF-8 byte order for non-ASCII paths and its budget frontier', async () => {
+    const root = await createTempRoot();
+    await writeRegularFile(root, 'src/\u{10000}.ts', 'export {};\n');
+    await writeRegularFile(root, 'src/\uE000.ts', 'export {};\n');
+
+    const result = await expectDiscovered(
+      await discoverSources(root, ['src/**/*.ts'], [], limitsFor({ maxSourceFiles: 1 })),
+    );
+
+    // UTF-8 encodes U+E000 as EE 80 80 and U+10000 as F0 90 80 80. JavaScript's default
+    // UTF-16 ordering gives the opposite result because the supplementary code point begins
+    // with a surrogate. The discovery contract is explicitly UTF-8 bytewise.
+    expect(result.effectiveSources).toEqual(['src/\uE000.ts', 'src/\u{10000}.ts']);
+    expect(result.sources.map((source) => source.path)).toEqual(['src/\uE000.ts']);
+    expect(result.causes).toContainEqual(expect.objectContaining({
+      code: 'source-file-limit',
+      resource: expect.objectContaining({ frontier: 'src/\u{10000}.ts' }),
+    }));
+  });
+
   it('produces the same result regardless of include/exclude array order', async () => {
     const root = await createTempRoot();
     await writeRegularFile(root, 'src/a.ts', 'export {};\n');

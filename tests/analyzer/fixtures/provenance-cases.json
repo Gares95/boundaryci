@@ -1280,7 +1280,7 @@
       ]
     },
     {
-      "name": "raw words and unanchored shapes raise no obligation at all",
+      "name": "raw words and shallow shapes stay silent while full static REST and request chains remain obligations",
       "files": [
         {
           "path": "src/decoys.js",
@@ -1304,6 +1304,16 @@
           "line": 6,
           "kind": "positional-request",
           "spelling": "service.request(alpha)",
+          "status": "unproven",
+          "causes": [
+            "unproven-octokit-origin"
+          ]
+        },
+        {
+          "path": "src/decoys.js",
+          "line": 7,
+          "kind": "direct-endpoint",
+          "spelling": "client.rest.issues.explode",
           "status": "unproven",
           "causes": [
             "unproven-octokit-origin"

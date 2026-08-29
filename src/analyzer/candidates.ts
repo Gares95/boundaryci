@@ -9,7 +9,7 @@
  * The census is anchored, not name-based. A bare `rest`, `request`, `octokit`, `create`, or
  * `on` somewhere in a file is not an obligation; the anchor is always a syntactic position:
  *
- * - `direct-endpoint`        `<receiver>.rest.<scope>.<method>(...)` with an exact pinned member;
+ * - `direct-endpoint`        `<receiver>.rest.<scope>.<method>(...)` with static member names;
  * - `static-bracket-member`  the same chain spelled with exact string-literal brackets;
  * - `dynamic-member`         the same chain with a computed link at a position that still lines
  *                            up with the pinned surface;
@@ -20,9 +20,12 @@
  * - `probot-registration`    `<receiver>.on(event, handler)` inside a *designated* Probot
  *                            entrypoint only — never an arbitrary `.on` call.
  *
- * Exact pinned membership comes only from {@link ANALYZER_ENDPOINT_PROFILE}. No endpoint
- * identity is ever derived by camel-casing a name or guessing a route, and censusing a site
- * asserts nothing about whether its receiver is an Octokit client.
+ * Exact pinned membership comes only from {@link ANALYZER_ENDPOINT_PROFILE}. A fully static
+ * `.rest.<scope>.<method>` chain is nevertheless retained when its pair is absent from that
+ * profile: if receiver proof later establishes an authorized Octokit client, operation
+ * normalization must report `unknown-endpoint-member` rather than silently dropping a newer or
+ * unsupported surface. No endpoint identity is ever derived by camel-casing a name or guessing
+ * a route, and censusing a site asserts nothing about whether its receiver is an Octokit client.
  *
  * Nothing here reads a file, resolves a module, or evaluates target code. It walks one already
  * parsed syntax tree and returns portable data.
@@ -48,6 +51,7 @@ const REQUEST_LINK = 'request';
 const REGISTRATION_LINK = 'on';
 
 const ANCHOR_PINNED_MEMBER = 'pinned-endpoint-member-spelling';
+const ANCHOR_STATIC_REST_MEMBER = 'static-rest-endpoint-member-spelling';
 const ANCHOR_PINNED_ALTERNATE_SURFACE = 'pinned-endpoint-alternate-surface';
 const ANCHOR_PINNED_BRACKET = 'pinned-endpoint-bracket-chain';
 const ANCHOR_COMPUTED_CHAIN = 'computed-endpoint-chain-position';
@@ -285,7 +289,7 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
       if (first.text !== REST_LINK) return false;
       const scope = second.text as string;
       const method = third.text as string;
-      if (!isPinnedMember(scope, method)) return false;
+      const pinned = isPinnedMember(scope, method);
       const bracketed = first.bracket || second.bracket || third.bracket;
       const kind: CandidateKind = bracketed
         ? 'static-bracket-member'
@@ -295,7 +299,9 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
       const anchor = bracketed
         ? ANCHOR_PINNED_BRACKET
         : callNode !== null
-          ? ANCHOR_PINNED_MEMBER
+          ? pinned
+            ? ANCHOR_PINNED_MEMBER
+            : ANCHOR_STATIC_REST_MEMBER
           : ANCHOR_PINNED_EXTRACTION;
       push({
         kind,

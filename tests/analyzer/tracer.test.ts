@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -164,6 +164,57 @@ describe('pinned analyzer endpoint profile', () => {
     expect(DETACHED_ENDPOINT_AUTHORIZATIONS).toEqual([]);
     expect(Object.isFrozen(DIRECT_SHORTHAND_AUTHORIZATIONS)).toBe(true);
     expect(Object.isFrozen(DETACHED_ENDPOINT_AUTHORIZATIONS)).toBe(true);
+  });
+
+  it('matches every compatibility-profile row to the reviewed operation inventory', async () => {
+    const inventory = JSON.parse(
+      await readFile('tools/permission-data-feasibility/evidence/operation-inventory.json', 'utf8'),
+    ) as {
+      apiVersion: string;
+      artifactManifestSha256: string;
+      contentSha256: string;
+      operationRows: Array<{ appEnabled: boolean; operationId: string; path: string; verb: string }>;
+      methodJoinRows: Array<{
+        method: string;
+        operationIds: string[];
+        operationJoinStatus: string;
+        scope: string;
+        surfaceStatus: string;
+        v18Routes: string[];
+      }>;
+    };
+
+    const operations = inventory.operationRows
+      .filter((row) => row.appEnabled)
+      .map((row) => ({ method: row.verb, normalizedRoute: row.path, operationId: row.operationId }));
+    const members = inventory.methodJoinRows
+      .filter(
+        (row) =>
+          row.surfaceStatus === 'common-identical' &&
+          row.operationJoinStatus === 'matched-operation' &&
+          row.v18Routes.length === 1 &&
+          row.operationIds.length === 1,
+      )
+      .map((row) => {
+        const route = row.v18Routes[0];
+        const operationId = row.operationIds[0];
+        if (route === undefined || operationId === undefined) throw new Error('filtered inventory row is incomplete');
+        const separator = route.indexOf(' ');
+        if (separator <= 0) throw new Error('reviewed endpoint route is malformed');
+        return {
+          scope: row.scope,
+          method: row.method,
+          httpMethod: route.slice(0, separator),
+          normalizedRoute: route.slice(separator + 1),
+          operationId,
+        };
+      });
+
+    expect(inventory.contentSha256).toBe(ANALYZER_PROFILE_IDENTITY.inventoryContentSha256);
+    expect(inventory.artifactManifestSha256).toBe(ANALYZER_PROFILE_IDENTITY.artifactManifestSha256);
+    expect(inventory.apiVersion).toBe(ANALYZER_PROFILE_IDENTITY.restApiVersion);
+    expect(members).toEqual(ANALYZER_ENDPOINT_PROFILE.members);
+    expect(operations).toEqual(ANALYZER_ENDPOINT_PROFILE.operations);
   });
 
   it('keeps profile membership separate from permission-catalog authority', () => {

@@ -175,6 +175,32 @@ describe('exact endpoint operation normalization', () => {
     });
   });
 
+  it('censuses static unknown endpoint members on proven clients instead of returning false-clean', async () => {
+    const result = await analyze([
+      "import { Octokit } from 'octokit';",
+      'const client = new Octokit();',
+      'client.rest.issues.futureMethod({});',
+      'client.rest.futureScope.create({});',
+    ].join('\n'));
+
+    expect(result.status).toBe('incomplete');
+    if (result.status === 'failed') throw new Error('analysis unexpectedly failed');
+    expect(result.observations).toEqual([]);
+    expect(result.candidates).toHaveLength(2);
+    expect(result.candidates.map((candidate) => candidate.reason)).toEqual([
+      'unknown-endpoint-member',
+      'unknown-endpoint-member',
+    ]);
+    expect(result.candidates.map((candidate) => candidate.classification)).toEqual([
+      'incomplete',
+      'incomplete',
+    ]);
+    expect(result.causes.map((cause) => cause.code)).toEqual([
+      'unknown-endpoint-member',
+      'unknown-endpoint-member',
+    ]);
+  });
+
   it('fails closed when one exact static request route has ambiguous operation rows', () => {
     const site: CandidateSite = {
       kind: 'positional-request',

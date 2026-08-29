@@ -41,7 +41,7 @@ export const DISCOVERY_POLICY_IDENTITY = ANALYSIS_DISCOVERY_PROFILE_ID;
 const UNINTERPRETED_GLOB_OPERATOR = /[!{}[\]()+@|]/u;
 
 function compareBytes(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
+  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 }
 
 function assertValidPatternSegments(pattern: string): readonly string[] {

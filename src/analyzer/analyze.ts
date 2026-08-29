@@ -112,7 +112,7 @@ interface PendingCandidate {
 }
 
 function compareBytes(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
+  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 }
 
 /** Normalizes a declarative pattern/path array so caller order and duplicates never leak into evidence. */
