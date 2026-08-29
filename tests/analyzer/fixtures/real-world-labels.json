@@ -1,0 +1,1142 @@
+{
+  "schemaVersion": 1,
+  "selection": {
+    "ruleVersion": "boundaryci-real-world-strata@1",
+    "rule": "For each nonempty (clientStyle, language) stratum, choose lowest usageFiles, then sourceBytes, then bytewise fullName.",
+    "corpusManifestSha256": "dcf870a983b750ace09f8f3725e74d646a11f9bd0821f87c398a9b24de4ea608",
+    "frozenAt": "2026-08-29T16:21:24Z"
+  },
+  "reportClasses": [
+    "direct-constructed-client",
+    "designated-probot-context",
+    "ecmascript-private-field",
+    "positional-request",
+    "object-request",
+    "direct-shorthand",
+    "endpoint-extraction",
+    "static-bracket",
+    "dynamic-member-route",
+    "unproved-relevant-receiver",
+    "certain-non-octokit-decoy"
+  ],
+  "repositories": [
+    {
+      "fullName": "techinpark/appstore-status-bot",
+      "clientStyle": "direct-octokit",
+      "language": "JavaScript",
+      "sha": "53ca8d533ca496ed7c0a94fcfde8fd3177ec7640",
+      "snapshotDigest": "8f59be8aebb84115",
+      "rootDir": "snapshots/techinpark__appstore-status-bot/techinpark-appstore-status-bot-53ca8d5",
+      "includes": [
+        "Sources/check_status.js"
+      ],
+      "probotEntrypoints": [],
+      "files": [
+        {
+          "path": "Sources/check_status.js",
+          "byteSize": 2732,
+          "sha256": "334d222ad157482a5f44f7725756c1fe0b68ee2c35bed2a1c2742980993f9992"
+        }
+      ],
+      "labels": [
+        {
+          "id": "techinpark-gists-get-1",
+          "path": "Sources/check_status.js",
+          "span": {
+            "start": {
+              "line": 65,
+              "column": 22
+            },
+            "end": {
+              "line": 68,
+              "column": 7
+            }
+          },
+          "receiverClass": "direct-constructed-client",
+          "callClass": "canonical-rest-endpoint",
+          "reportClasses": [
+            "direct-constructed-client"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": true,
+          "expected": {
+            "kind": "operation",
+            "method": "GET",
+            "normalizedRoute": "/gists/{gist_id}",
+            "operationId": "gists/get"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "techinpark-gists-get-2",
+          "path": "Sources/check_status.js",
+          "span": {
+            "start": {
+              "line": 89,
+              "column": 22
+            },
+            "end": {
+              "line": 92,
+              "column": 7
+            }
+          },
+          "receiverClass": "direct-constructed-client",
+          "callClass": "canonical-rest-endpoint",
+          "reportClasses": [
+            "direct-constructed-client"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": true,
+          "expected": {
+            "kind": "operation",
+            "method": "GET",
+            "normalizedRoute": "/gists/{gist_id}",
+            "operationId": "gists/get"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "techinpark-gists-update",
+          "path": "Sources/check_status.js",
+          "span": {
+            "start": {
+              "line": 97,
+              "column": 9
+            },
+            "end": {
+              "line": 104,
+              "column": 5
+            }
+          },
+          "receiverClass": "direct-constructed-client",
+          "callClass": "canonical-rest-endpoint",
+          "reportClasses": [
+            "direct-constructed-client"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": true,
+          "expected": {
+            "kind": "operation",
+            "method": "PATCH",
+            "normalizedRoute": "/gists/{gist_id}",
+            "operationId": "gists/update"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        }
+      ]
+    },
+    {
+      "fullName": "areibman/bottleneck",
+      "clientStyle": "direct-octokit",
+      "language": "TypeScript",
+      "sha": "103afeda234db07dc0b89ab965ed04164da439e5",
+      "snapshotDigest": "110c54ec29214303",
+      "rootDir": "snapshots/areibman__bottleneck/areibman-bottleneck-103afed",
+      "includes": [
+        "src/main/auth.ts"
+      ],
+      "probotEntrypoints": [],
+      "files": [
+        {
+          "path": "src/main/auth.ts",
+          "byteSize": 10126,
+          "sha256": "5e6534b9d74f04f795d6370801ad7c4c837638f45f9f4996cb4709a0a1096d50"
+        }
+      ],
+      "labels": [
+        {
+          "id": "bottleneck-user-auth-1",
+          "path": "src/main/auth.ts",
+          "span": {
+            "start": {
+              "line": 27,
+              "column": 15
+            },
+            "end": {
+              "line": 27,
+              "column": 47
+            }
+          },
+          "receiverClass": "unauthorized-package-client",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "bottleneck-window-on-decoy",
+          "path": "src/main/auth.ts",
+          "span": {
+            "start": {
+              "line": 109,
+              "column": 7
+            },
+            "end": {
+              "line": 119,
+              "column": 9
+            }
+          },
+          "receiverClass": "non-octokit-electron-window",
+          "callClass": "event-registration-decoy",
+          "reportClasses": [
+            "certain-non-octokit-decoy"
+          ],
+          "confidence": "certain",
+          "relevance": "non-octokit",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "irrelevant"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "bottleneck-user-auth-2",
+          "path": "src/main/auth.ts",
+          "span": {
+            "start": {
+              "line": 243,
+              "column": 36
+            },
+            "end": {
+              "line": 243,
+              "column": 68
+            }
+          },
+          "receiverClass": "unauthorized-package-client",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        }
+      ]
+    },
+    {
+      "fullName": "noqcks/pull-request-size",
+      "clientStyle": "marker-only",
+      "language": "JavaScript",
+      "sha": "c0c77afca50e7d5ba7d2787f3ca646b4d21f6cde",
+      "snapshotDigest": "a50317110c5bb3e5",
+      "rootDir": "snapshots/noqcks__pull-request-size/noqcks-pull-request-size-c0c77af",
+      "includes": [
+        "src/github.js",
+        "src/index.js",
+        "src/plans.js"
+      ],
+      "probotEntrypoints": [
+        "src/index.js"
+      ],
+      "files": [
+        {
+          "path": "src/github.js",
+          "byteSize": 4991,
+          "sha256": "75bc2b44399a8d402645e43e64f7fa21a5ab278eec5372de117aff03d9d896a8"
+        },
+        {
+          "path": "src/index.js",
+          "byteSize": 2949,
+          "sha256": "5e10034ef6236983a9f3f920d38decafbd89ec7f11a49906cadc23d83d6a6a44"
+        },
+        {
+          "path": "src/plans.js",
+          "byteSize": 1442,
+          "sha256": "a8a89ebf9964050f382bb9b4ec817d32e4b39a41d5cd5fc5634c493baf14000f"
+        }
+      ],
+      "labels": [
+        {
+          "id": "noqcks-list-comments",
+          "path": "src/github.js",
+          "span": {
+            "start": {
+              "line": 22,
+              "column": 26
+            },
+            "end": {
+              "line": 26,
+              "column": 5
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "canonical-rest-endpoint",
+          "reportClasses": [
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "noqcks-create-comment",
+          "path": "src/github.js",
+          "span": {
+            "start": {
+              "line": 29,
+              "column": 11
+            },
+            "end": {
+              "line": 34,
+              "column": 7
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "noqcks-list-files-extraction",
+          "path": "src/github.js",
+          "span": {
+            "start": {
+              "line": 53,
+              "column": 5
+            },
+            "end": {
+              "line": 53,
+              "column": 32
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "endpoint-extraction",
+          "reportClasses": [
+            "endpoint-extraction",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "noqcks-get-label",
+          "path": "src/github.js",
+          "span": {
+            "start": {
+              "line": 65,
+              "column": 18
+            },
+            "end": {
+              "line": 67,
+              "column": 8
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "noqcks-create-label",
+          "path": "src/github.js",
+          "span": {
+            "start": {
+              "line": 69,
+              "column": 12
+            },
+            "end": {
+              "line": 72,
+              "column": 8
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "noqcks-add-labels",
+          "path": "src/github.js",
+          "span": {
+            "start": {
+              "line": 80,
+              "column": 9
+            },
+            "end": {
+              "line": 80,
+              "column": 45
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "noqcks-content-1",
+          "path": "src/github.js",
+          "span": {
+            "start": {
+              "line": 91,
+              "column": 22
+            },
+            "end": {
+              "line": 91,
+              "column": 73
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "noqcks-remove-label",
+          "path": "src/github.js",
+          "span": {
+            "start": {
+              "line": 111,
+              "column": 9
+            },
+            "end": {
+              "line": 113,
+              "column": 12
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "noqcks-content-2",
+          "path": "src/github.js",
+          "span": {
+            "start": {
+              "line": 122,
+              "column": 22
+            },
+            "end": {
+              "line": 127,
+              "column": 7
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "noqcks-subscription-plan",
+          "path": "src/plans.js",
+          "span": {
+            "start": {
+              "line": 29,
+              "column": 23
+            },
+            "end": {
+              "line": 29,
+              "column": 89
+            }
+          },
+          "receiverClass": "parameter-carried-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        }
+      ]
+    },
+    {
+      "fullName": "oceanlvr/ChatGPT-ProBot",
+      "clientStyle": "probot",
+      "language": "JavaScript",
+      "sha": "d5a6bc970cb4099004962be512441c0539ea1ac7",
+      "snapshotDigest": "1c8930d66ed3bcc7",
+      "rootDir": "snapshots/oceanlvr__ChatGPT-ProBot/oceanlvr-ChatGPT-ProBot-d5a6bc9",
+      "includes": [
+        "index.js"
+      ],
+      "probotEntrypoints": [
+        "index.js"
+      ],
+      "files": [
+        {
+          "path": "index.js",
+          "byteSize": 1799,
+          "sha256": "8982b23796242f4f5bd477ff5464b7c95c0754311becaddca7c2b4ea8a156902"
+        }
+      ],
+      "labels": [
+        {
+          "id": "ocean-ping-comment",
+          "path": "index.js",
+          "span": {
+            "start": {
+              "line": 9,
+              "column": 18
+            },
+            "end": {
+              "line": 9,
+              "column": 68
+            }
+          },
+          "receiverClass": "unsupported-handler-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "ocean-chat-comment",
+          "path": "index.js",
+          "span": {
+            "start": {
+              "line": 22,
+              "column": 18
+            },
+            "end": {
+              "line": 22,
+              "column": 68
+            }
+          },
+          "receiverClass": "unsupported-handler-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "ocean-review-comment",
+          "path": "index.js",
+          "span": {
+            "start": {
+              "line": 49,
+              "column": 18
+            },
+            "end": {
+              "line": 49,
+              "column": 68
+            }
+          },
+          "receiverClass": "unsupported-entrypoint-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        }
+      ]
+    },
+    {
+      "fullName": "kentaro-m/auto-assign",
+      "clientStyle": "probot",
+      "language": "TypeScript",
+      "sha": "39fc0e90841b4b4f6efc628675f1b94d0320d1c4",
+      "snapshotDigest": "4ed562589f8a3a5a",
+      "rootDir": "snapshots/kentaro-m__auto-assign/kentaro-m-auto-assign-39fc0e9",
+      "includes": [
+        "src/handler.ts",
+        "src/index.ts"
+      ],
+      "probotEntrypoints": [
+        "src/index.ts"
+      ],
+      "files": [
+        {
+          "path": "src/handler.ts",
+          "byteSize": 2791,
+          "sha256": "2a7aeda9ba138cba7074f4ad6d90e0890f29cc45769cc63998276738dd6f20dd"
+        },
+        {
+          "path": "src/index.ts",
+          "byteSize": 306,
+          "sha256": "7139235420f8c5af8bc8c86e04e8d3c2977fde175722c77f2c0696729ae1b2d3"
+        }
+      ],
+      "labels": [
+        {
+          "id": "auto-assign-reviewers",
+          "path": "src/handler.ts",
+          "span": {
+            "start": {
+              "line": 78,
+              "column": 30
+            },
+            "end": {
+              "line": 78,
+              "column": 76
+            }
+          },
+          "receiverClass": "unsupported-entrypoint-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "auto-assign-assignees",
+          "path": "src/handler.ts",
+          "span": {
+            "start": {
+              "line": 94,
+              "column": 30
+            },
+            "end": {
+              "line": 94,
+              "column": 73
+            }
+          },
+          "receiverClass": "unsupported-entrypoint-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        }
+      ]
+    },
+    {
+      "fullName": "first-timers/app",
+      "clientStyle": "probot+direct",
+      "language": "JavaScript",
+      "sha": "2a6f9ac1349fc411e248167b8f6b5d65373c3353",
+      "snapshotDigest": "5518086ecf82304e",
+      "rootDir": "snapshots/first-timers__app/first-timers-app-2a6f9ac",
+      "includes": [
+        "app.js",
+        "lib/create-issue.js",
+        "lib/delete-branch.js",
+        "lib/get-branch.js",
+        "lib/get-commit.js",
+        "lib/get-template-content.js",
+        "lib/handle-create-event.js"
+      ],
+      "probotEntrypoints": [
+        "app.js"
+      ],
+      "files": [
+        {
+          "path": "app.js",
+          "byteSize": 244,
+          "sha256": "88e83d1a05a70f26847e3474d05412e8eba6586386026a77593b1c347cc3604f"
+        },
+        {
+          "path": "lib/create-issue.js",
+          "byteSize": 1068,
+          "sha256": "bfa593b790ef1e7fdcee2a349b74ed93185afe7fe69a853585bbfdf42c5eee7c"
+        },
+        {
+          "path": "lib/delete-branch.js",
+          "byteSize": 568,
+          "sha256": "1099efb09bebaa1c6afa108190fb64b4bd92b59167cddaab9427ea62ca740409"
+        },
+        {
+          "path": "lib/get-branch.js",
+          "byteSize": 430,
+          "sha256": "982987c6c1b7e9b2696c3e23373225fd1fd8aa878044cbcaf9f0e40a3a6dc9c5"
+        },
+        {
+          "path": "lib/get-commit.js",
+          "byteSize": 806,
+          "sha256": "62c67b1596073bad773f1df25bd7e3d949a22ececbf2526d786e8b693ff07cbf"
+        },
+        {
+          "path": "lib/get-template-content.js",
+          "byteSize": 505,
+          "sha256": "135b4c5b2e492bef22995784ce3ffac40e1165c5fb9e57d6be87665c7cd27cd3"
+        },
+        {
+          "path": "lib/handle-create-event.js",
+          "byteSize": 1829,
+          "sha256": "87634a65e552a5a4d59decfa37221f6de0e50ee362be389292d4b4f432f6213d"
+        }
+      ],
+      "labels": [
+        {
+          "id": "first-timers-create",
+          "path": "lib/create-issue.js",
+          "span": {
+            "start": {
+              "line": 16,
+              "column": 10
+            },
+            "end": {
+              "line": 23,
+              "column": 7
+            }
+          },
+          "receiverClass": "object-carried-probot-client",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "first-timers-update",
+          "path": "lib/create-issue.js",
+          "span": {
+            "start": {
+              "line": 28,
+              "column": 13
+            },
+            "end": {
+              "line": 33,
+              "column": 9
+            }
+          },
+          "receiverClass": "object-carried-probot-client",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "first-timers-delete-ref",
+          "path": "lib/delete-branch.js",
+          "span": {
+            "start": {
+              "line": 4,
+              "column": 10
+            },
+            "end": {
+              "line": 9,
+              "column": 7
+            }
+          },
+          "receiverClass": "object-carried-probot-client",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "first-timers-get-branch",
+          "path": "lib/get-branch.js",
+          "span": {
+            "start": {
+              "line": 5,
+              "column": 10
+            },
+            "end": {
+              "line": 10,
+              "column": 7
+            }
+          },
+          "receiverClass": "object-carried-probot-client",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "first-timers-get-commit",
+          "path": "lib/get-commit.js",
+          "span": {
+            "start": {
+              "line": 6,
+              "column": 10
+            },
+            "end": {
+              "line": 11,
+              "column": 7
+            }
+          },
+          "receiverClass": "object-carried-probot-client",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "first-timers-get-content",
+          "path": "lib/get-template-content.js",
+          "span": {
+            "start": {
+              "line": 13,
+              "column": 10
+            },
+            "end": {
+              "line": 14,
+              "column": 39
+            }
+          },
+          "receiverClass": "object-carried-probot-client",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        }
+      ]
+    },
+    {
+      "fullName": "tauri-apps/tauri-github-bot",
+      "clientStyle": "probot+direct",
+      "language": "TypeScript",
+      "sha": "6f103c000f916001797c07ba8ec6f28caa9ac0d0",
+      "snapshotDigest": "df0279bf3a07e5da",
+      "rootDir": "snapshots/tauri-apps__tauri-github-bot/tauri-apps-tauri-github-bot-6f103c0",
+      "includes": [
+        "src/constants.ts",
+        "src/index.ts"
+      ],
+      "probotEntrypoints": [
+        "src/index.ts"
+      ],
+      "files": [
+        {
+          "path": "src/constants.ts",
+          "byteSize": 667,
+          "sha256": "6c5a96616298ecc1614659f6faebc94caef748716e12d73d6274e2902478a8bf"
+        },
+        {
+          "path": "src/index.ts",
+          "byteSize": 3930,
+          "sha256": "2632298a9b7542bf17fcf0a1aea5d9269b4a04c32b421a11e64d333bc7b68183"
+        }
+      ],
+      "labels": [
+        {
+          "id": "tauri-direct-create",
+          "path": "src/index.ts",
+          "span": {
+            "start": {
+              "line": 49,
+              "column": 17
+            },
+            "end": {
+              "line": 55,
+              "column": 13
+            }
+          },
+          "receiverClass": "forwarded-unauthorized-package-client",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "direct-shorthand",
+            "unproved-relevant-receiver"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "tauri-context-add-label",
+          "path": "src/index.ts",
+          "span": {
+            "start": {
+              "line": 58,
+              "column": 17
+            },
+            "end": {
+              "line": 64,
+              "column": 12
+            }
+          },
+          "receiverClass": "designated-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "designated-probot-context",
+            "direct-shorthand"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "tauri-context-comment",
+          "path": "src/index.ts",
+          "span": {
+            "start": {
+              "line": 100,
+              "column": 15
+            },
+            "end": {
+              "line": 105,
+              "column": 11
+            }
+          },
+          "receiverClass": "designated-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "designated-probot-context",
+            "direct-shorthand"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "tauri-context-add-backlog",
+          "path": "src/index.ts",
+          "span": {
+            "start": {
+              "line": 108,
+              "column": 15
+            },
+            "end": {
+              "line": 113,
+              "column": 11
+            }
+          },
+          "receiverClass": "designated-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "designated-probot-context",
+            "direct-shorthand"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        },
+        {
+          "id": "tauri-context-remove-label",
+          "path": "src/index.ts",
+          "span": {
+            "start": {
+              "line": 116,
+              "column": 15
+            },
+            "end": {
+              "line": 121,
+              "column": 11
+            }
+          },
+          "receiverClass": "designated-probot-context",
+          "callClass": "direct-shorthand",
+          "reportClasses": [
+            "designated-probot-context",
+            "direct-shorthand"
+          ],
+          "confidence": "certain",
+          "relevance": "relevant",
+          "insideSupportedGrammar": false,
+          "expected": {
+            "kind": "incomplete"
+          },
+          "reviewerRole": "independent-source-reviewer",
+          "labeledAt": "2026-08-29T16:21:24Z"
+        }
+      ]
+    }
+  ],
+  "labelSetSha256": "e6bdc7120b2acb457e930565eaaf0549f2fb6d7bb23eefbc0cf6fcf2896cb5a8"
+}
