@@ -65,8 +65,9 @@ import { parseSourceRecord } from './parse.js';
 import type { ParsedSource } from './parse.js';
 import { resolveOperationCandidate } from './operations.js';
 import type { OperationCandidateResolution } from './operations.js';
+import { proveProbotEntrypoint, proveProbotHandlerRegistration } from './probot.js';
 import { ANALYZER_PROFILE_IDENTITY } from './profile.js';
-import { buildSourceGraph, proveCandidateReceiver } from './resolve.js';
+import { buildSourceGraph, proveCandidateReceiver, RESOLUTION_LIMITS } from './resolve.js';
 import type { ReceiverProofResult, ResolverCause, SourceGraph } from './resolve.js';
 
 const ANALYZER_IDENTITY: Readonly<AnalyzerIdentity> = Object.freeze({
@@ -303,6 +304,48 @@ function classifyUnsupportedKind(site: CandidateSite): PendingCandidate {
   }
 }
 
+function provenIrrelevantCandidate(
+  site: CandidateSite,
+  reason: 'proven-non-octokit-origin' | 'proven-probot-registration-contract' = 'proven-non-octokit-origin',
+): PendingCandidate {
+  return {
+    kind: site.kind,
+    anchor: site.anchor,
+    spelling: site.spelling,
+    path: site.path,
+    span: site.span,
+    classification: 'proven-irrelevant',
+    reason,
+    causes: [],
+    observation: null,
+  };
+}
+
+function classifyProbotRegistration(site: CandidateSite, graph: SourceGraph): PendingCandidate {
+  const sources = new Map([...graph.files].map(([path, file]) => [path, file.parsed]));
+  const result = proveProbotHandlerRegistration(
+    sources,
+    graph.probotEntrypoints,
+    {
+      path: site.path,
+      start:
+        site.span.start.line === 0
+          ? 0
+          : (sources
+              .get(site.path)
+              ?.sourceFile.getPositionOfLineAndCharacter(
+                site.span.start.line - 1,
+                site.span.start.column - 1,
+              ) ?? 0),
+      optional: site.optional,
+    },
+    RESOLUTION_LIMITS,
+  );
+  if (result.status === 'proven') return provenIrrelevantCandidate(site, 'proven-probot-registration-contract');
+  if (result.status === 'irrelevant') return provenIrrelevantCandidate(site);
+  return anchoredIncomplete(site, 'unsupported-probot-handler-registration', result.cause.code, result.cause.detail);
+}
+
 /**
  * Classifies one censused candidate into its exactly one terminal record.
  *
@@ -311,6 +354,7 @@ function classifyUnsupportedKind(site: CandidateSite): PendingCandidate {
  * pinned, non-optional `.rest.<scope>.<method>(...)` anchor may.
  */
 function classifyCandidate(site: CandidateSite, graph: SourceGraph): PendingCandidate {
+  if (site.kind === 'probot-registration') return classifyProbotRegistration(site, graph);
   const proof = proveCandidateReceiver(graph, site);
 
   if (site.kind === 'direct-endpoint' || site.kind === 'positional-request' || site.kind === 'object-request') {
@@ -411,22 +455,23 @@ async function runAnalysis(request: AnalysisRequest): Promise<AnalysisResult> {
     parsedSources.push(parsed);
   }
 
+  const parsedByPath = new Map(parsedSources.map((source) => [source.record.path, source]));
   for (const entrypoint of boundary.probotEntrypoints) {
-    causes.push({
-      code: 'probot-entrypoint-unsupported',
-      scope: 'source',
-      path: entrypoint,
-      span: null,
-      resource: null,
-      detail: 'Probot entrypoint provenance is not part of this analyzer grammar',
-    });
+    const parsed = parsedByPath.get(entrypoint);
+    if (parsed === undefined) continue;
+    const proof = proveProbotEntrypoint(parsed);
+    if (proof.status === 'incomplete') {
+      causes.push({ code: proof.cause.code, scope: 'source', path: proof.cause.path, span: proof.cause.span, resource: null, detail: proof.cause.detail });
+    }
   }
 
-  const graph = buildSourceGraph(parsedSources);
+  const graph = buildSourceGraph(parsedSources, boundary.probotEntrypoints);
   const probotEntrypoints = new Set(boundary.probotEntrypoints);
   const candidates: PendingCandidate[] = [];
   for (const parsed of parsedSources) {
-    const sites = censusCandidates(parsed, { probotEntrypoint: probotEntrypoints.has(parsed.record.path) });
+    const sites = censusCandidates(parsed, {
+      probotEntrypoint: probotEntrypoints.has(parsed.record.path),
+    });
     for (const site of sites) candidates.push(classifyCandidate(site, graph));
   }
 

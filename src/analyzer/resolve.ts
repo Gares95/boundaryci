@@ -43,9 +43,10 @@ import ts from 'typescript';
 import type { SourceSpan } from '../permission-model/model.js';
 
 import type { CandidateSite } from './candidates.js';
-import type { AnalyzerCauseCode, ProvenanceStep, ReceiverAccess, ReceiverOrigin, ReceiverProvenance } from './contract.js';
+import type { AnalyzerCauseCode, DirectOctokitReceiverProvenance, ProvenanceStep, ReceiverAccess, ReceiverOrigin, ReceiverProvenance } from './contract.js';
 import { RELATIVE_SOURCE_CANDIDATE_RULES, RELATIVE_SOURCE_CANDIDATE_TABLE_ID, spanOfNode } from './parse.js';
 import type { ParsedSource } from './parse.js';
+import { proveProbotHandlerContext } from './probot.js';
 
 /** Identity of the resolution and provenance policy implemented here. */
 export const RESOLUTION_POLICY_IDENTITY = 'boundaryci/bounded-source-resolution@1';
@@ -245,6 +246,7 @@ interface FileFacts {
 export interface SourceGraph {
   readonly policyId: string;
   readonly files: ReadonlyMap<string, FileFacts>;
+  readonly probotEntrypoints: ReadonlySet<string>;
 }
 
 /* ------------------------------------------------------------------ *
@@ -897,10 +899,10 @@ function collectFileFacts(parsed: ParsedSource): FileFacts {
  * Files that failed to decode or parse are absent by construction, so a chain that needed one
  * of them finds no candidate and becomes incomplete rather than silently resolving elsewhere.
  */
-export function buildSourceGraph(sources: Iterable<ParsedSource>): SourceGraph {
+export function buildSourceGraph(sources: Iterable<ParsedSource>, probotEntrypoints: Iterable<string> = []): SourceGraph {
   const files = new Map<string, FileFacts>();
   for (const parsed of sources) files.set(parsed.record.path, collectFileFacts(parsed));
-  return { policyId: RESOLUTION_POLICY_IDENTITY, files };
+  return { policyId: RESOLUTION_POLICY_IDENTITY, files, probotEntrypoints: new Set(probotEntrypoints) };
 }
 
 /* ------------------------------------------------------------------ *
@@ -1473,9 +1475,9 @@ export type ReceiverProofResult =
   | { readonly status: 'proven'; readonly provenance: ReceiverProvenance }
   | { readonly status: 'unproven'; readonly causes: readonly ResolverCause[] };
 
-function provenanceOf(client: ClientProof, access: ReceiverAccess): ReceiverProvenance {
+function provenanceOf(client: ClientProof, access: ReceiverAccess): DirectOctokitReceiverProvenance {
   return {
-    origin: client.constructor.origin,
+    origin: client.constructor.origin as DirectOctokitReceiverProvenance['origin'],
     packageSpecifier: client.constructor.packageSpecifier,
     exportName: client.constructor.exportName,
     constructorBinding: client.constructor.binding,
@@ -1486,6 +1488,34 @@ function provenanceOf(client: ClientProof, access: ReceiverAccess): ReceiverProv
     access,
     steps: client.steps.map((entry) => ({ ...entry })),
   };
+}
+
+function probotProvenance(
+  proof: Extract<ReturnType<typeof proveProbotHandlerContext>, { status: 'proven' }>,
+): ReceiverProvenance {
+  return {
+    origin: 'probot-context-octokit',
+    construction: 'probot-context',
+    contextBinding: proof.contextBinding,
+    clientBinding: proof.clientBinding,
+    clientAliasChain: [proof.clientBinding],
+    access: 'probot-context-octokit',
+    steps: proof.steps.map((step) => ({ ...step })),
+  };
+}
+
+function probotReceiverProof(graph: SourceGraph, site: CandidateSite): ReceiverProofResult | null {
+  const sources = new Map([...graph.files].map(([path, file]) => [path, file.parsed]));
+  const target = site.receiver.form === 'probot-context-octokit'
+    ? { path: site.path, start: site.receiverStart, contextName: site.receiver.contextName, clientName: null }
+    : site.receiver.form === 'identifier'
+      ? { path: site.path, start: site.receiverStart, contextName: null, clientName: site.receiver.name }
+      : null;
+  if (target === null) return null;
+  const proof = proveProbotHandlerContext(sources, graph.probotEntrypoints, target, RESOLUTION_LIMITS);
+  if (proof.status === 'proven') return { status: 'proven', provenance: probotProvenance(proof) };
+  if (proof.causes.length === 0) return null;
+  return { status: 'unproven', causes: proof.causes.map((entry) => ({ ...entry })) };
 }
 
 /**
@@ -1509,6 +1539,10 @@ export function proveCandidateReceiver(graph: SourceGraph, site: CandidateSite):
   if (receiver.form === 'expression') {
     return { status: 'unproven', causes: [cause('unproven-octokit-origin', site.path, site.span)] };
   }
+  if (receiver.form === 'probot-context-octokit') {
+    const probot = probotReceiverProof(graph, site);
+    return probot ?? { status: 'unproven', causes: [cause('unproven-octokit-origin', site.path, site.span)] };
+  }
 
   const file = graph.files.get(site.path);
   const useScope = file === undefined ? MODULE_SCOPE_ID : scopeAtOffset(file, site.receiverStart);
@@ -1520,6 +1554,14 @@ export function proveCandidateReceiver(graph: SourceGraph, site: CandidateSite):
   if (value.kind === 'octokit-client') {
     const access: ReceiverAccess = receiver.form === 'private-field' ? 'private-instance-field' : 'local-binding';
     return { status: 'proven', provenance: provenanceOf(value.client, access) };
+  }
+  // A malformed designated Probot initializer must not prevent independent direct-Octokit
+  // composition.  Only retain Probot causes when ordinary local provenance also failed.
+  const probot = receiver.form === 'identifier' ? probotReceiverProof(graph, site) : null;
+  if (probot?.status === 'proven') return probot;
+  if (probot?.status === 'unproven') {
+    const ordinary = value.kind === 'unknown' ? value.causes : [cause('unproven-octokit-origin', site.path, site.span)];
+    return { status: 'unproven', causes: [...ordinary, ...probot.causes] };
   }
   if (value.kind === 'octokit-constructor') {
     return { status: 'unproven', causes: [cause('unsupported-octokit-constructor', site.path, site.span)] };

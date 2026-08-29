@@ -76,6 +76,7 @@ const MEMBER_METHODS: ReadonlySet<string> = new Set(ANALYZER_ENDPOINT_PROFILE.me
 export type CandidateReceiver =
   | { readonly form: 'expression' }
   | { readonly form: 'identifier'; readonly name: string }
+  | { readonly form: 'probot-context-octokit'; readonly contextName: string }
   | { readonly form: 'private-field'; readonly field: string }
   | { readonly form: 'this-property'; readonly name: string };
 
@@ -182,6 +183,14 @@ function accessOf(expression: ts.Expression): ChainLink | null {
 
 function describeReceiver(expression: ts.Expression): CandidateReceiver {
   if (ts.isIdentifier(expression)) return { form: 'identifier', name: expression.text };
+  if (
+    ts.isPropertyAccessExpression(expression) &&
+    !ts.isPrivateIdentifier(expression.name) &&
+    expression.name.text === 'octokit' &&
+    ts.isIdentifier(expression.expression)
+  ) {
+    return { form: 'probot-context-octokit', contextName: expression.expression.text };
+  }
   if (ts.isPropertyAccessExpression(expression) && expression.expression.kind === ts.SyntaxKind.ThisKeyword) {
     if (ts.isPrivateIdentifier(expression.name)) return { form: 'private-field', field: expression.name.text };
     return { form: 'this-property', name: expression.name.text };
@@ -191,6 +200,7 @@ function describeReceiver(expression: ts.Expression): CandidateReceiver {
 
 function receiverSpelling(receiver: CandidateReceiver): string {
   if (receiver.form === 'identifier') return receiver.name;
+  if (receiver.form === 'probot-context-octokit') return `${receiver.contextName}.octokit`;
   if (receiver.form === 'private-field') return `this.${receiver.field}`;
   if (receiver.form === 'this-property') return `this.${receiver.name}`;
   return '<expression>';
@@ -503,18 +513,15 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
   };
 
   /**
-   * Censuses `.on(event, handler)` only inside a designated Probot entrypoint.
+   * Censuses registration-shaped calls only inside a designated Probot entrypoint.
    *
-   * The designation comes from trusted input, never from a filename, an import, or the shape of
-   * the call, so an arbitrary event emitter elsewhere in the tree is not an obligation.
+   * The later provenance rule accepts exactly `app.on(event, handler)`; this broader local
+   * census deliberately retains `onAny` and malformed `.on` shapes as explicit incomplete
+   * obligations rather than silently treating them as absent. The designation comes from
+   * trusted input, never from a filename, import, or method name alone.
    */
   const censusRegistration = (node: ts.CallExpression, link: ChainLink, classStart: number | null): void => {
     if (!options.probotEntrypoint) return;
-    const args = node.arguments;
-    if (args.length !== 2) return;
-    const handler = args[1];
-    if (handler === undefined) return;
-    if (!ts.isFunctionExpression(handler) && !ts.isArrowFunction(handler) && !ts.isIdentifier(handler)) return;
     const receiver = describeReceiver(link.object);
     push({
       kind: 'probot-registration',
@@ -584,7 +591,12 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
       ) {
         const link = accessOf(node.expression);
         if (link !== null && link.text === REQUEST_LINK) censusRequest(node, link, classStart);
-        else if (link !== null && link.text === REGISTRATION_LINK) censusRegistration(node, link, classStart);
+        else if (
+          link !== null &&
+          (link.text === REGISTRATION_LINK || (options.probotEntrypoint && link.text === 'onAny'))
+        ) {
+          censusRegistration(node, link, classStart);
+        }
       }
     } else if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
       // An uninvoked pinned chain is an extraction obligation. Callee positions are excluded

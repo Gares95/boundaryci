@@ -156,6 +156,8 @@ export type AnalyzerCauseCode =
   | 'malformed-request-route'
   | 'mutable-provenance-binding'
   | 'permission-catalog-incomplete'
+  | 'unsupported-probot-entrypoint-initializer'
+  | 'unsupported-probot-handler-registration'
   | 'probot-entrypoint-unsupported'
   | 'relevant-directory-symlink'
   | 'relevant-resolution-cycle'
@@ -248,6 +250,7 @@ export type CandidateClassification = 'incomplete' | 'proven-irrelevant' | 'prov
 export type CandidateReason =
   | 'proven-direct-rest-member-call'
   | 'proven-static-request-call'
+  | 'proven-probot-registration-contract'
   | 'proven-non-octokit-origin'
   | 'unproven-receiver-provenance'
   | 'ambiguous-request-route'
@@ -258,6 +261,7 @@ export type CandidateReason =
   | 'unsupported-endpoint-extraction'
   | 'unsupported-endpoint-surface'
   | 'unsupported-optional-chain'
+  | 'unsupported-probot-handler-registration'
   | 'unsupported-probot-registration'
   | 'unsupported-request-grammar'
   | 'unsupported-request-object'
@@ -294,10 +298,13 @@ export interface SourceRecord {
 }
 
 /** The exact authorized ways an `Octokit` constructor identity may enter a source file. */
-export type ReceiverOrigin = 'octokit-package-named-import' | 'octokit-package-require-destructuring';
+export type ReceiverOrigin =
+  | 'octokit-package-named-import'
+  | 'octokit-package-require-destructuring'
+  | 'probot-context-octokit';
 
 /** How the proven client was reached at the call site. */
-export type ReceiverAccess = 'local-binding' | 'private-instance-field';
+export type ReceiverAccess = 'local-binding' | 'private-instance-field' | 'probot-context-octokit';
 
 /** One replayable edge of a provenance proof. */
 export type ProvenanceStepKind =
@@ -308,6 +315,9 @@ export type ProvenanceStepKind =
   | 'named-reexport'
   | 'private-field-access'
   | 'private-field-assignment'
+  | 'probot-context-octokit'
+  | 'probot-entrypoint'
+  | 'probot-handler-registration'
   | 'relative-source-resolution'
   | 'require-destructuring';
 
@@ -333,9 +343,9 @@ export interface ProvenanceStep {
   ruleRow: number | null;
 }
 
-/** The proof chain that authorized a receiver, retaining its original source spelling. */
-export interface ReceiverProvenance {
-  origin: ReceiverOrigin;
+/** The proof chain for a directly constructed authorized Octokit client. */
+export interface DirectOctokitReceiverProvenance {
+  origin: 'octokit-package-named-import' | 'octokit-package-require-destructuring';
   packageSpecifier: string;
   exportName: string;
   constructorBinding: string;
@@ -346,6 +356,20 @@ export interface ReceiverProvenance {
   access: ReceiverAccess;
   steps: ProvenanceStep[];
 }
+
+/** The proof chain for the `Context` supplied by an authorized Probot handler registration. */
+export interface ProbotContextReceiverProvenance {
+  origin: 'probot-context-octokit';
+  construction: 'probot-context';
+  access: 'probot-context-octokit';
+  contextBinding: string;
+  clientBinding: string;
+  clientAliasChain: string[];
+  steps: ProvenanceStep[];
+}
+
+/** The finite, truthful set of receiver origins this analyzer can prove. */
+export type ReceiverProvenance = DirectOctokitReceiverProvenance | ProbotContextReceiverProvenance;
 
 /** The pinned profile member that supplied the canonical operation identity. */
 export interface ProfileMemberReference {
@@ -480,6 +504,8 @@ const CAUSE_CODES: readonly AnalyzerCauseCode[] = [
   'malformed-request-route',
   'mutable-provenance-binding',
   'permission-catalog-incomplete',
+  'unsupported-probot-entrypoint-initializer',
+  'unsupported-probot-handler-registration',
   'probot-entrypoint-unsupported',
   'relevant-directory-symlink',
   'relevant-resolution-cycle',
@@ -538,6 +564,7 @@ const CANDIDATE_CLASSIFICATIONS: readonly CandidateClassification[] = [
 const CANDIDATE_REASONS: readonly CandidateReason[] = [
   'proven-direct-rest-member-call',
   'proven-static-request-call',
+  'proven-probot-registration-contract',
   'proven-non-octokit-origin',
   'unproven-receiver-provenance',
   'ambiguous-request-route',
@@ -548,6 +575,7 @@ const CANDIDATE_REASONS: readonly CandidateReason[] = [
   'unsupported-endpoint-extraction',
   'unsupported-endpoint-surface',
   'unsupported-optional-chain',
+  'unsupported-probot-handler-registration',
   'unsupported-probot-registration',
   'unsupported-request-grammar',
   'unsupported-request-object',
@@ -559,9 +587,10 @@ const CANDIDATE_REASONS: readonly CandidateReason[] = [
 const RECEIVER_ORIGINS: readonly ReceiverOrigin[] = [
   'octokit-package-named-import',
   'octokit-package-require-destructuring',
+  'probot-context-octokit',
 ];
 
-const RECEIVER_ACCESSES: readonly ReceiverAccess[] = ['local-binding', 'private-instance-field'];
+const RECEIVER_ACCESSES: readonly ReceiverAccess[] = ['local-binding', 'private-instance-field', 'probot-context-octokit'];
 
 const PROVENANCE_STEP_KINDS: readonly ProvenanceStepKind[] = [
   'direct-new',
@@ -571,6 +600,9 @@ const PROVENANCE_STEP_KINDS: readonly ProvenanceStepKind[] = [
   'named-reexport',
   'private-field-access',
   'private-field-assignment',
+  'probot-context-octokit',
+  'probot-entrypoint',
+  'probot-handler-registration',
   'relative-source-resolution',
   'require-destructuring',
 ];
@@ -1009,7 +1041,10 @@ function assertCandidate(value: unknown, label: string): asserts value is Candid
     if (value.causeIds.length !== 0) throw new TypeError(`${label} is proven but still carries a cause`);
   } else if (value.classification === 'proven-irrelevant') {
     if (value.observationId !== null) throw new TypeError(`${label} is irrelevant but references an observation`);
-    if (value.reason !== 'proven-non-octokit-origin') {
+    if (
+      value.reason !== 'proven-non-octokit-origin' &&
+      !(value.kind === 'probot-registration' && value.reason === 'proven-probot-registration-contract')
+    ) {
       throw new TypeError(`${label}.reason is not an irrelevance proof reason`);
     }
     if (value.causeIds.length !== 0) throw new TypeError(`${label} is irrelevant but still carries a cause`);
@@ -1067,6 +1102,16 @@ function assertProvenanceStep(value: unknown, label: string): asserts value is P
  */
 function assertReceiverProvenance(value: unknown, label: string): asserts value is ReceiverProvenance {
   assertPlainObject(value, label);
+  if (value.origin === 'probot-context-octokit') {
+    assertExactKeys(value, ['access', 'clientAliasChain', 'clientBinding', 'construction', 'contextBinding', 'origin', 'steps'], label);
+    if (value.construction !== 'probot-context' || value.access !== 'probot-context-octokit') throw new TypeError(`${label} has an invalid Probot context receiver shape`);
+    assertNonEmptyString(value.contextBinding, `${label}.contextBinding`);
+    assertNonEmptyString(value.clientBinding, `${label}.clientBinding`);
+    assertStringArray(value.clientAliasChain, `${label}.clientAliasChain`);
+    if (!Array.isArray(value.steps) || value.steps.length === 0) throw new TypeError(`${label}.steps must record at least one proof step`);
+    value.steps.forEach((step: unknown, index: number) => assertProvenanceStep(step, `${label}.steps[${index}]`));
+    return;
+  }
   assertExactKeys(
     value,
     [
