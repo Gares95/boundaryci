@@ -774,6 +774,7 @@ describe('analyzer import boundary', () => {
       'src/analyzer/discovery.ts',
       'src/analyzer/operations.ts',
       'src/analyzer/parse.ts',
+      'src/analyzer/probot.ts',
       'src/analyzer/profile.ts',
       'src/analyzer/resolve.ts',
       'src/permission-model/bounded-catalog.ts',

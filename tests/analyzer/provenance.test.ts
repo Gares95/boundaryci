@@ -135,10 +135,10 @@ function assertSiteExpectation(
   expect(result.provenance.origin).toBe(expected.origin);
   expect(result.provenance.access).toBe(expected.access);
   if (expected.constructorBinding !== undefined) {
-    expect(result.provenance.constructorBinding).toBe(expected.constructorBinding);
+    expect('constructorBinding' in result.provenance && result.provenance.constructorBinding).toBe(expected.constructorBinding);
   }
   if (expected.constructorAliasChain !== undefined) {
-    expect(result.provenance.constructorAliasChain).toEqual(expected.constructorAliasChain);
+    expect('constructorAliasChain' in result.provenance && result.provenance.constructorAliasChain).toEqual(expected.constructorAliasChain);
   }
   if (expected.clientBinding !== undefined) expect(result.provenance.clientBinding).toBe(expected.clientBinding);
   if (expected.clientAliasChain !== undefined) {
