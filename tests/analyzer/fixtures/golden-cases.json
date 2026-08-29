@@ -1,0 +1,424 @@
+{
+  "coverage": {
+    "requirements": [
+      "ANLZ-01",
+      "ANLZ-02",
+      "ANLZ-03",
+      "ANLZ-04",
+      "ANLZ-05",
+      "ANLZ-06",
+      "ANLZ-07",
+      "ANLZ-08",
+      "ANLZ-09",
+      "ANLZ-10",
+      "ANLZ-11",
+      "ANLZ-12",
+      "ANLZ-13",
+      "ANLZ-14",
+      "QUAL-01"
+    ],
+    "decisions": [
+      "D-01",
+      "D-02",
+      "D-03",
+      "D-04",
+      "D-05",
+      "D-06",
+      "D-07",
+      "D-08",
+      "D-09",
+      "D-10",
+      "D-11",
+      "D-12",
+      "D-13",
+      "D-14",
+      "D-15",
+      "D-16",
+      "D-17",
+      "D-18",
+      "D-19",
+      "D-20",
+      "D-21",
+      "D-22",
+      "D-23",
+      "D-24",
+      "D-25",
+      "D-26",
+      "D-27",
+      "D-28",
+      "D-29",
+      "D-30",
+      "D-31",
+      "D-32",
+      "D-33",
+      "D-34",
+      "D-35",
+      "D-36",
+      "D-37",
+      "D-38",
+      "D-39",
+      "D-40",
+      "D-41",
+      "D-42",
+      "D-43",
+      "D-44",
+      "D-45",
+      "D-46",
+      "D-47",
+      "D-48",
+      "D-49",
+      "D-50",
+      "D-51",
+      "D-52",
+      "D-53"
+    ],
+    "causeCodes": [
+      "ambiguous-relative-source",
+      "ambiguous-endpoint-member",
+      "ambiguous-request-route",
+      "dynamic-request-route",
+      "internal-analyzer-error",
+      "invalid-analysis-request",
+      "invalid-analysis-result",
+      "invalid-source-encoding",
+      "invalidated-private-field",
+      "matching-non-regular-entry",
+      "matching-source-symlink",
+      "malformed-request-route",
+      "mutable-provenance-binding",
+      "permission-catalog-incomplete",
+      "unsupported-probot-entrypoint-initializer",
+      "unsupported-probot-handler-registration",
+      "probot-entrypoint-unsupported",
+      "relevant-directory-symlink",
+      "relevant-resolution-cycle",
+      "resolution-byte-limit",
+      "resolution-depth-limit",
+      "resolution-file-limit",
+      "resolution-work-limit",
+      "source-byte-limit",
+      "source-discovery-error",
+      "source-file-limit",
+      "source-parse-error",
+      "source-read-error",
+      "source-work-limit",
+      "unproven-octokit-origin",
+      "unproven-receiver-provenance",
+      "unresolvable-analysis-root",
+      "unresolved-relative-source",
+      "unknown-request-route",
+      "unknown-endpoint-member",
+      "unsupported-commonjs-form",
+      "unsupported-dynamic-member-access",
+      "unsupported-endpoint-extraction",
+      "unsupported-endpoint-surface",
+      "unsupported-export-form",
+      "unsupported-import-form",
+      "unsupported-object-state",
+      "unsupported-octokit-constructor",
+      "unsupported-optional-chain",
+      "unsupported-probot-registration",
+      "unsupported-request-grammar",
+      "unsupported-request-object",
+      "unsupported-static-member-access"
+    ],
+    "references": [
+      {
+        "id": "result-contract-and-cause-vocabulary",
+        "cases": [
+          "exact-operation-catalog-gap",
+          "invalid-request-is-diagnostic-only"
+        ],
+        "sources": [
+          "src/analyzer/contract.ts",
+          "src/analyzer/analyze.ts",
+          "tests/analyzer/harness.test.ts",
+          "tests/analyzer/results.test.ts"
+        ],
+        "requirements": [
+          "ANLZ-12"
+        ],
+        "decisions": [
+          "D-01",
+          "D-02",
+          "D-03",
+          "D-04",
+          "D-05",
+          "D-06",
+          "D-07",
+          "D-46",
+          "D-47"
+        ],
+        "causeCodes": [
+          "ambiguous-relative-source",
+          "ambiguous-endpoint-member",
+          "ambiguous-request-route",
+          "dynamic-request-route",
+          "internal-analyzer-error",
+          "invalid-analysis-request",
+          "invalid-analysis-result",
+          "invalid-source-encoding",
+          "invalidated-private-field",
+          "matching-non-regular-entry",
+          "matching-source-symlink",
+          "malformed-request-route",
+          "mutable-provenance-binding",
+          "permission-catalog-incomplete",
+          "unsupported-probot-entrypoint-initializer",
+          "unsupported-probot-handler-registration",
+          "probot-entrypoint-unsupported",
+          "relevant-directory-symlink",
+          "relevant-resolution-cycle",
+          "resolution-byte-limit",
+          "resolution-depth-limit",
+          "resolution-file-limit",
+          "resolution-work-limit",
+          "source-byte-limit",
+          "source-discovery-error",
+          "source-file-limit",
+          "source-parse-error",
+          "source-read-error",
+          "source-work-limit",
+          "unproven-octokit-origin",
+          "unproven-receiver-provenance",
+          "unresolvable-analysis-root",
+          "unresolved-relative-source",
+          "unknown-request-route",
+          "unknown-endpoint-member",
+          "unsupported-commonjs-form",
+          "unsupported-dynamic-member-access",
+          "unsupported-endpoint-extraction",
+          "unsupported-endpoint-surface",
+          "unsupported-export-form",
+          "unsupported-import-form",
+          "unsupported-object-state",
+          "unsupported-octokit-constructor",
+          "unsupported-optional-chain",
+          "unsupported-probot-registration",
+          "unsupported-request-grammar",
+          "unsupported-request-object",
+          "unsupported-static-member-access"
+        ]
+      },
+      {
+        "id": "discovery-parse-and-resource-boundaries",
+        "cases": [
+          "complete-empty-six-extension-universe",
+          "parse-failure-preserves-independent-operation"
+        ],
+        "sources": [
+          "tests/analyzer/discovery.test.ts",
+          "tests/analyzer/parse.test.ts"
+        ],
+        "requirements": [
+          "ANLZ-01",
+          "ANLZ-02",
+          "ANLZ-03",
+          "ANLZ-13"
+        ],
+        "decisions": [
+          "D-17",
+          "D-18",
+          "D-19",
+          "D-20",
+          "D-21",
+          "D-22",
+          "D-23",
+          "D-24",
+          "D-25",
+          "D-26",
+          "D-27",
+          "D-28",
+          "D-29"
+        ],
+        "causeCodes": []
+      },
+      {
+        "id": "bounded-source-provenance",
+        "cases": [
+          "lookalike-is-not-an-operation",
+          "private-field-client",
+          "resolution-cycle-is-causal"
+        ],
+        "sources": [
+          "tests/analyzer/provenance.test.ts",
+          "tests/analyzer/probot.test.ts"
+        ],
+        "requirements": [
+          "ANLZ-04",
+          "ANLZ-05",
+          "ANLZ-07",
+          "ANLZ-08",
+          "ANLZ-09",
+          "ANLZ-11"
+        ],
+        "decisions": [
+          "D-08",
+          "D-09",
+          "D-10",
+          "D-11",
+          "D-12",
+          "D-13",
+          "D-14",
+          "D-15",
+          "D-16",
+          "D-30",
+          "D-31",
+          "D-32",
+          "D-33",
+          "D-34"
+        ],
+        "causeCodes": []
+      },
+      {
+        "id": "operation-and-request-grammar",
+        "cases": [
+          "renamed-client-and-static-route-constant",
+          "dynamic-request-is-explicit-incomplete",
+          "optional-call-keeps-conditional-evidence",
+          "static-bracket-and-shorthand-stay-incomplete",
+          "probot-context"
+        ],
+        "sources": [
+          "tests/analyzer/operations.test.ts",
+          "tests/analyzer/requests.test.ts",
+          "tests/analyzer/aliases.test.ts",
+          "tests/analyzer/probot.test.ts"
+        ],
+        "requirements": [
+          "ANLZ-06",
+          "ANLZ-10"
+        ],
+        "decisions": [
+          "D-35",
+          "D-36",
+          "D-37",
+          "D-38",
+          "D-39",
+          "D-40",
+          "D-41",
+          "D-42",
+          "D-43",
+          "D-44",
+          "D-45"
+        ],
+        "causeCodes": []
+      },
+      {
+        "id": "golden-and-contributor-closure",
+        "cases": [
+          "direct-read-write-shared-contributors"
+        ],
+        "sources": [
+          "tests/analyzer/aggregation.test.ts",
+          "tests/permission-model/aggregate.test.ts"
+        ],
+        "requirements": [
+          "ANLZ-14",
+          "QUAL-01"
+        ],
+        "decisions": [
+          "D-48",
+          "D-49",
+          "D-50",
+          "D-51",
+          "D-52",
+          "D-53"
+        ],
+        "causeCodes": []
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "complete-empty-six-extension-universe",
+      "files": {
+        "src/empty.js": "",
+        "src/view.jsx": "export const view = <div />;\n",
+        "src/module.mjs": "export const value = 1;\n",
+        "src/app.ts": "export const value: number = 1;\n",
+        "src/view.tsx": "export const view = <div />;\n",
+        "src/module.mts": "export const value = 1;\n"
+      }
+    },
+    {
+      "id": "direct-read-write-shared-contributors",
+      "files": {
+        "src/app.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.listForRepo({});\nclient.rest.issues.listForRepo({});\nclient.rest.issues.create({});\n"
+      }
+    },
+    {
+      "id": "exact-operation-catalog-gap",
+      "files": {
+        "src/app.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.pulls.list({});\n"
+      }
+    },
+    {
+      "id": "renamed-client-and-static-route-constant",
+      "files": {
+        "src/app.ts": "import { Octokit as GitHub } from 'octokit';\nconst client = new GitHub();\nconst route = 'POST /repos/{owner}/{repo}/issues';\nclient.request(route);\n"
+      }
+    },
+    {
+      "id": "dynamic-request-is-explicit-incomplete",
+      "files": {
+        "src/app.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nconst route = process.env.ROUTE;\nclient.request(route);\n"
+      }
+    },
+    {
+      "id": "lookalike-is-not-an-operation",
+      "files": {
+        "src/app.ts": "const client = { rest: { issues: { create() {} } } };\nclient.rest.issues.create();\n"
+      }
+    },
+    {
+      "id": "optional-call-keeps-conditional-evidence",
+      "files": {
+        "src/app.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient?.rest.issues.create({});\n"
+      }
+    },
+    {
+      "id": "private-field-client",
+      "files": {
+        "src/app.ts": "import { Octokit } from 'octokit';\nclass Client {\n  #client = new Octokit();\n  call() { this.#client.rest.issues.create({}); }\n}\nnew Client().call();\n"
+      }
+    },
+    {
+      "id": "static-bracket-and-shorthand-stay-incomplete",
+      "files": {
+        "src/app.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient['rest']['issues']['create']({});\nclient.issues.create({});\n"
+      }
+    },
+    {
+      "id": "probot-context",
+      "entrypoints": [
+        "src/app.ts"
+      ],
+      "files": {
+        "src/app.ts": "export default (app) => {\n  app.on('issues.opened', (context) => context.octokit.rest.issues.create({}));\n};\n"
+      }
+    },
+    {
+      "id": "parse-failure-preserves-independent-operation",
+      "files": {
+        "src/broken.ts": "const = ;\n",
+        "src/good.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.create({});\n"
+      }
+    },
+    {
+      "id": "resolution-cycle-is-causal",
+      "files": {
+        "src/a.ts": "export { client } from './b.js';\n",
+        "src/b.ts": "export { client } from './a.js';\n",
+        "src/use.ts": "import { client } from './a.js';\nclient.rest.issues.create({});\n"
+      }
+    },
+    {
+      "id": "invalid-request-is-diagnostic-only",
+      "request": {
+        "include": []
+      },
+      "files": {}
+    }
+  ]
+}

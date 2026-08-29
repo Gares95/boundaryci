@@ -1,0 +1,2763 @@
+{
+  "complete-empty-six-extension-universe": {
+    "status": "complete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 32,
+        "contentSha256": "65d570a60297d35424dbd6002fd49adebc1ba796119a76c0344eef768080d073"
+      },
+      {
+        "id": "source-0002",
+        "path": "src/empty.js",
+        "byteSize": 0,
+        "contentSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "id": "source-0003",
+        "path": "src/module.mjs",
+        "byteSize": 24,
+        "contentSha256": "5d8f65d2774e206bc9f7a7a4ad39ca2dc563b5c31e46ab57ef4874961237ce29"
+      },
+      {
+        "id": "source-0004",
+        "path": "src/module.mts",
+        "byteSize": 24,
+        "contentSha256": "5d8f65d2774e206bc9f7a7a4ad39ca2dc563b5c31e46ab57ef4874961237ce29"
+      },
+      {
+        "id": "source-0005",
+        "path": "src/view.jsx",
+        "byteSize": 29,
+        "contentSha256": "09f32a10886030f092faa610cc71e1b3328791ebc64cfebc924e39fa5fdfb11a"
+      },
+      {
+        "id": "source-0006",
+        "path": "src/view.tsx",
+        "byteSize": 29,
+        "contentSha256": "09f32a10886030f092faa610cc71e1b3328791ebc64cfebc924e39fa5fdfb11a"
+      }
+    ],
+    "candidates": [],
+    "causes": [],
+    "observations": [],
+    "permissionResolutions": [],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": []
+    }
+  },
+  "direct-read-write-shared-contributors": {
+    "status": "complete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 168,
+        "contentSha256": "3bac7f7edf39459181d6876b6aec49422c492e314312342b4d554764783943c0"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "client.rest.issues.listForRepo",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 3,
+            "column": 1
+          },
+          "end": {
+            "line": 3,
+            "column": 35
+          }
+        },
+        "classification": "proven-operation",
+        "reason": "proven-direct-rest-member-call",
+        "observationId": "operation-0001",
+        "causeIds": []
+      },
+      {
+        "id": "candidate-0002",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "client.rest.issues.listForRepo",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 4,
+            "column": 1
+          },
+          "end": {
+            "line": 4,
+            "column": 35
+          }
+        },
+        "classification": "proven-operation",
+        "reason": "proven-direct-rest-member-call",
+        "observationId": "operation-0002",
+        "causeIds": []
+      },
+      {
+        "id": "candidate-0003",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "client.rest.issues.create",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 5,
+            "column": 1
+          },
+          "end": {
+            "line": 5,
+            "column": 30
+          }
+        },
+        "classification": "proven-operation",
+        "reason": "proven-direct-rest-member-call",
+        "observationId": "operation-0003",
+        "causeIds": []
+      }
+    ],
+    "causes": [],
+    "observations": [
+      {
+        "id": "operation-0001",
+        "candidateId": "candidate-0001",
+        "callForm": "direct-endpoint",
+        "spelling": "client.rest.issues.listForRepo",
+        "optional": false,
+        "member": {
+          "profileId": "boundaryci/octokit-analyzer-profile@1",
+          "memberId": "issues.listForRepo",
+          "scope": "issues",
+          "method": "listForRepo"
+        },
+        "operation": {
+          "method": "GET",
+          "normalizedRoute": "/repos/{owner}/{repo}/issues",
+          "operationId": "issues/list-for-repo"
+        },
+        "receiver": {
+          "origin": "octokit-package-named-import",
+          "packageSpecifier": "octokit",
+          "exportName": "Octokit",
+          "constructorBinding": "Octokit",
+          "constructorAliasChain": [
+            "Octokit"
+          ],
+          "construction": "direct-new",
+          "clientBinding": "client",
+          "clientAliasChain": [
+            "client"
+          ],
+          "access": "local-binding",
+          "steps": [
+            {
+              "kind": "named-import",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 1,
+                  "column": 10
+                },
+                "end": {
+                  "line": 1,
+                  "column": 17
+                }
+              },
+              "binding": "Octokit",
+              "specifier": "octokit",
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "direct-new",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 2,
+                  "column": 7
+                },
+                "end": {
+                  "line": 2,
+                  "column": 29
+                }
+              },
+              "binding": "client",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            }
+          ]
+        },
+        "source": {
+          "path": "src/app.ts",
+          "span": {
+            "start": {
+              "line": 3,
+              "column": 1
+            },
+            "end": {
+              "line": 3,
+              "column": 35
+            }
+          }
+        }
+      },
+      {
+        "id": "operation-0002",
+        "candidateId": "candidate-0002",
+        "callForm": "direct-endpoint",
+        "spelling": "client.rest.issues.listForRepo",
+        "optional": false,
+        "member": {
+          "profileId": "boundaryci/octokit-analyzer-profile@1",
+          "memberId": "issues.listForRepo",
+          "scope": "issues",
+          "method": "listForRepo"
+        },
+        "operation": {
+          "method": "GET",
+          "normalizedRoute": "/repos/{owner}/{repo}/issues",
+          "operationId": "issues/list-for-repo"
+        },
+        "receiver": {
+          "origin": "octokit-package-named-import",
+          "packageSpecifier": "octokit",
+          "exportName": "Octokit",
+          "constructorBinding": "Octokit",
+          "constructorAliasChain": [
+            "Octokit"
+          ],
+          "construction": "direct-new",
+          "clientBinding": "client",
+          "clientAliasChain": [
+            "client"
+          ],
+          "access": "local-binding",
+          "steps": [
+            {
+              "kind": "named-import",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 1,
+                  "column": 10
+                },
+                "end": {
+                  "line": 1,
+                  "column": 17
+                }
+              },
+              "binding": "Octokit",
+              "specifier": "octokit",
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "direct-new",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 2,
+                  "column": 7
+                },
+                "end": {
+                  "line": 2,
+                  "column": 29
+                }
+              },
+              "binding": "client",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            }
+          ]
+        },
+        "source": {
+          "path": "src/app.ts",
+          "span": {
+            "start": {
+              "line": 4,
+              "column": 1
+            },
+            "end": {
+              "line": 4,
+              "column": 35
+            }
+          }
+        }
+      },
+      {
+        "id": "operation-0003",
+        "candidateId": "candidate-0003",
+        "callForm": "direct-endpoint",
+        "spelling": "client.rest.issues.create",
+        "optional": false,
+        "member": {
+          "profileId": "boundaryci/octokit-analyzer-profile@1",
+          "memberId": "issues.create",
+          "scope": "issues",
+          "method": "create"
+        },
+        "operation": {
+          "method": "POST",
+          "normalizedRoute": "/repos/{owner}/{repo}/issues",
+          "operationId": "issues/create"
+        },
+        "receiver": {
+          "origin": "octokit-package-named-import",
+          "packageSpecifier": "octokit",
+          "exportName": "Octokit",
+          "constructorBinding": "Octokit",
+          "constructorAliasChain": [
+            "Octokit"
+          ],
+          "construction": "direct-new",
+          "clientBinding": "client",
+          "clientAliasChain": [
+            "client"
+          ],
+          "access": "local-binding",
+          "steps": [
+            {
+              "kind": "named-import",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 1,
+                  "column": 10
+                },
+                "end": {
+                  "line": 1,
+                  "column": 17
+                }
+              },
+              "binding": "Octokit",
+              "specifier": "octokit",
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "direct-new",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 2,
+                  "column": 7
+                },
+                "end": {
+                  "line": 2,
+                  "column": 29
+                }
+              },
+              "binding": "client",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            }
+          ]
+        },
+        "source": {
+          "path": "src/app.ts",
+          "span": {
+            "start": {
+              "line": 5,
+              "column": 1
+            },
+            "end": {
+              "line": 5,
+              "column": 30
+            }
+          }
+        }
+      }
+    ],
+    "permissionResolutions": [
+      {
+        "id": "resolution-0001",
+        "observationId": "operation-0001",
+        "finding": {
+          "status": "resolved",
+          "operation": {
+            "method": "GET",
+            "normalizedRoute": "/repos/{owner}/{repo}/issues",
+            "operationId": "issues/list-for-repo"
+          },
+          "source": {
+            "path": "src/app.ts",
+            "span": {
+              "start": {
+                "line": 3,
+                "column": 1
+              },
+              "end": {
+                "line": 3,
+                "column": 35
+              }
+            }
+          },
+          "requirement": {
+            "type": "permission",
+            "permission": "issues",
+            "level": "read"
+          },
+          "provenance": {
+            "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+            "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
+            "entrySha256": "59e29ecea924235615873a5740f9249e39be929d0fee4579d962afa1a6d2c740",
+            "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+            "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+          }
+        }
+      },
+      {
+        "id": "resolution-0002",
+        "observationId": "operation-0002",
+        "finding": {
+          "status": "resolved",
+          "operation": {
+            "method": "GET",
+            "normalizedRoute": "/repos/{owner}/{repo}/issues",
+            "operationId": "issues/list-for-repo"
+          },
+          "source": {
+            "path": "src/app.ts",
+            "span": {
+              "start": {
+                "line": 4,
+                "column": 1
+              },
+              "end": {
+                "line": 4,
+                "column": 35
+              }
+            }
+          },
+          "requirement": {
+            "type": "permission",
+            "permission": "issues",
+            "level": "read"
+          },
+          "provenance": {
+            "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+            "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
+            "entrySha256": "59e29ecea924235615873a5740f9249e39be929d0fee4579d962afa1a6d2c740",
+            "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+            "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+          }
+        }
+      },
+      {
+        "id": "resolution-0003",
+        "observationId": "operation-0003",
+        "finding": {
+          "status": "resolved",
+          "operation": {
+            "method": "POST",
+            "normalizedRoute": "/repos/{owner}/{repo}/issues",
+            "operationId": "issues/create"
+          },
+          "source": {
+            "path": "src/app.ts",
+            "span": {
+              "start": {
+                "line": 5,
+                "column": 1
+              },
+              "end": {
+                "line": 5,
+                "column": 30
+              }
+            }
+          },
+          "requirement": {
+            "type": "permission",
+            "permission": "issues",
+            "level": "write"
+          },
+          "provenance": {
+            "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+            "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+            "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+            "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+            "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+          }
+        }
+      }
+    ],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": [
+        {
+          "permission": "issues",
+          "level": "write",
+          "contributors": [
+            {
+              "status": "resolved",
+              "operation": {
+                "method": "GET",
+                "normalizedRoute": "/repos/{owner}/{repo}/issues",
+                "operationId": "issues/list-for-repo"
+              },
+              "source": {
+                "path": "src/app.ts",
+                "span": {
+                  "start": {
+                    "line": 3,
+                    "column": 1
+                  },
+                  "end": {
+                    "line": 3,
+                    "column": 35
+                  }
+                }
+              },
+              "requirement": {
+                "type": "permission",
+                "permission": "issues",
+                "level": "read"
+              },
+              "provenance": {
+                "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+                "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
+                "entrySha256": "59e29ecea924235615873a5740f9249e39be929d0fee4579d962afa1a6d2c740",
+                "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+                "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+              }
+            },
+            {
+              "status": "resolved",
+              "operation": {
+                "method": "GET",
+                "normalizedRoute": "/repos/{owner}/{repo}/issues",
+                "operationId": "issues/list-for-repo"
+              },
+              "source": {
+                "path": "src/app.ts",
+                "span": {
+                  "start": {
+                    "line": 4,
+                    "column": 1
+                  },
+                  "end": {
+                    "line": 4,
+                    "column": 35
+                  }
+                }
+              },
+              "requirement": {
+                "type": "permission",
+                "permission": "issues",
+                "level": "read"
+              },
+              "provenance": {
+                "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+                "expressionSha256": "9985fa2cfb60b1e5eb4cfd40fa575073ece6f7de52215bd854b65df4bbf4fb87",
+                "entrySha256": "59e29ecea924235615873a5740f9249e39be929d0fee4579d962afa1a6d2c740",
+                "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+                "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+              }
+            },
+            {
+              "status": "resolved",
+              "operation": {
+                "method": "POST",
+                "normalizedRoute": "/repos/{owner}/{repo}/issues",
+                "operationId": "issues/create"
+              },
+              "source": {
+                "path": "src/app.ts",
+                "span": {
+                  "start": {
+                    "line": 5,
+                    "column": 1
+                  },
+                  "end": {
+                    "line": 5,
+                    "column": 30
+                  }
+                }
+              },
+              "requirement": {
+                "type": "permission",
+                "permission": "issues",
+                "level": "write"
+              },
+              "provenance": {
+                "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+                "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+                "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+                "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+                "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "exact-operation-catalog-gap": {
+    "status": "incomplete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 93,
+        "contentSha256": "007b71e5f967de50e782271f1282e7e0ce9e440adf448440d9d4f3061333126b"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "client.rest.pulls.list",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 3,
+            "column": 1
+          },
+          "end": {
+            "line": 3,
+            "column": 27
+          }
+        },
+        "classification": "proven-operation",
+        "reason": "proven-direct-rest-member-call",
+        "observationId": "operation-0001",
+        "causeIds": []
+      }
+    ],
+    "causes": [
+      {
+        "id": "cause-0001",
+        "code": "permission-catalog-incomplete",
+        "scope": "repository",
+        "path": null,
+        "span": null,
+        "resource": null,
+        "detail": "the bounded permission catalog could not resolve every proven operation: missing-permission-requirement"
+      }
+    ],
+    "observations": [
+      {
+        "id": "operation-0001",
+        "candidateId": "candidate-0001",
+        "callForm": "direct-endpoint",
+        "spelling": "client.rest.pulls.list",
+        "optional": false,
+        "member": {
+          "profileId": "boundaryci/octokit-analyzer-profile@1",
+          "memberId": "pulls.list",
+          "scope": "pulls",
+          "method": "list"
+        },
+        "operation": {
+          "method": "GET",
+          "normalizedRoute": "/repos/{owner}/{repo}/pulls",
+          "operationId": "pulls/list"
+        },
+        "receiver": {
+          "origin": "octokit-package-named-import",
+          "packageSpecifier": "octokit",
+          "exportName": "Octokit",
+          "constructorBinding": "Octokit",
+          "constructorAliasChain": [
+            "Octokit"
+          ],
+          "construction": "direct-new",
+          "clientBinding": "client",
+          "clientAliasChain": [
+            "client"
+          ],
+          "access": "local-binding",
+          "steps": [
+            {
+              "kind": "named-import",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 1,
+                  "column": 10
+                },
+                "end": {
+                  "line": 1,
+                  "column": 17
+                }
+              },
+              "binding": "Octokit",
+              "specifier": "octokit",
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "direct-new",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 2,
+                  "column": 7
+                },
+                "end": {
+                  "line": 2,
+                  "column": 29
+                }
+              },
+              "binding": "client",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            }
+          ]
+        },
+        "source": {
+          "path": "src/app.ts",
+          "span": {
+            "start": {
+              "line": 3,
+              "column": 1
+            },
+            "end": {
+              "line": 3,
+              "column": 27
+            }
+          }
+        }
+      }
+    ],
+    "permissionResolutions": [
+      {
+        "id": "resolution-0001",
+        "observationId": "operation-0001",
+        "finding": {
+          "status": "missing",
+          "operation": {
+            "method": "GET",
+            "normalizedRoute": "/repos/{owner}/{repo}/pulls",
+            "operationId": "pulls/list"
+          },
+          "source": {
+            "path": "src/app.ts",
+            "span": {
+              "start": {
+                "line": 3,
+                "column": 1
+              },
+              "end": {
+                "line": 3,
+                "column": 27
+              }
+            }
+          }
+        }
+      }
+    ],
+    "permissionBoundary": {
+      "status": "incomplete",
+      "reasons": [
+        "missing-permission-requirement"
+      ],
+      "findings": [
+        {
+          "status": "missing",
+          "operation": {
+            "method": "GET",
+            "normalizedRoute": "/repos/{owner}/{repo}/pulls",
+            "operationId": "pulls/list"
+          },
+          "source": {
+            "path": "src/app.ts",
+            "span": {
+              "start": {
+                "line": 3,
+                "column": 1
+              },
+              "end": {
+                "line": 3,
+                "column": 27
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "renamed-client-and-static-route-constant": {
+    "status": "complete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 148,
+        "contentSha256": "7c15117acca1f63e85403fd5e36d01a7a5d729a25f28e28ee3f55a58bbe78d45"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "positional-request",
+        "anchor": "request-positional-route-argument",
+        "spelling": "client.request(route)",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 4,
+            "column": 1
+          },
+          "end": {
+            "line": 4,
+            "column": 22
+          }
+        },
+        "classification": "proven-operation",
+        "reason": "proven-static-request-call",
+        "observationId": "operation-0001",
+        "causeIds": []
+      }
+    ],
+    "causes": [],
+    "observations": [
+      {
+        "id": "operation-0001",
+        "candidateId": "candidate-0001",
+        "callForm": "positional-request",
+        "spelling": "client.request(route)",
+        "optional": false,
+        "member": null,
+        "operation": {
+          "method": "POST",
+          "normalizedRoute": "/repos/{owner}/{repo}/issues",
+          "operationId": "issues/create"
+        },
+        "receiver": {
+          "origin": "octokit-package-named-import",
+          "packageSpecifier": "octokit",
+          "exportName": "Octokit",
+          "constructorBinding": "GitHub",
+          "constructorAliasChain": [
+            "GitHub"
+          ],
+          "construction": "direct-new",
+          "clientBinding": "client",
+          "clientAliasChain": [
+            "client"
+          ],
+          "access": "local-binding",
+          "steps": [
+            {
+              "kind": "named-import",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 1,
+                  "column": 10
+                },
+                "end": {
+                  "line": 1,
+                  "column": 27
+                }
+              },
+              "binding": "GitHub",
+              "specifier": "octokit",
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "direct-new",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 2,
+                  "column": 7
+                },
+                "end": {
+                  "line": 2,
+                  "column": 28
+                }
+              },
+              "binding": "client",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            }
+          ]
+        },
+        "source": {
+          "path": "src/app.ts",
+          "span": {
+            "start": {
+              "line": 4,
+              "column": 1
+            },
+            "end": {
+              "line": 4,
+              "column": 22
+            }
+          }
+        }
+      }
+    ],
+    "permissionResolutions": [
+      {
+        "id": "resolution-0001",
+        "observationId": "operation-0001",
+        "finding": {
+          "status": "resolved",
+          "operation": {
+            "method": "POST",
+            "normalizedRoute": "/repos/{owner}/{repo}/issues",
+            "operationId": "issues/create"
+          },
+          "source": {
+            "path": "src/app.ts",
+            "span": {
+              "start": {
+                "line": 4,
+                "column": 1
+              },
+              "end": {
+                "line": 4,
+                "column": 22
+              }
+            }
+          },
+          "requirement": {
+            "type": "permission",
+            "permission": "issues",
+            "level": "write"
+          },
+          "provenance": {
+            "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+            "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+            "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+            "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+            "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+          }
+        }
+      }
+    ],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": [
+        {
+          "permission": "issues",
+          "level": "write",
+          "contributors": [
+            {
+              "status": "resolved",
+              "operation": {
+                "method": "POST",
+                "normalizedRoute": "/repos/{owner}/{repo}/issues",
+                "operationId": "issues/create"
+              },
+              "source": {
+                "path": "src/app.ts",
+                "span": {
+                  "start": {
+                    "line": 4,
+                    "column": 1
+                  },
+                  "end": {
+                    "line": 4,
+                    "column": 22
+                  }
+                }
+              },
+              "requirement": {
+                "type": "permission",
+                "permission": "issues",
+                "level": "write"
+              },
+              "provenance": {
+                "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+                "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+                "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+                "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+                "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "dynamic-request-is-explicit-incomplete": {
+    "status": "incomplete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 121,
+        "contentSha256": "6aa8025a9f0d3448f71b4ac9045700f9515feba51fa1b99d59116e588f3a3c95"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "positional-request",
+        "anchor": "request-positional-route-argument",
+        "spelling": "client.request(route)",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 4,
+            "column": 1
+          },
+          "end": {
+            "line": 4,
+            "column": 22
+          }
+        },
+        "classification": "incomplete",
+        "reason": "dynamic-request-route",
+        "observationId": null,
+        "causeIds": [
+          "cause-0001"
+        ]
+      }
+    ],
+    "causes": [
+      {
+        "id": "cause-0001",
+        "code": "dynamic-request-route",
+        "scope": "candidate",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 3,
+            "column": 7
+          },
+          "end": {
+            "line": 3,
+            "column": 32
+          }
+        },
+        "resource": null,
+        "detail": "the request route binding is not one exact supported immutable string value"
+      }
+    ],
+    "observations": [],
+    "permissionResolutions": [],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": []
+    }
+  },
+  "lookalike-is-not-an-operation": {
+    "status": "incomplete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 83,
+        "contentSha256": "6e3f68d4a1c0f861a7ea57fb2b9e2fa4465953ce3b311ca729cf9dcb9f5a6986"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "client.rest.issues.create",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 2,
+            "column": 1
+          },
+          "end": {
+            "line": 2,
+            "column": 28
+          }
+        },
+        "classification": "incomplete",
+        "reason": "unproven-receiver-provenance",
+        "observationId": null,
+        "causeIds": [
+          "cause-0001"
+        ]
+      }
+    ],
+    "causes": [
+      {
+        "id": "cause-0001",
+        "code": "unproven-octokit-origin",
+        "scope": "candidate",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 1,
+            "column": 7
+          },
+          "end": {
+            "line": 1,
+            "column": 53
+          }
+        },
+        "resource": null,
+        "detail": "the value was not proven to originate from the authorized Octokit package export"
+      }
+    ],
+    "observations": [],
+    "permissionResolutions": [],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": []
+    }
+  },
+  "optional-call-keeps-conditional-evidence": {
+    "status": "complete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 97,
+        "contentSha256": "cf0e9333b99af067b21bd1adcdf300073efac372d0deda75a1de4978b2db71b9"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "client.rest.issues.create",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 3,
+            "column": 1
+          },
+          "end": {
+            "line": 3,
+            "column": 31
+          }
+        },
+        "classification": "proven-operation",
+        "reason": "proven-direct-rest-member-call",
+        "observationId": "operation-0001",
+        "causeIds": []
+      }
+    ],
+    "causes": [],
+    "observations": [
+      {
+        "id": "operation-0001",
+        "candidateId": "candidate-0001",
+        "callForm": "direct-endpoint",
+        "spelling": "client.rest.issues.create",
+        "optional": true,
+        "member": {
+          "profileId": "boundaryci/octokit-analyzer-profile@1",
+          "memberId": "issues.create",
+          "scope": "issues",
+          "method": "create"
+        },
+        "operation": {
+          "method": "POST",
+          "normalizedRoute": "/repos/{owner}/{repo}/issues",
+          "operationId": "issues/create"
+        },
+        "receiver": {
+          "origin": "octokit-package-named-import",
+          "packageSpecifier": "octokit",
+          "exportName": "Octokit",
+          "constructorBinding": "Octokit",
+          "constructorAliasChain": [
+            "Octokit"
+          ],
+          "construction": "direct-new",
+          "clientBinding": "client",
+          "clientAliasChain": [
+            "client"
+          ],
+          "access": "local-binding",
+          "steps": [
+            {
+              "kind": "named-import",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 1,
+                  "column": 10
+                },
+                "end": {
+                  "line": 1,
+                  "column": 17
+                }
+              },
+              "binding": "Octokit",
+              "specifier": "octokit",
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "direct-new",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 2,
+                  "column": 7
+                },
+                "end": {
+                  "line": 2,
+                  "column": 29
+                }
+              },
+              "binding": "client",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            }
+          ]
+        },
+        "source": {
+          "path": "src/app.ts",
+          "span": {
+            "start": {
+              "line": 3,
+              "column": 1
+            },
+            "end": {
+              "line": 3,
+              "column": 31
+            }
+          }
+        }
+      }
+    ],
+    "permissionResolutions": [
+      {
+        "id": "resolution-0001",
+        "observationId": "operation-0001",
+        "finding": {
+          "status": "resolved",
+          "operation": {
+            "method": "POST",
+            "normalizedRoute": "/repos/{owner}/{repo}/issues",
+            "operationId": "issues/create"
+          },
+          "source": {
+            "path": "src/app.ts",
+            "span": {
+              "start": {
+                "line": 3,
+                "column": 1
+              },
+              "end": {
+                "line": 3,
+                "column": 31
+              }
+            }
+          },
+          "requirement": {
+            "type": "permission",
+            "permission": "issues",
+            "level": "write"
+          },
+          "provenance": {
+            "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+            "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+            "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+            "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+            "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+          }
+        }
+      }
+    ],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": [
+        {
+          "permission": "issues",
+          "level": "write",
+          "contributors": [
+            {
+              "status": "resolved",
+              "operation": {
+                "method": "POST",
+                "normalizedRoute": "/repos/{owner}/{repo}/issues",
+                "operationId": "issues/create"
+              },
+              "source": {
+                "path": "src/app.ts",
+                "span": {
+                  "start": {
+                    "line": 3,
+                    "column": 1
+                  },
+                  "end": {
+                    "line": 3,
+                    "column": 31
+                  }
+                }
+              },
+              "requirement": {
+                "type": "permission",
+                "permission": "issues",
+                "level": "write"
+              },
+              "provenance": {
+                "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+                "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+                "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+                "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+                "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "private-field-client": {
+    "status": "complete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 150,
+        "contentSha256": "89b75be779178860214b4575d245d8c05962552b284f80a3daf31d05c2dba30d"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "this.#client.rest.issues.create",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 4,
+            "column": 12
+          },
+          "end": {
+            "line": 4,
+            "column": 47
+          }
+        },
+        "classification": "proven-operation",
+        "reason": "proven-direct-rest-member-call",
+        "observationId": "operation-0001",
+        "causeIds": []
+      }
+    ],
+    "causes": [],
+    "observations": [
+      {
+        "id": "operation-0001",
+        "candidateId": "candidate-0001",
+        "callForm": "direct-endpoint",
+        "spelling": "this.#client.rest.issues.create",
+        "optional": false,
+        "member": {
+          "profileId": "boundaryci/octokit-analyzer-profile@1",
+          "memberId": "issues.create",
+          "scope": "issues",
+          "method": "create"
+        },
+        "operation": {
+          "method": "POST",
+          "normalizedRoute": "/repos/{owner}/{repo}/issues",
+          "operationId": "issues/create"
+        },
+        "receiver": {
+          "origin": "octokit-package-named-import",
+          "packageSpecifier": "octokit",
+          "exportName": "Octokit",
+          "constructorBinding": "Octokit",
+          "constructorAliasChain": [
+            "Octokit"
+          ],
+          "construction": "direct-new",
+          "clientBinding": "#client",
+          "clientAliasChain": [
+            "#client"
+          ],
+          "access": "private-instance-field",
+          "steps": [
+            {
+              "kind": "named-import",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 1,
+                  "column": 10
+                },
+                "end": {
+                  "line": 1,
+                  "column": 17
+                }
+              },
+              "binding": "Octokit",
+              "specifier": "octokit",
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "direct-new",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 3,
+                  "column": 3
+                },
+                "end": {
+                  "line": 3,
+                  "column": 27
+                }
+              },
+              "binding": "#client",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "private-field-assignment",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 3,
+                  "column": 3
+                },
+                "end": {
+                  "line": 3,
+                  "column": 27
+                }
+              },
+              "binding": "#client",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            }
+          ]
+        },
+        "source": {
+          "path": "src/app.ts",
+          "span": {
+            "start": {
+              "line": 4,
+              "column": 12
+            },
+            "end": {
+              "line": 4,
+              "column": 47
+            }
+          }
+        }
+      }
+    ],
+    "permissionResolutions": [
+      {
+        "id": "resolution-0001",
+        "observationId": "operation-0001",
+        "finding": {
+          "status": "resolved",
+          "operation": {
+            "method": "POST",
+            "normalizedRoute": "/repos/{owner}/{repo}/issues",
+            "operationId": "issues/create"
+          },
+          "source": {
+            "path": "src/app.ts",
+            "span": {
+              "start": {
+                "line": 4,
+                "column": 12
+              },
+              "end": {
+                "line": 4,
+                "column": 47
+              }
+            }
+          },
+          "requirement": {
+            "type": "permission",
+            "permission": "issues",
+            "level": "write"
+          },
+          "provenance": {
+            "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+            "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+            "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+            "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+            "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+          }
+        }
+      }
+    ],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": [
+        {
+          "permission": "issues",
+          "level": "write",
+          "contributors": [
+            {
+              "status": "resolved",
+              "operation": {
+                "method": "POST",
+                "normalizedRoute": "/repos/{owner}/{repo}/issues",
+                "operationId": "issues/create"
+              },
+              "source": {
+                "path": "src/app.ts",
+                "span": {
+                  "start": {
+                    "line": 4,
+                    "column": 12
+                  },
+                  "end": {
+                    "line": 4,
+                    "column": 47
+                  }
+                }
+              },
+              "requirement": {
+                "type": "permission",
+                "permission": "issues",
+                "level": "write"
+              },
+              "provenance": {
+                "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+                "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+                "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+                "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+                "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "static-bracket-and-shorthand-stay-incomplete": {
+    "status": "incomplete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 131,
+        "contentSha256": "ee1d77646468f04615504034736a1f9fa252a578d30dee3b4336c5f8f7ac92f0"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "static-bracket-member",
+        "anchor": "pinned-endpoint-bracket-chain",
+        "spelling": "client[\"rest\"][\"issues\"][\"create\"]",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 3,
+            "column": 1
+          },
+          "end": {
+            "line": 3,
+            "column": 39
+          }
+        },
+        "classification": "incomplete",
+        "reason": "unsupported-static-member-access",
+        "observationId": null,
+        "causeIds": [
+          "cause-0001"
+        ]
+      },
+      {
+        "id": "candidate-0002",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-alternate-surface",
+        "spelling": "client.issues.create",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 4,
+            "column": 1
+          },
+          "end": {
+            "line": 4,
+            "column": 25
+          }
+        },
+        "classification": "incomplete",
+        "reason": "unsupported-endpoint-surface",
+        "observationId": null,
+        "causeIds": [
+          "cause-0002"
+        ]
+      }
+    ],
+    "causes": [
+      {
+        "id": "cause-0001",
+        "code": "unsupported-static-member-access",
+        "scope": "candidate",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 3,
+            "column": 1
+          },
+          "end": {
+            "line": 3,
+            "column": 39
+          }
+        },
+        "resource": null,
+        "detail": "static bracket member access is outside the supported call grammar"
+      },
+      {
+        "id": "cause-0002",
+        "code": "unsupported-endpoint-surface",
+        "scope": "candidate",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 4,
+            "column": 1
+          },
+          "end": {
+            "line": 4,
+            "column": 25
+          }
+        },
+        "resource": null,
+        "detail": "no pinned client surface authorizes the direct endpoint shorthand"
+      }
+    ],
+    "observations": [],
+    "permissionResolutions": [],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": []
+    }
+  },
+  "probot-context": {
+    "status": "complete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [
+        "src/app.ts"
+      ],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/app.ts",
+        "byteSize": 109,
+        "contentSha256": "f91cb35bca3cf68a325051eeb824c061ec3d921b17f598cf633fa6dffaca706c"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "probot-registration",
+        "anchor": "designated-probot-registration",
+        "spelling": "app.on",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 2,
+            "column": 3
+          },
+          "end": {
+            "line": 2,
+            "column": 79
+          }
+        },
+        "classification": "proven-irrelevant",
+        "reason": "proven-probot-registration-contract",
+        "observationId": null,
+        "causeIds": []
+      },
+      {
+        "id": "candidate-0002",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "context.octokit.rest.issues.create",
+        "path": "src/app.ts",
+        "span": {
+          "start": {
+            "line": 2,
+            "column": 40
+          },
+          "end": {
+            "line": 2,
+            "column": 78
+          }
+        },
+        "classification": "proven-operation",
+        "reason": "proven-direct-rest-member-call",
+        "observationId": "operation-0001",
+        "causeIds": []
+      }
+    ],
+    "causes": [],
+    "observations": [
+      {
+        "id": "operation-0001",
+        "candidateId": "candidate-0002",
+        "callForm": "direct-endpoint",
+        "spelling": "context.octokit.rest.issues.create",
+        "optional": false,
+        "member": {
+          "profileId": "boundaryci/octokit-analyzer-profile@1",
+          "memberId": "issues.create",
+          "scope": "issues",
+          "method": "create"
+        },
+        "operation": {
+          "method": "POST",
+          "normalizedRoute": "/repos/{owner}/{repo}/issues",
+          "operationId": "issues/create"
+        },
+        "receiver": {
+          "origin": "probot-context-octokit",
+          "construction": "probot-context",
+          "contextBinding": "context",
+          "clientBinding": "context.octokit",
+          "clientAliasChain": [
+            "context.octokit"
+          ],
+          "access": "probot-context-octokit",
+          "steps": [
+            {
+              "kind": "probot-entrypoint",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 1,
+                  "column": 16
+                },
+                "end": {
+                  "line": 3,
+                  "column": 2
+                }
+              },
+              "binding": "app",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "probot-handler-registration",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 2,
+                  "column": 3
+                },
+                "end": {
+                  "line": 2,
+                  "column": 79
+                }
+              },
+              "binding": "app",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "probot-context-octokit",
+              "path": "src/app.ts",
+              "span": {
+                "start": {
+                  "line": 2,
+                  "column": 28
+                },
+                "end": {
+                  "line": 2,
+                  "column": 35
+                }
+              },
+              "binding": "context.octokit",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            }
+          ]
+        },
+        "source": {
+          "path": "src/app.ts",
+          "span": {
+            "start": {
+              "line": 2,
+              "column": 40
+            },
+            "end": {
+              "line": 2,
+              "column": 78
+            }
+          }
+        }
+      }
+    ],
+    "permissionResolutions": [
+      {
+        "id": "resolution-0001",
+        "observationId": "operation-0001",
+        "finding": {
+          "status": "resolved",
+          "operation": {
+            "method": "POST",
+            "normalizedRoute": "/repos/{owner}/{repo}/issues",
+            "operationId": "issues/create"
+          },
+          "source": {
+            "path": "src/app.ts",
+            "span": {
+              "start": {
+                "line": 2,
+                "column": 40
+              },
+              "end": {
+                "line": 2,
+                "column": 78
+              }
+            }
+          },
+          "requirement": {
+            "type": "permission",
+            "permission": "issues",
+            "level": "write"
+          },
+          "provenance": {
+            "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+            "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+            "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+            "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+            "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+          }
+        }
+      }
+    ],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": [
+        {
+          "permission": "issues",
+          "level": "write",
+          "contributors": [
+            {
+              "status": "resolved",
+              "operation": {
+                "method": "POST",
+                "normalizedRoute": "/repos/{owner}/{repo}/issues",
+                "operationId": "issues/create"
+              },
+              "source": {
+                "path": "src/app.ts",
+                "span": {
+                  "start": {
+                    "line": 2,
+                    "column": 40
+                  },
+                  "end": {
+                    "line": 2,
+                    "column": 78
+                  }
+                }
+              },
+              "requirement": {
+                "type": "permission",
+                "permission": "issues",
+                "level": "write"
+              },
+              "provenance": {
+                "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+                "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+                "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+                "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+                "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "parse-failure-preserves-independent-operation": {
+    "status": "incomplete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/broken.ts",
+        "byteSize": 10,
+        "contentSha256": "08533da56f4cb5c33b9da5a440e38cd8f2bfa21864adefb1a3797c62ab6bc6c0"
+      },
+      {
+        "id": "source-0002",
+        "path": "src/good.ts",
+        "byteSize": 96,
+        "contentSha256": "b6c67505e3c3f36c18427414ae4b91425c875b7d38fe1ee3e184f85dbdd7a950"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "client.rest.issues.create",
+        "path": "src/good.ts",
+        "span": {
+          "start": {
+            "line": 3,
+            "column": 1
+          },
+          "end": {
+            "line": 3,
+            "column": 30
+          }
+        },
+        "classification": "proven-operation",
+        "reason": "proven-direct-rest-member-call",
+        "observationId": "operation-0001",
+        "causeIds": []
+      }
+    ],
+    "causes": [
+      {
+        "id": "cause-0001",
+        "code": "source-parse-error",
+        "scope": "source",
+        "path": "src/broken.ts",
+        "span": null,
+        "resource": null,
+        "detail": "the source produced 1 parser diagnostics and contributed no observation"
+      }
+    ],
+    "observations": [
+      {
+        "id": "operation-0001",
+        "candidateId": "candidate-0001",
+        "callForm": "direct-endpoint",
+        "spelling": "client.rest.issues.create",
+        "optional": false,
+        "member": {
+          "profileId": "boundaryci/octokit-analyzer-profile@1",
+          "memberId": "issues.create",
+          "scope": "issues",
+          "method": "create"
+        },
+        "operation": {
+          "method": "POST",
+          "normalizedRoute": "/repos/{owner}/{repo}/issues",
+          "operationId": "issues/create"
+        },
+        "receiver": {
+          "origin": "octokit-package-named-import",
+          "packageSpecifier": "octokit",
+          "exportName": "Octokit",
+          "constructorBinding": "Octokit",
+          "constructorAliasChain": [
+            "Octokit"
+          ],
+          "construction": "direct-new",
+          "clientBinding": "client",
+          "clientAliasChain": [
+            "client"
+          ],
+          "access": "local-binding",
+          "steps": [
+            {
+              "kind": "named-import",
+              "path": "src/good.ts",
+              "span": {
+                "start": {
+                  "line": 1,
+                  "column": 10
+                },
+                "end": {
+                  "line": 1,
+                  "column": 17
+                }
+              },
+              "binding": "Octokit",
+              "specifier": "octokit",
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            },
+            {
+              "kind": "direct-new",
+              "path": "src/good.ts",
+              "span": {
+                "start": {
+                  "line": 2,
+                  "column": 7
+                },
+                "end": {
+                  "line": 2,
+                  "column": 29
+                }
+              },
+              "binding": "client",
+              "specifier": null,
+              "resolvedPath": null,
+              "ruleId": null,
+              "ruleRow": null
+            }
+          ]
+        },
+        "source": {
+          "path": "src/good.ts",
+          "span": {
+            "start": {
+              "line": 3,
+              "column": 1
+            },
+            "end": {
+              "line": 3,
+              "column": 30
+            }
+          }
+        }
+      }
+    ],
+    "permissionResolutions": [
+      {
+        "id": "resolution-0001",
+        "observationId": "operation-0001",
+        "finding": {
+          "status": "resolved",
+          "operation": {
+            "method": "POST",
+            "normalizedRoute": "/repos/{owner}/{repo}/issues",
+            "operationId": "issues/create"
+          },
+          "source": {
+            "path": "src/good.ts",
+            "span": {
+              "start": {
+                "line": 3,
+                "column": 1
+              },
+              "end": {
+                "line": 3,
+                "column": 30
+              }
+            }
+          },
+          "requirement": {
+            "type": "permission",
+            "permission": "issues",
+            "level": "write"
+          },
+          "provenance": {
+            "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+            "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+            "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+            "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+            "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+          }
+        }
+      }
+    ],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": [
+        {
+          "permission": "issues",
+          "level": "write",
+          "contributors": [
+            {
+              "status": "resolved",
+              "operation": {
+                "method": "POST",
+                "normalizedRoute": "/repos/{owner}/{repo}/issues",
+                "operationId": "issues/create"
+              },
+              "source": {
+                "path": "src/good.ts",
+                "span": {
+                  "start": {
+                    "line": 3,
+                    "column": 1
+                  },
+                  "end": {
+                    "line": 3,
+                    "column": 30
+                  }
+                }
+              },
+              "requirement": {
+                "type": "permission",
+                "permission": "issues",
+                "level": "write"
+              },
+              "provenance": {
+                "authorizedScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418",
+                "expressionSha256": "bd8559d1ff1d3c8f74e8ff5f592324019a6031b90463a2c72ded97b6331d88f5",
+                "entrySha256": "f7ad7d4f8317a479d9ad55d96c651219e6227b55354e6e33d396d45388cabe09",
+                "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+                "supportPredicateSha256": "6105e89cf161785569a465a573c25853a8354aaddaa6560d1bd38199a090c4fa"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "resolution-cycle-is-causal": {
+    "status": "incomplete",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "boundary": {
+      "include": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.mts",
+        "**/*.ts",
+        "**/*.tsx"
+      ],
+      "exclude": [],
+      "probotEntrypoints": [],
+      "limits": {
+        "maxSourceFiles": 5000,
+        "maxSourceFileBytes": 2000000,
+        "maxTotalSourceBytes": 64000000,
+        "maxSourceWork": 50000
+      },
+      "sourceExtensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".mts",
+        ".ts",
+        ".tsx"
+      ]
+    },
+    "sources": [
+      {
+        "id": "source-0001",
+        "path": "src/a.ts",
+        "byteSize": 33,
+        "contentSha256": "897cabe199cc053070a665e3f44365d9b3e1e1d32a36d055a6892f730570f9a1"
+      },
+      {
+        "id": "source-0002",
+        "path": "src/b.ts",
+        "byteSize": 33,
+        "contentSha256": "aa2a599fad7462d0077354b578d2d537ad2cb7c171808caf06ffd270dafc331c"
+      },
+      {
+        "id": "source-0003",
+        "path": "src/use.ts",
+        "byteSize": 64,
+        "contentSha256": "49a3bf0b514ddaedf0fdb6718eb54d212c17c0b4bcf486070105307ab31c43f8"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "candidate-0001",
+        "kind": "direct-endpoint",
+        "anchor": "pinned-endpoint-member-spelling",
+        "spelling": "client.rest.issues.create",
+        "path": "src/use.ts",
+        "span": {
+          "start": {
+            "line": 2,
+            "column": 1
+          },
+          "end": {
+            "line": 2,
+            "column": 30
+          }
+        },
+        "classification": "incomplete",
+        "reason": "unproven-receiver-provenance",
+        "observationId": null,
+        "causeIds": [
+          "cause-0001"
+        ]
+      }
+    ],
+    "causes": [
+      {
+        "id": "cause-0001",
+        "code": "relevant-resolution-cycle",
+        "scope": "candidate",
+        "path": "src/a.ts",
+        "span": null,
+        "resource": null,
+        "detail": "a resolution cycle prevented this provenance question from reaching a determinate answer"
+      }
+    ],
+    "observations": [],
+    "permissionResolutions": [],
+    "permissionBoundary": {
+      "status": "complete",
+      "permissions": []
+    }
+  },
+  "invalid-request-is-diagnostic-only": {
+    "status": "failed",
+    "identity": {
+      "schemaId": "boundaryci/analysis-result",
+      "schemaVersion": 1,
+      "spanConventionId": "boundaryci/source-span@1",
+      "analyzerProfile": {
+        "schemaVersion": 1,
+        "profileId": "boundaryci/octokit-analyzer-profile@1",
+        "octokitVersion": "5.0.5",
+        "endpointMethodsVersion": "18.0.0",
+        "restApiVersion": "2022-11-28",
+        "inventoryContentSha256": "ce52c93c636e725b40dde745b9e435ef01e26cda39c53510842c43eaaa5c4ff4",
+        "artifactManifestSha256": "ffe2270a26567042f146e0ec982a7343de51a1f6333f2de6fa0421aca1e4c94c",
+        "endpointMemberCount": 1010,
+        "operationCount": 878
+      },
+      "discoveryProfileId": "boundaryci/bounded-local-discovery@1",
+      "limitProfileId": "boundaryci/analysis-limits@1",
+      "permissionCatalogScopeSha256": "40c14243b7d1940d395ae9731ecd3fda962807aee297c9b72aeb591a3dd2b418"
+    },
+    "reason": "invalid-analysis-request",
+    "causes": [
+      {
+        "id": "cause-0001",
+        "code": "invalid-analysis-request",
+        "scope": "repository",
+        "path": null,
+        "span": null,
+        "resource": null,
+        "detail": "analysis request include must contain at least one pattern"
+      }
+    ]
+  }
+}
