@@ -4,6 +4,9 @@ BoundaryCI's permission model is the pure domain layer that turns an observed Gi
 operation into a permission requirement, keeps the evidence that justifies it, and compares
 two observed boundaries without overstating what static analysis can prove.
 
+See [Static analyzer](analyzer.md) for the bounded source grammar that produces operation
+observations before this permission layer resolves and aggregates them.
+
 Everything in this layer is plain JSON-safe data. It parses no source, reads no file, opens
 no socket, and holds no client, framework, or AST object. Input that cannot be proved does
 not become a smaller or cleaner claim: it becomes an explicit `unsupported`, `missing`,

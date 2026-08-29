@@ -351,7 +351,7 @@ function classifyProbotRegistration(site: CandidateSite, graph: SourceGraph): Pe
  *
  * The receiver is proven independently of whether the call grammar is one this analyzer proves
  * an operation from: a proven receiver alone never emits an observation, and only the exact
- * pinned, non-optional `.rest.<scope>.<method>(...)` anchor may.
+ * pinned `.rest.<scope>.<method>(...)` anchor or its supported optional forms may.
  */
 function classifyCandidate(site: CandidateSite, graph: SourceGraph): PendingCandidate {
   if (site.kind === 'probot-registration') return classifyProbotRegistration(site, graph);

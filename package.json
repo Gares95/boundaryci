@@ -9,6 +9,8 @@
     "pnpm": "11.11.0"
   },
   "scripts": {
+    "format:check": "node tools/analyzer/quality-checks.mjs format-check",
+    "lint": "node tools/analyzer/quality-checks.mjs lint",
     "test:permission-data-feasibility": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot",
     "test:analyzer": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot tests/analyzer",
     "typecheck": "node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",

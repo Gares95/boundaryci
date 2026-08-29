@@ -5,7 +5,11 @@
       "files": [],
       "expect": {
         "status": "complete",
-        "classificationCounts": { "proven-operation": 0, "proven-irrelevant": 0, "incomplete": 0 },
+        "classificationCounts": {
+          "proven-operation": 0,
+          "proven-irrelevant": 0,
+          "incomplete": 0
+        },
         "causeCodes": [],
         "causeCount": 0
       }
@@ -26,10 +30,19 @@
       ],
       "expect": {
         "status": "complete",
-        "classificationCounts": { "proven-operation": 1, "proven-irrelevant": 0, "incomplete": 0 },
+        "classificationCounts": {
+          "proven-operation": 1,
+          "proven-irrelevant": 0,
+          "incomplete": 0
+        },
         "causeCodes": [],
         "causeCount": 0,
-        "provenOperations": [{ "path": "src/app.ts", "operationId": "issues/create" }]
+        "provenOperations": [
+          {
+            "path": "src/app.ts",
+            "operationId": "issues/create"
+          }
+        ]
       }
     },
     {
@@ -57,12 +70,24 @@
       ],
       "expect": {
         "status": "incomplete",
-        "classificationCounts": { "proven-operation": 2, "proven-irrelevant": 0, "incomplete": 1 },
-        "causeCodes": ["unproven-octokit-origin"],
+        "classificationCounts": {
+          "proven-operation": 2,
+          "proven-irrelevant": 0,
+          "incomplete": 1
+        },
+        "causeCodes": [
+          "unproven-octokit-origin"
+        ],
         "causeCount": 1,
         "provenOperations": [
-          { "path": "src/app.ts", "operationId": "issues/create" },
-          { "path": "src/app.ts", "operationId": "issues/list-for-repo" }
+          {
+            "path": "src/app.ts",
+            "operationId": "issues/create"
+          },
+          {
+            "path": "src/app.ts",
+            "operationId": "issues/list-for-repo"
+          }
         ]
       }
     },
@@ -83,10 +108,19 @@
       ],
       "expect": {
         "status": "incomplete",
-        "classificationCounts": { "proven-operation": 0, "proven-irrelevant": 0, "incomplete": 2 },
-        "causeCodes": ["unproven-octokit-origin"],
+        "classificationCounts": {
+          "proven-operation": 0,
+          "proven-irrelevant": 0,
+          "incomplete": 2
+        },
+        "causeCodes": [
+          "unproven-octokit-origin"
+        ],
         "causeCount": 1,
-        "sharedCause": { "candidateCount": 2, "causeCode": "unproven-octokit-origin" }
+        "sharedCause": {
+          "candidateCount": 2,
+          "causeCode": "unproven-octokit-origin"
+        }
       }
     },
     {
@@ -94,11 +128,15 @@
       "files": [
         {
           "path": "src/a.ts",
-          "text": ["export { Thing } from './b.js';"]
+          "text": [
+            "export { Thing } from './b.js';"
+          ]
         },
         {
           "path": "src/b.ts",
-          "text": ["export { Thing } from './a.js';"]
+          "text": [
+            "export { Thing } from './a.js';"
+          ]
         },
         {
           "path": "src/c.ts",
@@ -115,10 +153,21 @@
       ],
       "expect": {
         "status": "incomplete",
-        "classificationCounts": { "proven-operation": 1, "proven-irrelevant": 0, "incomplete": 1 },
-        "causeCodes": ["relevant-resolution-cycle"],
+        "classificationCounts": {
+          "proven-operation": 1,
+          "proven-irrelevant": 0,
+          "incomplete": 1
+        },
+        "causeCodes": [
+          "relevant-resolution-cycle"
+        ],
         "causeCount": 1,
-        "provenOperations": [{ "path": "src/c.ts", "operationId": "issues/create" }]
+        "provenOperations": [
+          {
+            "path": "src/c.ts",
+            "operationId": "issues/create"
+          }
+        ]
       }
     },
     {
@@ -126,7 +175,9 @@
       "files": [
         {
           "path": "src/broken.ts",
-          "text": ["const x = ;"]
+          "text": [
+            "const x = ;"
+          ]
         },
         {
           "path": "src/good.ts",
@@ -141,10 +192,21 @@
       ],
       "expect": {
         "status": "incomplete",
-        "classificationCounts": { "proven-operation": 1, "proven-irrelevant": 0, "incomplete": 0 },
-        "causeCodes": ["source-parse-error"],
+        "classificationCounts": {
+          "proven-operation": 1,
+          "proven-irrelevant": 0,
+          "incomplete": 0
+        },
+        "causeCodes": [
+          "source-parse-error"
+        ],
         "causeCount": 1,
-        "provenOperations": [{ "path": "src/good.ts", "operationId": "issues/create" }]
+        "provenOperations": [
+          {
+            "path": "src/good.ts",
+            "operationId": "issues/create"
+          }
+        ]
       }
     }
   ]

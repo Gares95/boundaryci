@@ -20,16 +20,26 @@
           "line": 5,
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
-          "member": { "scope": "issues", "method": "create" },
+          "member": {
+            "scope": "issues",
+            "method": "create"
+          },
           "optional": false,
           "status": "proven",
           "origin": "octokit-package-named-import",
           "access": "local-binding",
           "constructorBinding": "Octokit",
-          "constructorAliasChain": ["Octokit"],
+          "constructorAliasChain": [
+            "Octokit"
+          ],
           "clientBinding": "client",
-          "clientAliasChain": ["client"],
-          "steps": ["named-import", "direct-new"]
+          "clientAliasChain": [
+            "client"
+          ],
+          "steps": [
+            "named-import",
+            "direct-new"
+          ]
         }
       ]
     },
@@ -53,15 +63,25 @@
           "line": 5,
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.listForRepo",
-          "member": { "scope": "issues", "method": "listForRepo" },
+          "member": {
+            "scope": "issues",
+            "method": "listForRepo"
+          },
           "status": "proven",
           "origin": "octokit-package-named-import",
           "access": "local-binding",
           "constructorBinding": "GitHub",
-          "constructorAliasChain": ["GitHub"],
+          "constructorAliasChain": [
+            "GitHub"
+          ],
           "clientBinding": "client",
-          "clientAliasChain": ["client"],
-          "steps": ["named-import", "direct-new"]
+          "clientAliasChain": [
+            "client"
+          ],
+          "steps": [
+            "named-import",
+            "direct-new"
+          ]
         }
       ]
     },
@@ -99,10 +119,17 @@
           "origin": "octokit-package-require-destructuring",
           "access": "local-binding",
           "constructorBinding": "Octokit",
-          "constructorAliasChain": ["Octokit"],
+          "constructorAliasChain": [
+            "Octokit"
+          ],
           "clientBinding": "client",
-          "clientAliasChain": ["client"],
-          "steps": ["require-destructuring", "direct-new"]
+          "clientAliasChain": [
+            "client"
+          ],
+          "steps": [
+            "require-destructuring",
+            "direct-new"
+          ]
         },
         {
           "path": "src/cjs-renamed.js",
@@ -113,10 +140,17 @@
           "origin": "octokit-package-require-destructuring",
           "access": "local-binding",
           "constructorBinding": "GitHub",
-          "constructorAliasChain": ["GitHub"],
+          "constructorAliasChain": [
+            "GitHub"
+          ],
           "clientBinding": "client",
-          "clientAliasChain": ["client"],
-          "steps": ["require-destructuring", "direct-new"]
+          "clientAliasChain": [
+            "client"
+          ],
+          "steps": [
+            "require-destructuring",
+            "direct-new"
+          ]
         }
       ]
     },
@@ -146,10 +180,21 @@
           "origin": "octokit-package-named-import",
           "access": "local-binding",
           "constructorBinding": "Octokit",
-          "constructorAliasChain": ["Octokit", "Ctor"],
+          "constructorAliasChain": [
+            "Octokit",
+            "Ctor"
+          ],
           "clientBinding": "client",
-          "clientAliasChain": ["client", "gh"],
-          "steps": ["named-import", "local-alias", "direct-new", "local-alias"]
+          "clientAliasChain": [
+            "client",
+            "gh"
+          ],
+          "steps": [
+            "named-import",
+            "local-alias",
+            "direct-new",
+            "local-alias"
+          ]
         }
       ]
     },
@@ -179,7 +224,10 @@
           "access": "local-binding",
           "constructorBinding": "Octokit",
           "clientBinding": "client",
-          "steps": ["named-import", "direct-new"]
+          "steps": [
+            "named-import",
+            "direct-new"
+          ]
         }
       ]
     },
@@ -203,13 +251,19 @@
           "kind": "direct-endpoint",
           "anchor": "pinned-endpoint-alternate-surface",
           "spelling": "client.issues.create",
-          "member": { "scope": "issues", "method": "create" },
+          "member": {
+            "scope": "issues",
+            "method": "create"
+          },
           "status": "proven",
           "origin": "octokit-package-named-import",
           "access": "local-binding",
           "constructorBinding": "Octokit",
           "clientBinding": "client",
-          "steps": ["named-import", "direct-new"]
+          "steps": [
+            "named-import",
+            "direct-new"
+          ]
         }
       ]
     },
@@ -218,7 +272,11 @@
       "files": [
         {
           "path": "src/client.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export const client = new Octokit();"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export const client = new Octokit();"
+          ]
         },
         {
           "path": "src/use.ts",
@@ -240,9 +298,22 @@
           "access": "local-binding",
           "constructorBinding": "Octokit",
           "clientBinding": "client",
-          "clientAliasChain": ["client", "client"],
-          "steps": ["named-import", "direct-new", "named-export", "relative-source-resolution", "named-import"],
-          "resolution": { "specifier": "./client.js", "resolvedPath": "src/client.ts", "ruleRow": 1 }
+          "clientAliasChain": [
+            "client",
+            "client"
+          ],
+          "steps": [
+            "named-import",
+            "direct-new",
+            "named-export",
+            "relative-source-resolution",
+            "named-import"
+          ],
+          "resolution": {
+            "specifier": "./client.js",
+            "resolvedPath": "src/client.ts",
+            "ruleRow": 1
+          }
         }
       ]
     },
@@ -251,11 +322,17 @@
       "files": [
         {
           "path": "src/ctor.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export { Octokit };"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export { Octokit };"
+          ]
         },
         {
           "path": "src/mid.ts",
-          "text": ["export { Octokit as GitHub } from './ctor.js';"]
+          "text": [
+            "export { Octokit as GitHub } from './ctor.js';"
+          ]
         },
         {
           "path": "src/use.ts",
@@ -278,9 +355,14 @@
           "origin": "octokit-package-named-import",
           "access": "local-binding",
           "constructorBinding": "Octokit",
-          "constructorAliasChain": ["Octokit", "GitHub"],
+          "constructorAliasChain": [
+            "Octokit",
+            "GitHub"
+          ],
           "clientBinding": "client",
-          "clientAliasChain": ["client"],
+          "clientAliasChain": [
+            "client"
+          ],
           "steps": [
             "named-import",
             "named-export",
@@ -290,7 +372,11 @@
             "named-import",
             "direct-new"
           ],
-          "resolution": { "specifier": "./mid.js", "resolvedPath": "src/mid.ts", "ruleRow": 1 }
+          "resolution": {
+            "specifier": "./mid.js",
+            "resolvedPath": "src/mid.ts",
+            "ruleRow": 1
+          }
         }
       ]
     },
@@ -322,7 +408,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/shadow-block.ts",
@@ -333,7 +421,10 @@
           "origin": "octokit-package-named-import",
           "access": "local-binding",
           "clientBinding": "client",
-          "steps": ["named-import", "direct-new"]
+          "steps": [
+            "named-import",
+            "direct-new"
+          ]
         }
       ]
     },
@@ -364,7 +455,10 @@
           "origin": "octokit-package-named-import",
           "access": "local-binding",
           "clientBinding": "client",
-          "steps": ["named-import", "direct-new"]
+          "steps": [
+            "named-import",
+            "direct-new"
+          ]
         }
       ]
     },
@@ -394,7 +488,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         }
       ]
     },
@@ -424,7 +520,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         }
       ]
     },
@@ -489,7 +587,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-import-form"]
+          "causes": [
+            "unsupported-import-form"
+          ]
         },
         {
           "path": "src/namespace-import.ts",
@@ -497,7 +597,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-octokit-constructor"]
+          "causes": [
+            "unsupported-octokit-constructor"
+          ]
         },
         {
           "path": "src/dynamic-import.js",
@@ -505,7 +607,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-import-form"]
+          "causes": [
+            "unsupported-import-form"
+          ]
         },
         {
           "path": "src/wrong-package.ts",
@@ -513,7 +617,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/wrong-export.ts",
@@ -521,7 +627,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         }
       ]
     },
@@ -583,7 +691,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-octokit-constructor"]
+          "causes": [
+            "unsupported-octokit-constructor"
+          ]
         },
         {
           "path": "src/factory.ts",
@@ -591,7 +701,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/no-new.ts",
@@ -599,7 +711,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-octokit-constructor"]
+          "causes": [
+            "unsupported-octokit-constructor"
+          ]
         },
         {
           "path": "src/plugin.ts",
@@ -607,7 +721,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         }
       ]
     },
@@ -644,7 +760,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["mutable-provenance-binding"]
+          "causes": [
+            "mutable-provenance-binding"
+          ]
         },
         {
           "path": "src/duplicate.js",
@@ -652,7 +770,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["mutable-provenance-binding"]
+          "causes": [
+            "mutable-provenance-binding"
+          ]
         }
       ]
     },
@@ -698,7 +818,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-commonjs-form"]
+          "causes": [
+            "unsupported-commonjs-form"
+          ]
         },
         {
           "path": "src/shadowed-require.js",
@@ -706,7 +828,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-commonjs-form"]
+          "causes": [
+            "unsupported-commonjs-form"
+          ]
         },
         {
           "path": "src/namespace-require.js",
@@ -714,7 +838,9 @@
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-octokit-constructor"]
+          "causes": [
+            "unsupported-octokit-constructor"
+          ]
         }
       ]
     },
@@ -746,7 +872,10 @@
           "access": "local-binding",
           "constructorBinding": "Octokit",
           "clientBinding": "client",
-          "steps": ["require-destructuring", "direct-new"]
+          "steps": [
+            "require-destructuring",
+            "direct-new"
+          ]
         }
       ]
     },
@@ -813,8 +942,14 @@
           "access": "private-instance-field",
           "constructorBinding": "Octokit",
           "clientBinding": "#client",
-          "clientAliasChain": ["#client"],
-          "steps": ["named-import", "direct-new", "private-field-assignment"]
+          "clientAliasChain": [
+            "#client"
+          ],
+          "steps": [
+            "named-import",
+            "direct-new",
+            "private-field-assignment"
+          ]
         },
         {
           "path": "src/field-constructor.ts",
@@ -826,8 +961,15 @@
           "access": "private-instance-field",
           "constructorBinding": "Octokit",
           "clientBinding": "client",
-          "clientAliasChain": ["client", "#client"],
-          "steps": ["named-import", "direct-new", "private-field-assignment"]
+          "clientAliasChain": [
+            "client",
+            "#client"
+          ],
+          "steps": [
+            "named-import",
+            "direct-new",
+            "private-field-assignment"
+          ]
         },
         {
           "path": "src/field-alias.ts",
@@ -839,8 +981,16 @@
           "access": "local-binding",
           "constructorBinding": "Octokit",
           "clientBinding": "#client",
-          "clientAliasChain": ["#client", "client"],
-          "steps": ["named-import", "direct-new", "private-field-assignment", "private-field-access"]
+          "clientAliasChain": [
+            "#client",
+            "client"
+          ],
+          "steps": [
+            "named-import",
+            "direct-new",
+            "private-field-assignment",
+            "private-field-access"
+          ]
         }
       ]
     },
@@ -909,7 +1059,9 @@
           "kind": "direct-endpoint",
           "spelling": "this.#client.rest.issues.create",
           "status": "unproven",
-          "causes": ["invalidated-private-field"]
+          "causes": [
+            "invalidated-private-field"
+          ]
         },
         {
           "path": "src/field-late-write.ts",
@@ -917,7 +1069,9 @@
           "kind": "direct-endpoint",
           "spelling": "this.#client.rest.issues.create",
           "status": "unproven",
-          "causes": ["invalidated-private-field"]
+          "causes": [
+            "invalidated-private-field"
+          ]
         },
         {
           "path": "src/field-other-class.ts",
@@ -925,7 +1079,9 @@
           "kind": "direct-endpoint",
           "spelling": "this.#client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         }
       ]
     },
@@ -972,7 +1128,9 @@
           "kind": "direct-endpoint",
           "spelling": "this.client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-object-state"]
+          "causes": [
+            "unsupported-object-state"
+          ]
         },
         {
           "path": "src/object-state.ts",
@@ -980,7 +1138,9 @@
           "kind": "direct-endpoint",
           "spelling": "this.client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-object-state"]
+          "causes": [
+            "unsupported-object-state"
+          ]
         },
         {
           "path": "src/object-state.ts",
@@ -988,13 +1148,17 @@
           "kind": "direct-endpoint",
           "spelling": "this.#client.rest.issues.create",
           "status": "unproven",
-          "causes": ["unsupported-object-state"]
+          "causes": [
+            "unsupported-object-state"
+          ]
         }
       ]
     },
     {
       "name": "all seven anchored candidate kinds are censused without any receiver proof",
-      "entrypoints": ["src/entry.js"],
+      "entrypoints": [
+        "src/entry.js"
+      ],
       "files": [
         {
           "path": "src/entry.js",
@@ -1022,25 +1186,37 @@
           "kind": "probot-registration",
           "spelling": "app.on",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/entry.js",
           "line": 5,
           "kind": "direct-endpoint",
           "spelling": "client.rest.issues.create",
-          "member": { "scope": "issues", "method": "create" },
+          "member": {
+            "scope": "issues",
+            "method": "create"
+          },
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/entry.js",
           "line": 6,
           "kind": "static-bracket-member",
           "spelling": "client[\"rest\"][\"issues\"][\"create\"]",
-          "member": { "scope": "issues", "method": "create" },
+          "member": {
+            "scope": "issues",
+            "method": "create"
+          },
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/entry.js",
@@ -1048,16 +1224,23 @@
           "kind": "dynamic-member",
           "spelling": "client.rest.issues[<computed>]",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/entry.js",
           "line": 8,
           "kind": "endpoint-extraction",
           "spelling": "client.rest.issues.listForRepo",
-          "member": { "scope": "issues", "method": "listForRepo" },
+          "member": {
+            "scope": "issues",
+            "method": "listForRepo"
+          },
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/entry.js",
@@ -1066,7 +1249,9 @@
           "spelling": "client.request(GET /repos/{owner}/{repo}/issues)",
           "route": "GET /repos/{owner}/{repo}/issues",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/entry.js",
@@ -1074,16 +1259,23 @@
           "kind": "object-request",
           "spelling": "client.request({…})",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         },
         {
           "path": "src/entry.js",
           "line": 11,
           "kind": "endpoint-extraction",
           "spelling": "client.rest.issues.create",
-          "member": { "scope": "issues", "method": "create" },
+          "member": {
+            "scope": "issues",
+            "method": "create"
+          },
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         }
       ]
     },
@@ -1113,7 +1305,9 @@
           "kind": "positional-request",
           "spelling": "service.request(alpha)",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         }
       ]
     },
@@ -1136,7 +1330,9 @@
           "kind": "direct-endpoint",
           "spelling": "fake.rest.issues.create",
           "status": "unproven",
-          "causes": ["unproven-octokit-origin"]
+          "causes": [
+            "unproven-octokit-origin"
+          ]
         }
       ]
     }
@@ -1147,16 +1343,29 @@
       "files": [
         {
           "path": "src/client.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export const client = new Octokit();"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export const client = new Octokit();"
+          ]
         },
-        { "path": "src/use.ts", "text": ["import { client } from './client.ts';"] }
+        {
+          "path": "src/use.ts",
+          "text": [
+            "import { client } from './client.ts';"
+          ]
+        }
       ],
       "path": "src/use.ts",
       "binding": "client",
       "expect": {
         "kind": "octokit-client",
         "origin": "octokit-package-named-import",
-        "resolution": { "specifier": "./client.ts", "resolvedPath": "src/client.ts", "ruleRow": 4 }
+        "resolution": {
+          "specifier": "./client.ts",
+          "resolvedPath": "src/client.ts",
+          "ruleRow": 4
+        }
       }
     },
     {
@@ -1164,16 +1373,29 @@
       "files": [
         {
           "path": "src/client.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export const client = new Octokit();"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export const client = new Octokit();"
+          ]
         },
-        { "path": "src/use.ts", "text": ["import { client } from './client.js';"] }
+        {
+          "path": "src/use.ts",
+          "text": [
+            "import { client } from './client.js';"
+          ]
+        }
       ],
       "path": "src/use.ts",
       "binding": "client",
       "expect": {
         "kind": "octokit-client",
         "origin": "octokit-package-named-import",
-        "resolution": { "specifier": "./client.js", "resolvedPath": "src/client.ts", "ruleRow": 1 }
+        "resolution": {
+          "specifier": "./client.js",
+          "resolvedPath": "src/client.ts",
+          "ruleRow": 1
+        }
       }
     },
     {
@@ -1181,16 +1403,29 @@
       "files": [
         {
           "path": "src/client.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export const client = new Octokit();"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export const client = new Octokit();"
+          ]
         },
-        { "path": "src/use.ts", "text": ["import { client } from './client';"] }
+        {
+          "path": "src/use.ts",
+          "text": [
+            "import { client } from './client';"
+          ]
+        }
       ],
       "path": "src/use.ts",
       "binding": "client",
       "expect": {
         "kind": "octokit-client",
         "origin": "octokit-package-named-import",
-        "resolution": { "specifier": "./client", "resolvedPath": "src/client.ts", "ruleRow": 0 }
+        "resolution": {
+          "specifier": "./client",
+          "resolvedPath": "src/client.ts",
+          "ruleRow": 0
+        }
       }
     },
     {
@@ -1198,63 +1433,138 @@
       "files": [
         {
           "path": "src/client.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export const client = new Octokit();"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export const client = new Octokit();"
+          ]
         },
-        { "path": "src/use.ts", "text": ["import { client } from './missing.js';"] }
+        {
+          "path": "src/use.ts",
+          "text": [
+            "import { client } from './missing.js';"
+          ]
+        }
       ],
       "path": "src/use.ts",
       "binding": "client",
-      "expect": { "kind": "unknown", "causes": ["unresolved-relative-source"] }
+      "expect": {
+        "kind": "unknown",
+        "causes": [
+          "unresolved-relative-source"
+        ]
+      }
     },
     {
       "name": "a specifier matching several included sources is ambiguous rather than chosen",
       "files": [
         {
           "path": "src/client.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export const client = new Octokit();"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export const client = new Octokit();"
+          ]
         },
-        { "path": "src/client.js", "text": ["export const client = null;"] },
-        { "path": "src/use.ts", "text": ["import { client } from './client.js';"] }
+        {
+          "path": "src/client.js",
+          "text": [
+            "export const client = null;"
+          ]
+        },
+        {
+          "path": "src/use.ts",
+          "text": [
+            "import { client } from './client.js';"
+          ]
+        }
       ],
       "path": "src/use.ts",
       "binding": "client",
-      "expect": { "kind": "unknown", "causes": ["ambiguous-relative-source"] }
+      "expect": {
+        "kind": "unknown",
+        "causes": [
+          "ambiguous-relative-source"
+        ]
+      }
     },
     {
       "name": "there is no directory or index resolution",
       "files": [
         {
           "path": "src/lib/index.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export const client = new Octokit();"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export const client = new Octokit();"
+          ]
         },
-        { "path": "src/use.ts", "text": ["import { client } from './lib';"] }
+        {
+          "path": "src/use.ts",
+          "text": [
+            "import { client } from './lib';"
+          ]
+        }
       ],
       "path": "src/use.ts",
       "binding": "client",
-      "expect": { "kind": "unknown", "causes": ["unresolved-relative-source"] }
+      "expect": {
+        "kind": "unknown",
+        "causes": [
+          "unresolved-relative-source"
+        ]
+      }
     },
     {
       "name": "an export-star barrel cannot forward a name",
       "files": [
         {
           "path": "src/client.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export const client = new Octokit();"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export const client = new Octokit();"
+          ]
         },
-        { "path": "src/barrel.ts", "text": ["export * from './client.js';"] },
-        { "path": "src/use.ts", "text": ["import { client } from './barrel.js';"] }
+        {
+          "path": "src/barrel.ts",
+          "text": [
+            "export * from './client.js';"
+          ]
+        },
+        {
+          "path": "src/use.ts",
+          "text": [
+            "import { client } from './barrel.js';"
+          ]
+        }
       ],
       "path": "src/use.ts",
       "binding": "client",
-      "expect": { "kind": "unknown", "causes": ["unsupported-export-form"] }
+      "expect": {
+        "kind": "unknown",
+        "causes": [
+          "unsupported-export-form"
+        ]
+      }
     },
     {
       "name": "duplicate explicit exports never select one provenance source",
       "files": [
         {
           "path": "src/authorized.ts",
-          "text": ["import { Octokit } from 'octokit';", "", "export const client = new Octokit();"]
+          "text": [
+            "import { Octokit } from 'octokit';",
+            "",
+            "export const client = new Octokit();"
+          ]
         },
-        { "path": "src/other.ts", "text": ["export const client = makeClient();"] },
+        {
+          "path": "src/other.ts",
+          "text": [
+            "export const client = makeClient();"
+          ]
+        },
         {
           "path": "src/barrel.ts",
           "text": [
@@ -1262,11 +1572,21 @@
             "export { client } from './other.js';"
           ]
         },
-        { "path": "src/use.ts", "text": ["import { client } from './barrel.js';"] }
+        {
+          "path": "src/use.ts",
+          "text": [
+            "import { client } from './barrel.js';"
+          ]
+        }
       ],
       "path": "src/use.ts",
       "binding": "client",
-      "expect": { "kind": "unknown", "causes": ["unsupported-export-form"] }
+      "expect": {
+        "kind": "unknown",
+        "causes": [
+          "unsupported-export-form"
+        ]
+      }
     },
     {
       "name": "general CommonJS export mutation is not interpreted",
@@ -1281,36 +1601,88 @@
             "module.exports = { client };"
           ]
         },
-        { "path": "src/use.js", "text": ["const { client } = require('./mod.js');"] }
+        {
+          "path": "src/use.js",
+          "text": [
+            "const { client } = require('./mod.js');"
+          ]
+        }
       ],
       "path": "src/use.js",
       "binding": "client",
-      "expect": { "kind": "unknown", "causes": ["unsupported-commonjs-form"] }
+      "expect": {
+        "kind": "unknown",
+        "causes": [
+          "unsupported-commonjs-form"
+        ]
+      }
     },
     {
       "name": "a re-export cycle that blocks the question is a relevant cycle",
       "files": [
-        { "path": "src/a.ts", "text": ["export { client } from './b.js';"] },
-        { "path": "src/b.ts", "text": ["export { client } from './a.js';"] },
-        { "path": "src/use.ts", "text": ["import { client } from './a.js';"] }
+        {
+          "path": "src/a.ts",
+          "text": [
+            "export { client } from './b.js';"
+          ]
+        },
+        {
+          "path": "src/b.ts",
+          "text": [
+            "export { client } from './a.js';"
+          ]
+        },
+        {
+          "path": "src/use.ts",
+          "text": [
+            "import { client } from './a.js';"
+          ]
+        }
       ],
       "path": "src/use.ts",
       "binding": "client",
-      "expect": { "kind": "unknown", "causes": ["relevant-resolution-cycle"] }
+      "expect": {
+        "kind": "unknown",
+        "causes": [
+          "relevant-resolution-cycle"
+        ]
+      }
     },
     {
       "name": "the authorized package export resolves to a constructor, not a client",
-      "files": [{ "path": "src/ctor.ts", "text": ["import { Octokit } from 'octokit';"] }],
+      "files": [
+        {
+          "path": "src/ctor.ts",
+          "text": [
+            "import { Octokit } from 'octokit';"
+          ]
+        }
+      ],
       "path": "src/ctor.ts",
       "binding": "Octokit",
-      "expect": { "kind": "octokit-constructor", "origin": "octokit-package-named-import" }
+      "expect": {
+        "kind": "octokit-constructor",
+        "origin": "octokit-package-named-import"
+      }
     },
     {
       "name": "an unbound name is uncertainty, not absence",
-      "files": [{ "path": "src/empty.ts", "text": ["export const other = 1;"] }],
+      "files": [
+        {
+          "path": "src/empty.ts",
+          "text": [
+            "export const other = 1;"
+          ]
+        }
+      ],
       "path": "src/empty.ts",
       "binding": "client",
-      "expect": { "kind": "unknown", "causes": ["unproven-octokit-origin"] }
+      "expect": {
+        "kind": "unknown",
+        "causes": [
+          "unproven-octokit-origin"
+        ]
+      }
     }
   ]
 }
