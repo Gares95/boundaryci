@@ -225,20 +225,28 @@ Normative golden fixtures cover the declared grammar and important unsupported b
 They assert exact result bytes, JSON round-tripping, portable evidence, non-mutation, and
 repeat/reordered execution stability.
 
-An analyzer-independent real-world label set selects one repository from each nonempty
-`(clientStyle, language)` stratum of the frozen Phase 1 corpus. It binds seven repository
-revisions and 32 certain call-site/receiver labels before analyzer comparison. The Phase 3
-gate reports by predeclared receiver/pattern class, including zero-denominator classes, and
-has:
+The original seven-repository, 32-label artifact remains an integrity-bound regression
+fixture, but the available record does not establish that its labels were created
+independently of analyzer output. BoundaryCI therefore does not use that artifact as its
+accountable claim of analyzer-independent human validation.
 
-- zero false-positive proven operations;
-- zero false-clean certainly relevant sites;
-- zero incorrectly resolved certain in-grammar sites;
-- one certain non-Octokit decoy, which produces no operation.
+That claim is supported by a fresh blind sample of 34 call sites, mechanically selected from
+the same seven pinned repositories without reading analyzer output or the historical labels.
+A human reviewed only the pinned source evidence and classified 14 sites as definite Octokit
+operations and 20 as definite non-Octokit calls. Those answers were frozen byte-for-byte and
+SHA-256 digested before comparison with BoundaryCI. The post-freeze comparison found:
 
-The class report is evidence about the bounded grammar, not a global coverage percentage.
-Unsupported real-world classes remain explicit incomplete results and may motivate future
-work only through a separately reviewed scope decision.
+- three human-positive sites resolved to the exact proven REST operation;
+- eleven human-positive sites produced explicit incomplete outcomes at documented unsupported
+  provenance or call-grammar boundaries;
+- all 20 human-negative sites produced no analyzer operation;
+- zero false-positive proven operations and zero false-clean relevant sites.
+
+Neither the human answers nor analyzer behavior was changed to obtain agreement. Explicit
+incompleteness for unsupported grammar or provenance is expected safe behavior, not an
+analyzer error. These results are evidence about the bounded grammar, not a global coverage
+percentage. Unsupported real-world classes may motivate future work only through a separately
+reviewed scope decision.
 
 ## Contract-relative completeness and limitations
 
