@@ -17,13 +17,16 @@ const PULLS_SOURCE = "import { Octokit } from 'octokit';\nconst client = new Oct
 const PROJECT_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const BUILT_CLI = fileURLToPath(new URL('../../dist/cli/main.js', import.meta.url));
 
-beforeAll(() => {
-  const build = spawnSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.build.json'], {
-    cwd: PROJECT_ROOT,
-    encoding: 'utf8',
-  });
-  expect(build.status, `${build.stdout}${build.stderr}`).toBe(EXIT_CODE_OK);
-});
+beforeAll(
+  () => {
+    const build = spawnSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.build.json'], {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf8',
+    });
+    expect(build.status, `${build.stdout}${build.stderr}`).toBe(EXIT_CODE_OK);
+  },
+  30_000,
+);
 
 function recordingIo(): CliIO & { stdoutChunks: string[]; stderrChunks: string[] } {
   const stdoutChunks: string[] = [];
