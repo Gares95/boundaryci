@@ -41,6 +41,12 @@ const PULLS_SOURCE = "import { Octokit } from 'octokit';\nconst client = new Oct
 const READ_AND_PULLS_SOURCE =
   "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.listForRepo({});\nclient.rest.pulls.list({});\n";
 
+async function selectedComparison(baseRoot: string, headRoot: string) {
+  const outcome = await evaluateLocalComparison(baseRoot, headRoot);
+  if (outcome.status !== 'selected') throw new Error('expected valid default configuration');
+  return outcome;
+}
+
 describe('Phase 4 Task 1 tracer', () => {
   it('expands Issues: read to Issues: write with canonical operation and source contributors retained', async () => {
     const baseRoot = await createTempRoot('boundaryci-phase4-expansion-base-');
@@ -48,7 +54,7 @@ describe('Phase 4 Task 1 tracer', () => {
     await writeRegularFile(baseRoot, 'src/app.ts', READ_SOURCE);
     await writeRegularFile(headRoot, 'src/app.ts', WRITE_SOURCE);
 
-    const outcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
+    const outcome = await selectedComparison(baseRoot, headRoot);
 
     expect(outcome.comparison.status).toBe('complete');
     if (outcome.comparison.status !== 'complete') throw new Error('unreachable');
@@ -149,13 +155,14 @@ describe('Phase 4 Task 1 tracer', () => {
     const envelope = JSON.parse(io.stdoutChunks[0] ?? '') as {
       schemaId: string;
       schemaVersion: number;
-      comparison: { status: string };
-      policy: { decision: string };
+      outcome: string;
+      evaluation: { comparison: { status: string }; policy: { outcome: string } };
     };
     expect(envelope.schemaId).toBe(CHECK_RESULT_SCHEMA_ID);
     expect(envelope.schemaVersion).toBe(CHECK_RESULT_SCHEMA_VERSION);
-    expect(envelope.comparison.status).toBe('complete');
-    expect(envelope.policy.decision).toBe('fail');
+    expect(envelope.outcome).toBe('policy-failure');
+    expect(envelope.evaluation.comparison.status).toBe('complete');
+    expect(envelope.evaluation.policy.outcome).toBe('policy-failure');
 
     const secondIo = recordingIo();
     const secondCode = await runCli(['check', '--base', baseRoot, '--head', headRoot, '--format', 'json'], secondIo);
@@ -172,7 +179,7 @@ describe('Phase 4 Task 1 tracer', () => {
 
     // If the analyzer ever imported, built, spawned, or executed the target file, this call
     // would reject with the sentinel error above instead of resolving with parsed evidence.
-    const outcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
+    const outcome = await selectedComparison(baseRoot, headRoot);
 
     expect(outcome.comparison.status).toBe('complete');
     if (outcome.comparison.status !== 'complete') throw new Error('unreachable');
@@ -212,7 +219,7 @@ describe('Phase 4 Task 2 catalog-gap and feedback-loop tracer', () => {
     await writeRegularFile(baseRoot, 'src/app.ts', 'export const value = 1;\n');
     await writeRegularFile(headRoot, 'src/app.ts', PULLS_SOURCE);
 
-    const outcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
+    const outcome = await selectedComparison(baseRoot, headRoot);
 
     expect(outcome.comparison.status).toBe('incomplete');
     if (outcome.comparison.status !== 'incomplete') throw new Error('unreachable');
@@ -241,7 +248,8 @@ describe('Phase 4 Task 2 catalog-gap and feedback-loop tracer', () => {
     expect(outcome.comparison.boundary.status).toBe('incomplete');
     expect(outcome.comparison.reasons).toContain('missing-permission-requirement');
     expect(outcome.comparison.reasons).toContain('incomplete-head-analysis');
-    expect(outcome.policy).toEqual({ decision: 'fail', reasons: ['incomplete-comparison'] });
+    expect(outcome.policy.outcome).toBe('policy-failure');
+    expect(outcome.policy.reasons).toEqual(['incomplete-analysis-not-permitted']);
 
     // The catalog gap never becomes a catalog row.
     expect(BOUNDARYCI_PERMISSION_CATALOG.map((entry) => entry.operation.operationId)).not.toContain('pulls/list');
@@ -253,7 +261,7 @@ describe('Phase 4 Task 2 catalog-gap and feedback-loop tracer', () => {
     await writeRegularFile(baseRoot, 'src/app.ts', READ_SOURCE);
     await writeRegularFile(headRoot, 'src/app.ts', READ_AND_PULLS_SOURCE);
 
-    const outcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
+    const outcome = await selectedComparison(baseRoot, headRoot);
 
     expect(outcome.comparison.status).toBe('incomplete');
     if (outcome.comparison.status !== 'incomplete') throw new Error('unreachable');
@@ -276,7 +284,7 @@ describe('Phase 4 Task 2 catalog-gap and feedback-loop tracer', () => {
       'resolved',
     ]);
 
-    expect(outcome.policy.decision).toBe('fail');
+    expect(outcome.policy.check).toBe('fail');
   });
 
   it('produces byte-identical repeated evaluation/serialization and leaves both AnalysisResult inputs unchanged across comparison', async () => {
@@ -297,8 +305,8 @@ describe('Phase 4 Task 2 catalog-gap and feedback-loop tracer', () => {
     expect(comparison.base).not.toBe(base);
     expect(comparison.head).not.toBe(head);
 
-    const firstOutcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
-    const secondOutcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
+    const firstOutcome = await selectedComparison(baseRoot, headRoot);
+    const secondOutcome = await selectedComparison(baseRoot, headRoot);
     expect(JSON.stringify(secondOutcome)).toBe(JSON.stringify(firstOutcome));
   });
 
@@ -318,10 +326,14 @@ describe('Phase 4 Task 2 catalog-gap and feedback-loop tracer', () => {
     expect(io.stdoutChunks).toHaveLength(1);
 
     const envelope = JSON.parse(io.stdoutChunks[0] ?? '') as {
-      comparison: { status: string };
-      policy: { decision: string; reasons: string[] };
+      outcome: string;
+      evaluation: { comparison: { status: string }; policy: { outcome: string; reasons: string[] } };
     };
-    expect(envelope.comparison.status).toBe('incomplete');
-    expect(envelope.policy).toEqual({ decision: 'fail', reasons: ['incomplete-comparison'] });
+    expect(envelope.outcome).toBe('policy-failure');
+    expect(envelope.evaluation.comparison.status).toBe('incomplete');
+    expect(envelope.evaluation.policy).toMatchObject({
+      outcome: 'policy-failure',
+      reasons: ['incomplete-analysis-not-permitted'],
+    });
   });
 });
