@@ -18,6 +18,9 @@
     "typecheck": "node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
     "quality:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/quality-checks.mjs"
   },
+  "dependencies": {
+    "yaml": "2.9.0"
+  },
   "devDependencies": {
     "@octokit/app-permissions": "2.1.0",
     "@octokit/openapi": "22.0.0",

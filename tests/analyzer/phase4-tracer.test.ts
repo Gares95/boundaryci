@@ -120,7 +120,7 @@ describe('Phase 4 Task 1 tracer', () => {
     expect(BUILTIN_CONFIG.failOnExpansion).toBe(true);
     expect(BUILTIN_CONFIG.failOnIncomplete).toBe(true);
     expect(BUILTIN_CONFIG.probotEntrypoints).toEqual([]);
-    expect(BUILTIN_CONFIG.expectedPermissions).toEqual([]);
+    expect(BUILTIN_CONFIG.declaredExpectedPermissions).toEqual([]);
 
     const base = await analyzeLocalSnapshot(baseRoot, BUILTIN_CONFIG);
     const head = await analyzeLocalSnapshot(headRoot, BUILTIN_CONFIG);
