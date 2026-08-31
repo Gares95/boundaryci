@@ -16,7 +16,15 @@
     "tools/permission-data-feasibility/**/*.ts",
     "src/permission-model/**/*.ts",
     "src/analyzer/**/*.ts",
+    "src/config/**/*.ts",
+    "src/diff/**/*.ts",
+    "src/runtime/**/*.ts",
+    "src/cli/**/*.ts",
     "tests/permission-model/**/*.test.ts",
-    "tests/analyzer/**/*.test.ts"
+    "tests/analyzer/**/*.test.ts",
+    "tests/config/**/*.test.ts",
+    "tests/diff/**/*.test.ts",
+    "tests/policy/**/*.test.ts",
+    "tests/cli/**/*.test.ts"
   ]
 }

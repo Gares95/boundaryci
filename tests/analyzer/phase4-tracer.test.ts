@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   CHECK_RESULT_SCHEMA_ID,
   CHECK_RESULT_SCHEMA_VERSION,
+  EXIT_CODE_INCOMPLETE,
   EXIT_CODE_POLICY_FAILURE,
   runCli,
 } from '../../src/cli/main.js';
@@ -36,6 +37,9 @@ function recordingIo(): CliIO & { stdoutChunks: string[]; stderrChunks: string[]
 const READ_SOURCE =
   "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.listForRepo({});\n";
 const WRITE_SOURCE = "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.create({});\n";
+const PULLS_SOURCE = "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.pulls.list({});\n";
+const READ_AND_PULLS_SOURCE =
+  "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.listForRepo({});\nclient.rest.pulls.list({});\n";
 
 describe('Phase 4 Task 1 tracer', () => {
   it('expands Issues: read to Issues: write with canonical operation and source contributors retained', async () => {
@@ -198,5 +202,126 @@ describe('Phase 4 Task 1 tracer', () => {
     contradictory.identity.analyzer = { ...contradictory.identity.analyzer, schemaVersion: contradictory.identity.analyzer.schemaVersion + 1 };
 
     expect(() => compareRevisionAnalyses(contradictory, revision)).toThrow(/identity\.analyzer must match/u);
+  });
+});
+
+describe('Phase 4 Task 2 catalog-gap and feedback-loop tracer', () => {
+  it('retains proven pulls/list operation evidence and a missing permission-resolution finding as an incomplete comparison and policy failure', async () => {
+    const baseRoot = await createTempRoot('boundaryci-phase4-catalog-gap-base-');
+    const headRoot = await createTempRoot('boundaryci-phase4-catalog-gap-head-');
+    await writeRegularFile(baseRoot, 'src/app.ts', 'export const value = 1;\n');
+    await writeRegularFile(headRoot, 'src/app.ts', PULLS_SOURCE);
+
+    const outcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
+
+    expect(outcome.comparison.status).toBe('incomplete');
+    if (outcome.comparison.status !== 'incomplete') throw new Error('unreachable');
+
+    const headResult = outcome.comparison.head.result;
+    expect(headResult.status).toBe('incomplete');
+    if (headResult.status !== 'incomplete') throw new Error('unreachable');
+
+    expect(headResult.observations).toHaveLength(1);
+    expect(headResult.observations[0]).toMatchObject({
+      spelling: 'client.rest.pulls.list',
+      operation: { method: 'GET', normalizedRoute: '/repos/{owner}/{repo}/pulls', operationId: 'pulls/list' },
+      source: expect.objectContaining({ path: 'src/app.ts' }),
+    });
+
+    expect(headResult.permissionResolutions).toHaveLength(1);
+    expect(headResult.permissionResolutions[0]?.finding).toMatchObject({
+      status: 'missing',
+      operation: { operationId: 'pulls/list' },
+    });
+    expect(headResult.permissionBoundary).toMatchObject({
+      status: 'incomplete',
+      reasons: ['missing-permission-requirement'],
+    });
+
+    expect(outcome.comparison.boundary.status).toBe('incomplete');
+    expect(outcome.comparison.reasons).toContain('missing-permission-requirement');
+    expect(outcome.comparison.reasons).toContain('incomplete-head-analysis');
+    expect(outcome.policy).toEqual({ decision: 'fail', reasons: ['incomplete-comparison'] });
+
+    // The catalog gap never becomes a catalog row.
+    expect(BOUNDARYCI_PERMISSION_CATALOG.map((entry) => entry.operation.operationId)).not.toContain('pulls/list');
+  });
+
+  it('cannot produce an unqualified unchanged or reduction conclusion when head is incomplete even though its known Issues requirement matches base', async () => {
+    const baseRoot = await createTempRoot('boundaryci-phase4-catalog-gap-matching-base-');
+    const headRoot = await createTempRoot('boundaryci-phase4-catalog-gap-matching-head-');
+    await writeRegularFile(baseRoot, 'src/app.ts', READ_SOURCE);
+    await writeRegularFile(headRoot, 'src/app.ts', READ_AND_PULLS_SOURCE);
+
+    const outcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
+
+    expect(outcome.comparison.status).toBe('incomplete');
+    if (outcome.comparison.status !== 'incomplete') throw new Error('unreachable');
+    expect('changes' in outcome.comparison.boundary).toBe(false);
+
+    const headResult = outcome.comparison.head.result;
+    expect(headResult.status).toBe('incomplete');
+    if (headResult.status !== 'incomplete') throw new Error('unreachable');
+    expect(headResult.observations.map((observation) => observation.operation.operationId).sort()).toEqual([
+      'issues/list-for-repo',
+      'pulls/list',
+    ]);
+
+    expect(outcome.comparison.boundary.status).toBe('incomplete');
+    if (outcome.comparison.boundary.status !== 'incomplete') throw new Error('unreachable');
+    expect(outcome.comparison.boundary.head.status).toBe('incomplete');
+    if (outcome.comparison.boundary.head.status !== 'incomplete') throw new Error('unreachable');
+    expect(outcome.comparison.boundary.head.findings.map((finding) => finding.status).sort()).toEqual([
+      'missing',
+      'resolved',
+    ]);
+
+    expect(outcome.policy.decision).toBe('fail');
+  });
+
+  it('produces byte-identical repeated evaluation/serialization and leaves both AnalysisResult inputs unchanged across comparison', async () => {
+    const baseRoot = await createTempRoot('boundaryci-phase4-determinism-base-');
+    const headRoot = await createTempRoot('boundaryci-phase4-determinism-head-');
+    await writeRegularFile(baseRoot, 'src/app.ts', READ_SOURCE);
+    await writeRegularFile(headRoot, 'src/app.ts', READ_AND_PULLS_SOURCE);
+
+    const base = await analyzeLocalSnapshot(baseRoot, BUILTIN_CONFIG);
+    const head = await analyzeLocalSnapshot(headRoot, BUILTIN_CONFIG);
+    const baseBefore = JSON.stringify(base);
+    const headBefore = JSON.stringify(head);
+
+    const comparison = compareRevisionAnalyses(base, head);
+
+    expect(JSON.stringify(base)).toBe(baseBefore);
+    expect(JSON.stringify(head)).toBe(headBefore);
+    expect(comparison.base).not.toBe(base);
+    expect(comparison.head).not.toBe(head);
+
+    const firstOutcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
+    const secondOutcome = await evaluateLocalComparison(baseRoot, headRoot, BUILTIN_CONFIG);
+    expect(JSON.stringify(secondOutcome)).toBe(JSON.stringify(firstOutcome));
+  });
+
+  it('check --format json returns the dedicated incomplete exit code for a catalog-gap head under failOnIncomplete', async () => {
+    const baseRoot = await createTempRoot('boundaryci-phase4-cli-incomplete-base-');
+    const headRoot = await createTempRoot('boundaryci-phase4-cli-incomplete-head-');
+    await writeRegularFile(baseRoot, 'src/app.ts', 'export const value = 1;\n');
+    await writeRegularFile(headRoot, 'src/app.ts', PULLS_SOURCE);
+
+    expect(BUILTIN_CONFIG.failOnIncomplete).toBe(true);
+
+    const io = recordingIo();
+    const code = await runCli(['check', '--base', baseRoot, '--head', headRoot, '--format', 'json'], io);
+
+    expect(code).toBe(EXIT_CODE_INCOMPLETE);
+    expect(io.stderrChunks).toEqual([]);
+    expect(io.stdoutChunks).toHaveLength(1);
+
+    const envelope = JSON.parse(io.stdoutChunks[0] ?? '') as {
+      comparison: { status: string };
+      policy: { decision: string; reasons: string[] };
+    };
+    expect(envelope.comparison.status).toBe('incomplete');
+    expect(envelope.policy).toEqual({ decision: 'fail', reasons: ['incomplete-comparison'] });
   });
 });
