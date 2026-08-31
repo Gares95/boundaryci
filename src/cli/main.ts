@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /**
  * Injectable CLI adapter for the `analyze`, `diff`, and `check` commands.
  *
@@ -7,6 +9,8 @@
  * from stderr, and returns a numeric exit code (D-17, D-18). It never calls `process.exit`, so a
  * caller stays in control of process lifecycle.
  */
+
+import { pathToFileURL } from 'node:url';
 
 import { analyzeConfiguredSnapshot, evaluateLocalComparison } from '../runtime/evaluate.js';
 import {
@@ -167,4 +171,9 @@ export async function runCli(argv: readonly string[], io: CliIO): Promise<number
     io.stderr.write('boundaryci: unexpected runtime failure\n');
     return EXIT_CODE_RUNTIME_INFRASTRUCTURE_FAILURE;
   }
+}
+
+const invokedPath = process.argv[1];
+if (invokedPath !== undefined && import.meta.url === pathToFileURL(invokedPath).href) {
+  process.exitCode = await runCli(process.argv.slice(2), { stdout: process.stdout, stderr: process.stderr });
 }

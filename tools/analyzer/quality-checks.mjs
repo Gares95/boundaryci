@@ -13,14 +13,11 @@ const PROJECT_ROOT = realpathSync(fileURLToPath(new URL('../../', import.meta.ur
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 const DIRECTORY_RULES = [
-  { path: 'src/analyzer', extensions: new Set(['.ts']) },
-  { path: 'tests/analyzer', extensions: new Set(['.json', '.ts']) },
+  { path: 'docs', extensions: new Set(['.md']) },
+  { path: 'src', extensions: new Set(['.ts']) },
+  { path: 'tests', extensions: new Set(['.json', '.ts']) },
 ];
-const EXACT_FILES = [
-  'docs/analyzer.md',
-  'docs/permission-model.md',
-  'tools/analyzer/quality-checks.mjs',
-];
+const EXACT_FILES = ['tools/analyzer/quality-checks.mjs'];
 const FORBIDDEN_MODULES = new Set([
   'child_process',
   'module',
@@ -37,6 +34,13 @@ const FORBIDDEN_TYPESCRIPT_PROGRAM_APIS = new Set([
   'transpile',
   'transpileModule',
 ]);
+const PHASE4_SOURCE_PREFIXES = ['src/cli/', 'src/config/', 'src/diff/', 'src/policy/', 'src/runtime/'];
+const DELIVERY_MODULE = /^(?:@octokit\/|octokit$|probot$)/u;
+const PLACEHOLDER_WORDS = [`${'FIX'}${'ME'}`, `${'T'}${'BD'}`, `${'TO'}${'DO'}`];
+const PLACEHOLDER = new RegExp(`\\b(?:${PLACEHOLDER_WORDS.join('|')})\\b`, 'u');
+const ASSISTANT_ATTRIBUTION = /\b(?:Anthropic|Claude|Codex|OpenAI)\b/u;
+const LOCAL_WORKFLOW_PATH = /(?:^|[/'"`])\.(?:agents|codex|planning)(?:\/|$)/u;
+const SECRET_MATERIAL = /(?:BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY|github_pat_|gh[pousr]_|sk-ant-)/u;
 
 function fail(message) {
   throw new Error(message);
@@ -175,12 +179,22 @@ function lintDiagnostics(path, text) {
     const point = sourceFile.getLineAndCharacterOfPosition(start);
     return `${path}:${point.line + 1}:${point.character + 1} lint/syntax: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`;
   });
-  if (!path.startsWith('src/analyzer/')) return diagnostics;
+  const analyzerSource = path.startsWith('src/analyzer/');
+  const phase4Source = PHASE4_SOURCE_PREFIXES.some((prefix) => path.startsWith(prefix));
+  if (!analyzerSource && !phase4Source) return diagnostics;
 
   const report = (node, rule, detail) => diagnostics.push(`${path}:${sourcePosition(sourceFile, node)} ${rule}: ${detail}`);
   const visit = (node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && FORBIDDEN_MODULES.has(node.moduleSpecifier.text)) {
-      report(node, 'analyzer/no-target-runtime-module', `forbidden runtime module ${node.moduleSpecifier.text}`);
+      report(node, 'isolation/no-target-runtime-module', `forbidden runtime module ${node.moduleSpecifier.text}`);
+    }
+    if (
+      phase4Source &&
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      DELIVERY_MODULE.test(node.moduleSpecifier.text)
+    ) {
+      report(node, 'phase4/no-delivery-module', `delivery module is outside Phase 4: ${node.moduleSpecifier.text}`);
     }
     if (
       ts.isImportDeclaration(node) &&
@@ -194,7 +208,7 @@ function lintDiagnostics(path, text) {
       for (const specifier of node.importClause.namedBindings.elements) {
         const importedName = specifier.propertyName?.text ?? specifier.name.text;
         if (!specifier.isTypeOnly && FORBIDDEN_TYPESCRIPT_PROGRAM_APIS.has(importedName)) {
-          report(specifier, 'analyzer/no-target-program', `${importedName} import is forbidden`);
+          report(specifier, 'isolation/no-target-program', `${importedName} import is forbidden`);
         }
       }
     }
@@ -205,33 +219,43 @@ function lintDiagnostics(path, text) {
       ts.isStringLiteral(node.moduleReference.expression) &&
       FORBIDDEN_MODULES.has(node.moduleReference.expression.text)
     ) {
-      report(node, 'analyzer/no-target-runtime-module', `forbidden runtime module ${node.moduleReference.expression.text}`);
+      report(node, 'isolation/no-target-runtime-module', `forbidden runtime module ${node.moduleReference.expression.text}`);
     }
     if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
       const name = memberName(node);
       if (name !== null && FORBIDDEN_TYPESCRIPT_PROGRAM_APIS.has(name)) {
-        report(node, 'analyzer/no-target-program', `${name} access is forbidden`);
+        report(node, 'isolation/no-target-program', `${name} access is forbidden`);
       }
       if (name === 'createRequire' || name === 'dlopen') {
-        report(node, 'analyzer/no-target-module-load', `${name} access is forbidden`);
+        report(node, 'isolation/no-target-module-load', `${name} access is forbidden`);
       }
     }
     if (ts.isCallExpression(node)) {
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-        report(node, 'analyzer/no-target-module-load', 'dynamic import is forbidden');
+        report(node, 'isolation/no-target-module-load', 'dynamic import is forbidden');
       } else if (ts.isIdentifier(node.expression) && node.expression.text === 'require') {
-        report(node, 'analyzer/no-target-module-load', 'require() is forbidden');
+        report(node, 'isolation/no-target-module-load', 'require() is forbidden');
       } else if (ts.isIdentifier(node.expression) && node.expression.text === 'eval') {
-        report(node, 'analyzer/no-code-evaluation', 'eval() is forbidden');
+        report(node, 'isolation/no-code-evaluation', 'eval() is forbidden');
       }
     }
     if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) {
-      if (node.expression.text === 'Function') report(node, 'analyzer/no-code-evaluation', 'new Function() is forbidden');
-      if (node.expression.text === 'Worker') report(node, 'analyzer/no-target-runtime-module', 'Worker construction is forbidden');
+      if (node.expression.text === 'Function') report(node, 'isolation/no-code-evaluation', 'new Function() is forbidden');
+      if (node.expression.text === 'Worker') report(node, 'isolation/no-target-runtime-module', 'Worker construction is forbidden');
     }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
+  return diagnostics;
+}
+
+function publicTextDiagnostics(path, text) {
+  if (!path.startsWith('docs/') && !path.startsWith('src/') && !path.startsWith('tests/')) return [];
+  const diagnostics = [];
+  if (PLACEHOLDER.test(text)) diagnostics.push(`${path}:1:1 hygiene/placeholder: resolvable placeholder token is forbidden`);
+  if (ASSISTANT_ATTRIBUTION.test(text)) diagnostics.push(`${path}:1:1 hygiene/assistant-attribution: assistant attribution is forbidden`);
+  if (LOCAL_WORKFLOW_PATH.test(text)) diagnostics.push(`${path}:1:1 hygiene/local-workflow: local workflow path is forbidden`);
+  if (SECRET_MATERIAL.test(text)) diagnostics.push(`${path}:1:1 hygiene/secret-material: possible secret material is forbidden`);
   return diagnostics;
 }
 
@@ -251,7 +275,12 @@ function runLint() {
 function runFormatCheck() {
   const budget = { total: 0 };
   const diagnostics = [];
-  for (const path of ownedFiles()) diagnostics.push(...formatDiagnostics(path, readBounded(path, budget)));
+  for (const path of ownedFiles()) {
+    const bytes = readBounded(path, budget);
+    diagnostics.push(...formatDiagnostics(path, bytes));
+    const decoded = decodeUtf8(bytes, path);
+    if (typeof decoded === 'string') diagnostics.push(...publicTextDiagnostics(path, decoded));
+  }
   return diagnostics.sort(compareBytes);
 }
 
@@ -265,25 +294,37 @@ function runSelfTest() {
 
   const lintMutations = [
     ['syntax', 'const = ;\n', 'lint/syntax'],
-    ['require', "require('./target.js');\n", 'analyzer/no-target-module-load'],
-    ['dynamic import', "import('./target.js');\n", 'analyzer/no-target-module-load'],
-    ['createProgram', "import ts from 'typescript';\nts.createProgram([]);\n", 'analyzer/no-target-program'],
-    ['named createProgram import', "import { createProgram as build } from 'typescript';\nbuild([]);\n", 'analyzer/no-target-program'],
-    ['transpileModule', "import ts from 'typescript';\nts.transpileModule('x', {});\n", 'analyzer/no-target-program'],
-    ['resolveModuleName', "import ts from 'typescript';\nts.resolveModuleName('x', 'y', {}, {});\n", 'analyzer/no-target-program'],
-    ['subprocess module', "import { spawn } from 'node:child_process';\nspawn('x');\n", 'analyzer/no-target-runtime-module'],
-    ['vm module', "import vm from 'node:vm';\nvm.runInNewContext('x');\n", 'analyzer/no-target-runtime-module'],
-    ['worker module', "import { Worker } from 'node:worker_threads';\nnew Worker('x');\n", 'analyzer/no-target-runtime-module'],
-    ['import-equals subprocess', "import processApi = require('node:child_process');\nprocessApi.spawn('x');\n", 'analyzer/no-target-runtime-module'],
-    ['createRequire', "import module from 'node:module';\nmodule.createRequire(import.meta.url);\n", 'analyzer/no-target-runtime-module'],
-    ['eval', "eval('x');\n", 'analyzer/no-code-evaluation'],
-    ['Function', "new Function('x');\n", 'analyzer/no-code-evaluation'],
-    ['Worker', "new Worker('x');\n", 'analyzer/no-target-runtime-module'],
-    ['dlopen', "process.dlopen({}, 'x');\n", 'analyzer/no-target-module-load'],
+    ['require', "require('./target.js');\n", 'isolation/no-target-module-load'],
+    ['dynamic import', "import('./target.js');\n", 'isolation/no-target-module-load'],
+    ['createProgram', "import ts from 'typescript';\nts.createProgram([]);\n", 'isolation/no-target-program'],
+    ['named createProgram import', "import { createProgram as build } from 'typescript';\nbuild([]);\n", 'isolation/no-target-program'],
+    ['transpileModule', "import ts from 'typescript';\nts.transpileModule('x', {});\n", 'isolation/no-target-program'],
+    ['resolveModuleName', "import ts from 'typescript';\nts.resolveModuleName('x', 'y', {}, {});\n", 'isolation/no-target-program'],
+    ['subprocess module', "import { spawn } from 'node:child_process';\nspawn('x');\n", 'isolation/no-target-runtime-module'],
+    ['vm module', "import vm from 'node:vm';\nvm.runInNewContext('x');\n", 'isolation/no-target-runtime-module'],
+    ['worker module', "import { Worker } from 'node:worker_threads';\nnew Worker('x');\n", 'isolation/no-target-runtime-module'],
+    ['import-equals subprocess', "import processApi = require('node:child_process');\nprocessApi.spawn('x');\n", 'isolation/no-target-runtime-module'],
+    ['createRequire', "import module from 'node:module';\nmodule.createRequire(import.meta.url);\n", 'isolation/no-target-runtime-module'],
+    ['eval', "eval('x');\n", 'isolation/no-code-evaluation'],
+    ['Function', "new Function('x');\n", 'isolation/no-code-evaluation'],
+    ['Worker', "new Worker('x');\n", 'isolation/no-target-runtime-module'],
+    ['dlopen', "process.dlopen({}, 'x');\n", 'isolation/no-target-module-load'],
   ];
   for (const [name, source, rule] of lintMutations) {
     assertSelfTest(lintDiagnostics('src/analyzer/mutation.ts', source).some((diagnostic) => diagnostic.includes(rule)), name);
   }
+  assertSelfTest(
+    lintDiagnostics('src/runtime/mutation.ts', "import { spawn } from 'node:child_process';\nspawn('x');\n").some((diagnostic) =>
+      diagnostic.includes('isolation/no-target-runtime-module'),
+    ),
+    'Phase 4 subprocess module',
+  );
+  assertSelfTest(
+    lintDiagnostics('src/cli/mutation.ts', "import { Probot } from 'probot';\nvoid Probot;\n").some((diagnostic) =>
+      diagnostic.includes('phase4/no-delivery-module'),
+    ),
+    'Phase 4 delivery module',
+  );
 
   const encoder = new TextEncoder();
   assertSelfTest(formatDiagnostics('valid.ts', encoder.encode('export const value = 1;\n')).length === 0, 'valid text');

@@ -30,14 +30,21 @@ describe('portable artifact manifest', () => {
     ) as ArtifactManifest;
     expect(() => validateArtifactManifest(committed)).not.toThrow();
 
-    // The committed manifest is historical acquisition evidence, so its root package-file
-    // digest must not be rewritten when later phases add unrelated scripts. Building the
-    // current manifest still validates every selected direct dependency/version first; the
-    // comparison below then binds the package manager, lockfile, installed artifacts, and
-    // runtime endpoint selection while deliberately excluding only that historical snapshot.
+    // The committed manifest is historical acquisition evidence, so its root package and
+    // lockfile digests must not be rewritten when later phases add scripts or promote an
+    // already-resolved package to a direct dependency. Building the current manifest still
+    // validates every selected direct dependency/version and lock identity first; the
+    // comparisons below then bind the package manager, installed artifact bytes/integrities,
+    // and runtime endpoint lock edges while deliberately excluding only the two historical
+    // root-file snapshots.
     const current = buildArtifactManifest(PROJECT_ROOT);
-    const { packageJson: _committedPackageSnapshot, ...committedProject } = committed.project;
-    const { packageJson: _currentPackageSnapshot, ...currentProject } = current.project;
+    const {
+      packageJson: _committedPackageSnapshot,
+      lockfile: _committedLockfileSnapshot,
+      ...committedProject
+    } = committed.project;
+    const { packageJson: _currentPackageSnapshot, lockfile: _currentLockfileSnapshot, ...currentProject } =
+      current.project;
     expect(currentProject).toEqual(committedProject);
     expect(current.artifacts).toEqual(committed.artifacts);
     expect(current.runtimeEndpointSelection).toEqual(committed.runtimeEndpointSelection);

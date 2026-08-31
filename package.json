@@ -3,12 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "boundaryci": "dist/cli/main.js"
+  },
   "packageManager": "pnpm@11.11.0+sha512.4463f65fd80ed80d69bc1d4bf163ee94f605c7380fc318bb5b2ebe15f8cd12d49c51a4d59e951b401e764d3b6ca751cbf51bc50ed7001a6bcb4935e684c34882",
   "engines": {
     "node": ">=24 <25",
     "pnpm": "11.11.0"
   },
   "scripts": {
+    "build": "node_modules/typescript/bin/tsc -p tsconfig.build.json",
     "format:check": "node tools/analyzer/quality-checks.mjs format-check",
     "lint": "node tools/analyzer/quality-checks.mjs lint",
     "test": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot",
