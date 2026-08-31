@@ -13,7 +13,12 @@ import {
   normalizeEffectiveConfig,
   validateConfigValue,
 } from '../../src/config/model.js';
-import { CONFIG_FILE_NAME, MAX_CONFIG_BYTES, loadSnapshotConfig } from '../../src/config/load.js';
+import {
+  CONFIG_FILE_NAME,
+  MAX_CONFIG_BYTES,
+  loadSnapshotConfig,
+  selectAuthoritativeConfig,
+} from '../../src/config/load.js';
 
 const roots: string[] = [];
 
@@ -269,6 +274,127 @@ describe('bounded YAML and filesystem boundary', () => {
     const state = await loadSnapshotConfig(root);
     expect(state.status).toBe('valid');
     await expect(readFile(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+});
+
+describe('base authority and prospective head reporting', () => {
+  it('selects the valid base for authority and reports a changed valid head as prospective only', async () => {
+    const base = await loadText('version: 1\n');
+    const head = await loadText('version: 1\npolicy:\n  failOnExpansion: false\n');
+    if (base.status !== 'valid' || head.status !== 'valid') throw new Error('expected valid configurations');
+
+    const selection = selectAuthoritativeConfig(base, head);
+    expect(selection).toEqual({
+      status: 'selected',
+      authority: { source: 'base', config: base.config, identity: base.identity },
+      head: { status: 'valid', config: head.config, identity: head.identity, change: 'changed' },
+    });
+  });
+
+  it('reports an equivalent valid head as unchanged while it still stays prospective only', async () => {
+    const base = await loadText('version: 1\n');
+    const head = await loadText('version: 1 # comment\n');
+    if (base.status !== 'valid' || head.status !== 'valid') throw new Error('expected valid configurations');
+
+    const selection = selectAuthoritativeConfig(base, head);
+    expect(selection).toEqual({
+      status: 'selected',
+      authority: { source: 'base', config: base.config, identity: base.identity },
+      head: { status: 'valid', config: head.config, identity: head.identity, change: 'unchanged' },
+    });
+  });
+
+  it('selects the built-in default for both revisions when base and head are both absent', () => {
+    const selection = selectAuthoritativeConfig({ status: 'absent' }, { status: 'absent' });
+    expect(selection).toEqual({
+      status: 'selected',
+      authority: {
+        source: 'built-in-default',
+        config: BUILTIN_CONFIG,
+        identity: effectiveConfigIdentity(BUILTIN_CONFIG),
+      },
+      head: { status: 'absent' },
+    });
+  });
+
+  it('selects the built-in default when base is absent and reports a valid head as prospective only', async () => {
+    const head = await loadText('version: 1\npolicy:\n  failOnExpansion: false\n');
+    if (head.status !== 'valid') throw new Error('expected valid configuration');
+
+    const selection = selectAuthoritativeConfig({ status: 'absent' }, head);
+    expect(selection).toEqual({
+      status: 'selected',
+      authority: {
+        source: 'built-in-default',
+        config: BUILTIN_CONFIG,
+        identity: effectiveConfigIdentity(BUILTIN_CONFIG),
+      },
+      head: { status: 'valid', config: head.config, identity: head.identity, change: 'changed' },
+    });
+  });
+
+  it('fails with no authority when base is invalid, regardless of a valid or absent head', async () => {
+    const invalidBase = await loadText('version: [1\n');
+    const validHead = await loadText('version: 1\n');
+    if (invalidBase.status !== 'invalid' || validHead.status !== 'valid') throw new Error('expected fixtures');
+
+    for (const headState of [validHead, { status: 'absent' } as const]) {
+      const selection = selectAuthoritativeConfig(invalidBase, headState);
+      expect(selection).toEqual({
+        status: 'input-configuration-failure',
+        invalid: 'base',
+        diagnostics: invalidBase.diagnostics,
+      });
+      expect(selection).not.toHaveProperty('authority');
+    }
+  });
+
+  it('fails before analysis when base is valid and head is invalid, retaining base authority and only head diagnostics', async () => {
+    const base = await loadText('version: 1\n');
+    const invalidHead = await loadText('version: 2\n');
+    if (base.status !== 'valid' || invalidHead.status !== 'invalid') throw new Error('expected fixtures');
+
+    const selection = selectAuthoritativeConfig(base, invalidHead);
+    expect(selection).toEqual({
+      status: 'input-configuration-failure',
+      invalid: 'head',
+      authority: { source: 'base', config: base.config, identity: base.identity },
+      diagnostics: invalidHead.diagnostics,
+    });
+  });
+
+  it('returns a deterministic, deeply immutable selection that never mutates either input', async () => {
+    const base = await loadText('version: 1\n');
+    const head = await loadText('version: 1\npolicy:\n  failOnExpansion: false\n');
+    if (base.status !== 'valid' || head.status !== 'valid') throw new Error('expected valid configurations');
+
+    const baseSnapshot = JSON.stringify(base);
+    const headSnapshot = JSON.stringify(head);
+
+    const first = selectAuthoritativeConfig(base, head);
+    const second = selectAuthoritativeConfig(base, head);
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+    expect(first).not.toBe(second);
+    expect(JSON.stringify(base)).toBe(baseSnapshot);
+    expect(JSON.stringify(head)).toBe(headSnapshot);
+
+    if (first.status !== 'selected') throw new Error('expected a selected authority');
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(Object.isFrozen(first.authority)).toBe(true);
+    expect(Object.isFrozen(first.authority.config)).toBe(true);
+    expect(Object.isFrozen(first.authority.config.include)).toBe(true);
+    expect(Object.isFrozen(first.authority.config.limits)).toBe(true);
+    expect(Object.isFrozen(first.authority.config.declaredExpectedPermissions)).toBe(true);
+    expect(Object.isFrozen(first.head)).toBe(true);
+    expect(first.authority.config).not.toBe(base.config);
+    if (first.head.status === 'valid') expect(first.head.config).not.toBe(head.config);
+
+    expect(() => {
+      (first as { authority: unknown }).authority = null;
+    }).toThrow(TypeError);
+    expect(() => {
+      first.authority.config.include.push('mutated');
+    }).toThrow(TypeError);
   });
 });
 

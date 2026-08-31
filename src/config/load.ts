@@ -6,8 +6,10 @@
  * snapshot root, never follows a symbolic link, and never accepts a non-regular entry. Its
  * result never echoes configuration source bytes or an absolute host path (D-04, D-13, D-18).
  *
- * Selecting base/head authority from this result is Plan 04-02 Task 2 work; nothing here
- * decides what governs a comparison.
+ * `selectAuthoritativeConfig` decides what governs a comparison from two such results: the base
+ * revision (or the versioned built-in default when base is absent) is the sole authority for
+ * both revisions and for policy, while a head configuration is always reported separately as
+ * prospective evidence and never governs the comparison that introduces it (D-11 through D-14).
  */
 
 import { constants } from 'node:fs';
@@ -18,13 +20,15 @@ import { parseDocument, visit } from 'yaml';
 import type { DocumentOptions, ParseOptions, SchemaOptions } from 'yaml';
 import type { FileHandle } from 'node:fs/promises';
 
+import type { AnalysisLimits } from '../analyzer/contract.js';
 import {
+  BUILTIN_CONFIG,
   ConfigValidationError,
   effectiveConfigIdentity,
   normalizeEffectiveConfig,
   validateConfigValue,
 } from './model.js';
-import type { ConfigIdentity, EffectiveConfig } from './model.js';
+import type { ConfigIdentity, EffectiveConfig, ExpectedPermissionDeclaration } from './model.js';
 
 /** The one config entry name a snapshot root is ever read for. */
 export const CONFIG_FILE_NAME = '.boundaryci.yml';
@@ -242,4 +246,130 @@ export async function loadSnapshotConfig(rootPath: string): Promise<SnapshotConf
   } finally {
     await handle.close();
   }
+}
+
+/** Where one selected {@link AuthoritativeConfig} came from: a valid base, or the built-in default. */
+export type AuthoritySource = 'base' | 'built-in-default';
+
+/** The one effective configuration and identity that governs both revisions and policy. */
+export interface AuthoritativeConfig {
+  source: AuthoritySource;
+  config: EffectiveConfig;
+  identity: ConfigIdentity;
+}
+
+/** Whether a prospective head identity matches the authority it was compared against. */
+export type ProspectiveHeadChange = 'unchanged' | 'changed';
+
+/** A head configuration's own status and identity, retained for evidence only (D-14). */
+export type ProspectiveHeadReport =
+  | { status: 'absent' }
+  | { status: 'valid'; config: EffectiveConfig; identity: ConfigIdentity; change: ProspectiveHeadChange };
+
+/**
+ * The exact result of {@link selectAuthoritativeConfig}.
+ *
+ * `selected` carries one authority plus a separate prospective head report. A base-invalid
+ * failure carries no authority and no fallback at all. A head-invalid failure retains the
+ * already-selected base/default authority alongside only the head's own diagnostics; no parsed
+ * head fragment reaches either field.
+ */
+export type AuthoritativeConfigSelection =
+  | { status: 'selected'; authority: AuthoritativeConfig; head: ProspectiveHeadReport }
+  | { status: 'input-configuration-failure'; invalid: 'base'; diagnostics: readonly ConfigDiagnostic[] }
+  | {
+      status: 'input-configuration-failure';
+      invalid: 'head';
+      authority: AuthoritativeConfig;
+      diagnostics: readonly ConfigDiagnostic[];
+    };
+
+/** An independent, deeply frozen copy of `config`, so a returned selection never aliases its input. */
+function cloneEffectiveConfig(config: EffectiveConfig): EffectiveConfig {
+  return Object.freeze({
+    schemaVersion: config.schemaVersion,
+    include: Object.freeze([...config.include]) as string[],
+    exclude: Object.freeze([...config.exclude]) as string[],
+    probotEntrypoints: Object.freeze([...config.probotEntrypoints]) as string[],
+    limits: Object.freeze({ ...config.limits }) as AnalysisLimits,
+    failOnExpansion: config.failOnExpansion,
+    failOnIncomplete: config.failOnIncomplete,
+    declaredExpectedPermissions: Object.freeze(
+      config.declaredExpectedPermissions.map((declaration) => Object.freeze({ ...declaration })),
+    ) as ExpectedPermissionDeclaration[],
+  }) as EffectiveConfig;
+}
+
+/** An independent, deeply frozen copy of `diagnostics`. */
+function cloneDiagnostics(diagnostics: readonly ConfigDiagnostic[]): readonly ConfigDiagnostic[] {
+  return Object.freeze(diagnostics.map((diagnostic) => Object.freeze({ ...diagnostic })));
+}
+
+/** The sole authority for a valid base, or the versioned built-in default when base is absent. */
+function selectAuthority(baseState: Extract<SnapshotConfigState, { status: 'absent' | 'valid' }>): AuthoritativeConfig {
+  if (baseState.status === 'valid') {
+    return Object.freeze({
+      source: 'base',
+      config: cloneEffectiveConfig(baseState.config),
+      identity: baseState.identity,
+    });
+  }
+  return Object.freeze({
+    source: 'built-in-default',
+    config: cloneEffectiveConfig(BUILTIN_CONFIG),
+    identity: effectiveConfigIdentity(BUILTIN_CONFIG),
+  });
+}
+
+/**
+ * Decides the one authoritative configuration for a base/head comparison and reports the head
+ * configuration's own state separately, without ever letting it govern (D-11 through D-14).
+ *
+ * A valid base is the sole authority for both revisions and policy; an absent base selects the
+ * exact versioned {@link BUILTIN_CONFIG} instead. An invalid base fails closed with its own
+ * diagnostics and no authority or fallback at all, regardless of head. Once authority is
+ * selected, a valid head is reported prospective-only with its own normalized config, identity,
+ * and `unchanged`/`changed` status relative to that authority; an absent head is reported
+ * prospective-absent; an invalid head fails closed with the already-selected authority retained
+ * and only the head's own diagnostics attached — no parsed head fragment ever governs the
+ * comparison it was found in.
+ *
+ * This function is pure: it never reads a file, and every returned object, nested array, and
+ * diagnostic is an independent deep copy, so `baseState` and `headState` are never mutated and
+ * never aliased by the result.
+ */
+export function selectAuthoritativeConfig(
+  baseState: SnapshotConfigState,
+  headState: SnapshotConfigState,
+): AuthoritativeConfigSelection {
+  if (baseState.status === 'invalid') {
+    return Object.freeze({
+      status: 'input-configuration-failure',
+      invalid: 'base',
+      diagnostics: cloneDiagnostics(baseState.diagnostics),
+    });
+  }
+
+  const authority = selectAuthority(baseState);
+
+  if (headState.status === 'invalid') {
+    return Object.freeze({
+      status: 'input-configuration-failure',
+      invalid: 'head',
+      authority,
+      diagnostics: cloneDiagnostics(headState.diagnostics),
+    });
+  }
+
+  const head: ProspectiveHeadReport =
+    headState.status === 'absent'
+      ? Object.freeze({ status: 'absent' })
+      : Object.freeze({
+          status: 'valid',
+          config: cloneEffectiveConfig(headState.config),
+          identity: headState.identity,
+          change: headState.identity === authority.identity ? 'unchanged' : 'changed',
+        });
+
+  return Object.freeze({ status: 'selected', authority, head });
 }
