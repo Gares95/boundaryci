@@ -16,6 +16,7 @@ const READ_SOURCE =
   "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.listForRepo({});\n";
 const WRITE_SOURCE = "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.create({});\n";
 const PULLS_SOURCE = "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.pulls.list({});\n";
+const EMPTY_SOURCE = 'export const value = 1;\n';
 
 function recordingIo(): CliIO & { stdoutChunks: string[]; stderrChunks: string[] } {
   const stdoutChunks: string[] = [];
@@ -74,6 +75,91 @@ describe('analyze command', () => {
 });
 
 describe('diff and check policy separation', () => {
+  it.each([
+    {
+      label: 'unchanged read boundary',
+      baseSource: READ_SOURCE,
+      headSource: READ_SOURCE,
+      expectedChange: { base: 'read', change: 'unchanged', head: 'read', permission: 'issues' },
+    },
+    {
+      label: 'read introduced',
+      baseSource: EMPTY_SOURCE,
+      headSource: READ_SOURCE,
+      expectedChange: { base: 'none', change: 'expansion', head: 'read', permission: 'issues' },
+    },
+    {
+      label: 'write introduced',
+      baseSource: EMPTY_SOURCE,
+      headSource: WRITE_SOURCE,
+      expectedChange: { base: 'none', change: 'expansion', head: 'write', permission: 'issues' },
+    },
+    {
+      label: 'read escalated to write',
+      baseSource: READ_SOURCE,
+      headSource: WRITE_SOURCE,
+      expectedChange: { base: 'read', change: 'expansion', head: 'write', permission: 'issues' },
+    },
+    {
+      label: 'write reduced to read',
+      baseSource: WRITE_SOURCE,
+      headSource: READ_SOURCE,
+      expectedChange: { base: 'write', change: 'reduction', head: 'read', permission: 'issues' },
+    },
+    {
+      label: 'write operation removed',
+      baseSource: WRITE_SOURCE,
+      headSource: EMPTY_SOURCE,
+      expectedChange: { base: 'write', change: 'reduction', head: 'none', permission: 'issues' },
+    },
+  ])('covers the complete public comparison scenario: $label', async ({ baseSource, expectedChange, headSource }) => {
+    const base = await createTempRoot('boundaryci-cli-matrix-base-');
+    const head = await createTempRoot('boundaryci-cli-matrix-head-');
+    await writeRegularFile(base, 'src/app.ts', baseSource);
+    await writeRegularFile(head, 'src/app.ts', headSource);
+
+    const run = await invoke(['diff', '--base', base, '--head', head, '--format', 'json']);
+    expect(run.code).toBe(EXIT_CODE_OK);
+    const document = jsonDocument(run.io) as {
+      evaluation: { comparison: { changes: unknown[]; status: string } };
+      outcome: string;
+    };
+    expect(document.outcome).toBe('complete');
+    expect(document.evaluation.comparison.status).toBe('complete');
+    expect(document.evaluation.comparison.changes).toEqual([expect.objectContaining(expectedChange)]);
+  });
+
+  it('keeps a source parse failure explicitly incomplete instead of reporting a clean diff', async () => {
+    const base = await createTempRoot('boundaryci-cli-parse-base-');
+    const head = await createTempRoot('boundaryci-cli-parse-head-');
+    await writeRegularFile(base, 'src/app.ts', READ_SOURCE);
+    await writeRegularFile(head, 'src/app.ts', `${READ_SOURCE}const broken = ;\n`);
+
+    const run = await invoke(['diff', '--base', base, '--head', head, '--format', 'json']);
+    expect(run.code).toBe(EXIT_CODE_INCOMPLETE);
+    const serialized = JSON.stringify(jsonDocument(run.io));
+    expect(serialized).toContain('"status":"incomplete"');
+    expect(serialized).toContain('source-parse-error');
+  });
+
+  it('treats a source move as an unchanged permission boundary', async () => {
+    const base = await createTempRoot('boundaryci-cli-move-base-');
+    const head = await createTempRoot('boundaryci-cli-move-head-');
+    await writeRegularFile(base, 'src/old.ts', READ_SOURCE);
+    await writeRegularFile(head, 'src/new.ts', READ_SOURCE);
+
+    const run = await invoke(['diff', '--base', base, '--head', head, '--format', 'json']);
+    expect(run.code).toBe(EXIT_CODE_OK);
+    const document = jsonDocument(run.io) as {
+      evaluation: { comparison: { changes: { base: string; change: string; head: string; permission: string }[] } };
+    };
+    expect(document.evaluation.comparison.changes).toEqual([
+      expect.objectContaining({ base: 'read', change: 'unchanged', head: 'read', permission: 'issues' }),
+    ]);
+    expect(JSON.stringify(document)).toContain('src/old.ts');
+    expect(JSON.stringify(document)).toContain('src/new.ts');
+  });
+
   it('reports a read-to-write diff without applying expansion policy', async () => {
     const base = await createTempRoot('boundaryci-cli-diff-base-');
     const head = await createTempRoot('boundaryci-cli-diff-head-');

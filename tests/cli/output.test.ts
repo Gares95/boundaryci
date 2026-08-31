@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { CLI_RESULT_SCHEMA_ID, CLI_RESULT_SCHEMA_VERSION } from '../../src/cli/render.js';
 import { EXIT_CODE_INCOMPLETE, EXIT_CODE_OK, EXIT_CODE_POLICY_FAILURE, runCli } from '../../src/cli/main.js';
@@ -11,6 +14,16 @@ const READ_SOURCE =
   "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.listForRepo({});\n";
 const WRITE_SOURCE = "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.issues.create({});\n";
 const PULLS_SOURCE = "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.rest.pulls.list({});\n";
+const PROJECT_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const BUILT_CLI = fileURLToPath(new URL('../../dist/cli/main.js', import.meta.url));
+
+beforeAll(() => {
+  const build = spawnSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.build.json'], {
+    cwd: PROJECT_ROOT,
+    encoding: 'utf8',
+  });
+  expect(build.status, `${build.stdout}${build.stderr}`).toBe(EXIT_CODE_OK);
+});
 
 function recordingIo(): CliIO & { stdoutChunks: string[]; stderrChunks: string[] } {
   const stdoutChunks: string[] = [];
@@ -29,6 +42,13 @@ async function output(argv: string[]): Promise<{ code: number; text: string }> {
   expect(io.stderrChunks).toEqual([]);
   expect(io.stdoutChunks).toHaveLength(1);
   return { code, text: io.stdoutChunks[0] as string };
+}
+
+function builtOutput(argv: string[]): { code: number; text: string } {
+  const result = spawnSync(process.execPath, [BUILT_CLI, ...argv], { cwd: PROJECT_ROOT, encoding: 'utf8' });
+  expect(result.signal).toBeNull();
+  expect(result.stderr).toBe('');
+  return { code: result.status ?? -1, text: result.stdout };
 }
 
 function expectRecursivelySortedKeys(value: unknown): void {
@@ -93,6 +113,26 @@ describe('human evidence rendering', () => {
 });
 
 describe('versioned JSON rendering', () => {
+  it('matches the source adapter byte-for-byte for complete, incomplete, and policy-failure results', async () => {
+    const complete = await createTempRoot('boundaryci-output-built-complete-');
+    await writeRegularFile(complete, 'src/app.ts', READ_SOURCE);
+
+    const incomplete = await createTempRoot('boundaryci-output-built-incomplete-');
+    await writeRegularFile(incomplete, 'src/app.ts', PULLS_SOURCE);
+
+    const base = await createTempRoot('boundaryci-output-built-base-');
+    const head = await createTempRoot('boundaryci-output-built-head-');
+    await writeRegularFile(base, 'src/app.ts', READ_SOURCE);
+    await writeRegularFile(head, 'src/app.ts', WRITE_SOURCE);
+
+    const cases = [
+      ['analyze', complete, '--format', 'json'],
+      ['analyze', incomplete, '--format', 'json'],
+      ['check', '--base', base, '--head', head, '--format', 'json'],
+    ];
+    for (const argv of cases) expect(builtOutput(argv)).toEqual(await output(argv));
+  });
+
   it('is recursively key-sorted, deterministic, evidence-rich, and policy-bearing only for check', async () => {
     const base = await createTempRoot('boundaryci-output-json-base-');
     const head = await createTempRoot('boundaryci-output-json-head-');
