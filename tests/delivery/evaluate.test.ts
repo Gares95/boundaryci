@@ -51,6 +51,7 @@ describe('acquisition-aware local evaluation', () => {
 
     const result = await evaluateAcquiredComparison(entry, async () => evaluation);
     expect(result).toMatchObject({ status: 'complete', semanticUsability: 'complete', evaluation });
+    if (result.status !== 'complete') throw new Error('expected complete evaluation');
     expect(result.evaluation).toEqual(evaluation);
     expect(result).not.toHaveProperty('roots');
   });

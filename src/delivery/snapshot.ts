@@ -295,6 +295,8 @@ async function materializeConfig(
   budget: Budget,
 ): Promise<void> {
   const entries = validateTree(commit.rootTree, commit.treeSha);
+  // Count root entries while proving configuration presence/absence. The later full census
+  // deliberately does not charge these same immutable entries again.
   for (const entry of entries) budget.entry(entry.path);
   const config = entries.find((entry) => entry.path === CONFIG_PATH);
   if (config === undefined) return;
@@ -313,22 +315,22 @@ async function censusEntries(
   budget: Budget,
 ): Promise<readonly EntryRecord[]> {
   const all: EntryRecord[] = [];
-  const visit = async (tree: GitTree, expectedTreeSha: string, prefix: string): Promise<void> => {
+  const visit = async (tree: GitTree, expectedTreeSha: string, prefix: string, rootAlreadyCharged: boolean): Promise<void> => {
     if (tree.truncated) throw new SafeIncomplete({ code: 'tree-response-truncated', frontier: prefix || null, configured: null, consumed: null });
     const entries = validateTree(tree, expectedTreeSha);
     for (const entry of entries) {
       const fullPath = prefix === '' ? entry.path : `${prefix}/${entry.path}`;
       assertPath(fullPath);
-      budget.entry(fullPath);
+      if (!rootAlreadyCharged) budget.entry(fullPath);
       all.push({ ...entry, path: fullPath });
       if (entry.type === 'tree') {
         budget.request('tree');
         const child = await capability.getTree(entry.sha);
-        await visit(child, entry.sha, fullPath);
+        await visit(child, entry.sha, fullPath, false);
       }
     }
   };
-  await visit(commit.rootTree, commit.treeSha, '');
+  await visit(commit.rootTree, commit.treeSha, '', true);
   all.sort((left, right) => comparePathBytes(left.path, right.path));
   let previous: EntryRecord | undefined;
   const seen = new Set<string>();
@@ -359,7 +361,8 @@ async function materializeSources(
   budget: Budget,
   causes: AcquisitionCause[],
 ): Promise<SnapshotIdentity> {
-  const selected: EntryRecord[] = [];
+  let sourceFileCount = 0;
+  let sourceBytes = 0;
   for (const entry of entries) {
     if (entry.path === CONFIG_PATH) continue;
     if (entry.type !== 'blob' || entry.mode === '120000' || entry.size === null) {
@@ -370,14 +373,13 @@ async function materializeSources(
     if (!['100644', '100755'].includes(entry.mode)) throw new AcquisitionStop('acquisition-security-failure', 'malformed-object-relationship');
     if (!relevantSource(entry.path, config)) continue;
     budget.source(entry.path, entry.size);
-    selected.push(entry);
-  }
-  for (const entry of selected) {
     const bytes = await getBlob(capability, entry.sha, entry.size as number, budget);
     budget.before('write');
     await writeVerifiedBlob(root, entry.path, bytes);
+    sourceFileCount += 1;
+    sourceBytes += bytes.byteLength;
   }
-  return { commitSha: '', treeSha: '', sourceFileCount: budget.sourceFiles, sourceBytes: budget.sourceBytes };
+  return { commitSha: '', treeSha: '', sourceFileCount, sourceBytes };
 }
 
 function failure(status: AcquisitionStop['status'], reason: AcquisitionFailureReason): AcquisitionResult {

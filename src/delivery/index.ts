@@ -17,6 +17,11 @@ import { Probot } from 'probot';
 import { evaluateLocalComparison } from '../runtime/evaluate.js';
 import type { LocalComparisonResult } from '../runtime/evaluate.js';
 
+export * from './contract.js';
+export * from './evaluate.js';
+export * from './limits.js';
+export * from './snapshot.js';
+
 const SHA_PATTERN = /^[a-f0-9]{40}$/;
 const ROOT_PREFIX = 'boundaryci-delivery-';
 
