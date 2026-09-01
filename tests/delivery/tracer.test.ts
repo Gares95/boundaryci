@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
-import { access, rm } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -10,20 +11,23 @@ import {
   type GitHubReadCapability,
 } from '../../src/delivery/index.js';
 import type { LocalComparisonResult } from '../../src/runtime/evaluate.js';
+import { DELIVERY_FIXTURES } from './fixtures/index.js';
+import { AllowlistedSink, createGitHubReadFake, createWebhookHarness, inspectTemporaryParent } from './support.js';
 
 const WEBHOOK_SECRET = 'delivery-webhook-secret-sentinel';
-const BASE_SHA = 'a'.repeat(40);
-const HEAD_SHA = 'b'.repeat(40);
-const BASE_TREE = 'c'.repeat(40);
-const HEAD_TREE = 'd'.repeat(40);
-const BASE_BLOB = 'e'.repeat(40);
-const HEAD_BLOB = 'f'.repeat(40);
-const SOURCE_BYTES = Buffer.from('export const app = () => {};\n');
+const {
+  baseSha: BASE_SHA,
+  headSha: HEAD_SHA,
+  baseTreeSha: BASE_TREE,
+  headTreeSha: HEAD_TREE,
+  baseBlobSha: BASE_BLOB,
+  headBlobSha: HEAD_BLOB,
+} = DELIVERY_FIXTURES;
 
-const servers: ReturnType<typeof createServer>[] = [];
+const harnesses: Array<Awaited<ReturnType<typeof createWebhookHarness>>> = [];
 
 afterEach(async () => {
-  await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
+  await Promise.all(harnesses.splice(0).map((harness) => harness.close()));
 });
 
 function signedBody(): string {
@@ -43,74 +47,27 @@ function signature(body: string): string {
   return `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')}`;
 }
 
-function readCapability(calls: string[]): GitHubReadCapability {
-  return {
-    async getCurrentPull(number) {
-      calls.push(`pull:${number}`);
-      return {
-        number,
-        repositoryId: 7,
-        state: 'open',
-        draft: false,
-        merged: false,
-        base: { repositoryId: 7, ref: 'main', sha: BASE_SHA },
-        head: { repositoryId: 7, sha: HEAD_SHA },
-      };
-    },
-    async listOpenPullsByBase() { return []; },
-    async getCommit(sha) {
-      calls.push(`commit:${sha}`);
-      return { sha, treeSha: sha === BASE_SHA ? BASE_TREE : HEAD_TREE };
-    },
-    async getTree(sha) {
-      calls.push(`tree:${sha}`);
-      return {
-        sha,
-        entries: [
-          {
-            path: 'index.ts',
-            mode: '100644',
-            type: 'blob',
-            sha: sha === BASE_TREE ? BASE_BLOB : HEAD_BLOB,
-            size: SOURCE_BYTES.byteLength,
-          },
-        ],
-      };
-    },
-    async getBlob(sha) {
-      calls.push(`blob:${sha}`);
-      return { sha, encoding: 'base64', content: SOURCE_BYTES.toString('base64'), size: SOURCE_BYTES.byteLength };
-    },
-  };
-}
-
 describe('verified delivery tracer', () => {
   it('accepts only a correctly signed original body and emits a source-free cleanup-gated envelope', async () => {
-    const calls: string[] = [];
+    const read = createGitHubReadFake();
     const envelopes: DeliveryEnvelopeV1[] = [];
     const roots: string[] = [];
     const app = createBoundaryCiApp({
       appId: 1,
       privateKey: '-----BEGIN PRIVATE KEY-----\nunused\n-----END PRIVATE KEY-----',
       webhookSecret: WEBHOOK_SECRET,
-      createReadCapability: async () => readCapability(calls),
+      createReadCapability: async () => read.capability,
       evaluate: async (baseRoot, headRoot) => {
         roots.push(baseRoot, headRoot);
         return { status: 'input-configuration-failure', invalid: 'base', diagnostics: [] };
       },
       onEnvelope: (envelope) => { envelopes.push(envelope); },
     });
-    const middleware = await app.getNodeMiddleware({ path: '/api/github/webhooks' });
-    const server = createServer((request, response) => {
-      void middleware(request, response, () => { response.statusCode = 404; response.end(); });
-    });
-    servers.push(server);
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const address = server.address();
-    if (address === null || typeof address === 'string') throw new Error('missing test address');
+    const harness = await createWebhookHarness(app);
+    harnesses.push(harness);
 
     const body = signedBody();
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/github/webhooks`, {
+    const response = await fetch(harness.url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -123,7 +80,7 @@ describe('verified delivery tracer', () => {
 
     expect(response.status).toBe(200);
     await expect.poll(() => envelopes).toHaveLength(1);
-    expect(calls).toEqual([
+    expect(read.calls).toEqual([
       'pull:19', `commit:${BASE_SHA}`, `commit:${HEAD_SHA}`, `tree:${BASE_TREE}`, `tree:${HEAD_TREE}`, `blob:${BASE_BLOB}`, `blob:${HEAD_BLOB}`, 'pull:19',
     ]);
     expect(envelopes[0]).toMatchObject({
@@ -141,26 +98,20 @@ describe('verified delivery tracer', () => {
   });
 
   it('rejects a wrong signature before any capability or evaluator invocation', async () => {
-    const calls: string[] = [];
+    const read = createGitHubReadFake();
     const envelopes: DeliveryEnvelopeV1[] = [];
     const app = createBoundaryCiApp({
       appId: 1,
       privateKey: '-----BEGIN PRIVATE KEY-----\nunused\n-----END PRIVATE KEY-----',
       webhookSecret: WEBHOOK_SECRET,
-      createReadCapability: async () => readCapability(calls),
+      createReadCapability: async () => read.capability,
       evaluate: async () => ({ status: 'input-configuration-failure', invalid: 'base', diagnostics: [] }),
       onEnvelope: (envelope) => { envelopes.push(envelope); },
     });
-    const middleware = await app.getNodeMiddleware({ path: '/api/github/webhooks' });
-    const server = createServer((request, response) => {
-      void middleware(request, response, () => { response.statusCode = 404; response.end(); });
-    });
-    servers.push(server);
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const address = server.address();
-    if (address === null || typeof address === 'string') throw new Error('missing test address');
+    const harness = await createWebhookHarness(app);
+    harnesses.push(harness);
 
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/github/webhooks`, {
+    const response = await fetch(harness.url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -173,7 +124,7 @@ describe('verified delivery tracer', () => {
 
     expect(response.ok).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(calls).toEqual([]);
+    expect(read.calls).toEqual([]);
     expect(envelopes).toEqual([]);
   });
 
@@ -185,16 +136,14 @@ describe('verified delivery tracer', () => {
       diagnostics: [],
     });
 
-    const mismatchCalls: string[] = [];
-    const mismatchCapability = readCapability(mismatchCalls);
+    const mismatchCapability = createGitHubReadFake().capability;
     mismatchCapability.getCommit = async (sha) => ({ sha: HEAD_SHA, treeSha: sha === BASE_SHA ? BASE_TREE : HEAD_TREE });
     await expect(handleVerifiedTrigger(trigger, { createReadCapability: async () => mismatchCapability, evaluate })).resolves.toMatchObject({
       lifecycle: 'runtime-failure',
       publishable: false,
     });
 
-    const driftCalls: string[] = [];
-    const driftCapability = readCapability(driftCalls);
+    const driftCapability = createGitHubReadFake().capability;
     let pullReads = 0;
     const originalCurrentPull = driftCapability.getCurrentPull;
     driftCapability.getCurrentPull = async (number) => {
@@ -207,8 +156,7 @@ describe('verified delivery tracer', () => {
       publishable: false,
     });
 
-    const cleanupCalls: string[] = [];
-    const cleanupCapability = readCapability(cleanupCalls);
+    const cleanupCapability = createGitHubReadFake().capability;
     let cleanupCount = 0;
     await expect(
       handleVerifiedTrigger(
@@ -223,5 +171,33 @@ describe('verified delivery tracer', () => {
         },
       ),
     ).resolves.toMatchObject({ lifecycle: 'cleanup-failure', publishable: false });
+  });
+
+  it('keeps the reusable read fake, allowlisted sink, and temporary inspector bounded', async () => {
+    const read = createGitHubReadFake();
+    await read.capability.getCurrentPull(19);
+    await read.capability.getCommit(BASE_SHA);
+    expect(read.calls).toEqual(['pull:19', `commit:${BASE_SHA}`]);
+    expect('request' in read.capability).toBe(false);
+    expect('write' in read.capability).toBe(false);
+
+    const sink = new AllowlistedSink();
+    sink.emit({ stage: 'read', outcome: 'accepted', repositoryId: 7, pullNumber: 19 });
+    expect(sink.events).toHaveLength(1);
+    expect(() => sink.emit({ stage: 'read', outcome: 'accepted', repositoryId: 7, pullNumber: 19, metadata: {} } as never)).toThrow(
+      'unsafe delivery event shape',
+    );
+
+    const parent = await mkdtemp(join(tmpdir(), 'boundaryci-delivery-inspector-'));
+    try {
+      await mkdir(join(parent, 'target'));
+      await writeFile(join(parent, 'target', 'not-followed.txt'), 'inert');
+      await symlink(join(parent, 'target'), join(parent, 'link'));
+      const entries = await inspectTemporaryParent(parent);
+      expect(entries).toContainEqual({ path: 'link', kind: 'symlink', mode: 0o777 });
+      expect(entries.some((entry) => entry.path.startsWith('link/'))).toBe(false);
+    } finally {
+      await rm(parent, { force: true, recursive: true });
+    }
   });
 });
