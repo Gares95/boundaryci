@@ -10,6 +10,7 @@ export default defineConfig({
       'tests/diff/**/*.test.ts',
       'tests/policy/**/*.test.ts',
       'tests/cli/**/*.test.ts',
+      'tests/delivery/**/*.test.ts',
     ],
     watch: false,
   },

@@ -18,11 +18,13 @@
     "test": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot",
     "test:permission-data-feasibility": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot",
     "test:phase4": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot",
+    "test:delivery": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot tests/delivery",
     "test:analyzer": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot tests/analyzer",
     "typecheck": "node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
     "quality:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/quality-checks.mjs"
   },
   "dependencies": {
+    "probot": "14.3.2",
     "yaml": "2.9.0"
   },
   "devDependencies": {
@@ -31,7 +33,6 @@
     "@octokit/plugin-rest-endpoint-methods": "18.0.0",
     "@types/node": "24.13.3",
     "octokit": "5.0.5",
-    "probot": "14.3.2",
     "typescript": "6.0.2",
     "vitest": "4.1.10"
   }
