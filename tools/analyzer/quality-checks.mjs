@@ -35,6 +35,8 @@ const FORBIDDEN_TYPESCRIPT_PROGRAM_APIS = new Set([
   'transpileModule',
 ]);
 const PHASE4_SOURCE_PREFIXES = ['src/cli/', 'src/config/', 'src/diff/', 'src/policy/', 'src/runtime/'];
+const PHASE4_ALLOWED_CATALOG_IMPORT = 'BOUNDARYCI_PERMISSION_CATALOG_IDENTITY';
+const PERMISSION_CATALOG_ENTRY_TYPE = 'PermissionCatalogEntry';
 const DELIVERY_MODULE = /^(?:@octokit\/|octokit$|probot$)/u;
 const PLACEHOLDER_WORDS = [`${'FIX'}${'ME'}`, `${'T'}${'BD'}`, `${'TO'}${'DO'}`];
 const PLACEHOLDER = new RegExp(`\\b(?:${PLACEHOLDER_WORDS.join('|')})\\b`, 'u');
@@ -172,6 +174,24 @@ function sourcePosition(sourceFile, node) {
   return `${point.line + 1}:${point.character + 1}`;
 }
 
+function objectPropertyNames(objectLiteral) {
+  const names = new Set();
+  for (const property of objectLiteral.properties) {
+    if (
+      (ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property) || ts.isMethodDeclaration(property)) &&
+      (ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name))
+    ) {
+      names.add(property.name.text);
+    }
+  }
+  return names;
+}
+
+function resemblesPermissionCatalogEntry(objectLiteral) {
+  const names = objectPropertyNames(objectLiteral);
+  return names.has('status') && names.has('operation') && names.has('provenance') && (names.has('requirement') || names.has('reason'));
+}
+
 function lintDiagnostics(path, text) {
   const sourceFile = ts.createSourceFile(path, text, ts.ScriptTarget.ESNext, true, scriptKind(path));
   const diagnostics = sourceFile.parseDiagnostics.map((diagnostic) => {
@@ -195,6 +215,32 @@ function lintDiagnostics(path, text) {
       DELIVERY_MODULE.test(node.moduleSpecifier.text)
     ) {
       report(node, 'phase4/no-delivery-module', `delivery module is outside Phase 4: ${node.moduleSpecifier.text}`);
+    }
+    if (phase4Source && ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      const bindings = node.importClause?.namedBindings;
+      if (node.moduleSpecifier.text.endsWith('/permission-model/bounded-catalog.js')) {
+        if (bindings === undefined || ts.isNamespaceImport(bindings)) {
+          report(node, 'phase4/no-catalog-source', 'Phase 4 may import only the frozen catalog identity');
+        } else {
+          for (const specifier of bindings.elements) {
+            const importedName = specifier.propertyName?.text ?? specifier.name.text;
+            if (importedName !== PHASE4_ALLOWED_CATALOG_IMPORT) {
+              report(specifier, 'phase4/no-catalog-source', `catalog import is outside the Phase 4 boundary: ${importedName}`);
+            }
+          }
+        }
+      }
+      if (bindings !== undefined && ts.isNamedImports(bindings)) {
+        for (const specifier of bindings.elements) {
+          const importedName = specifier.propertyName?.text ?? specifier.name.text;
+          if (importedName === PERMISSION_CATALOG_ENTRY_TYPE) {
+            report(specifier, 'phase4/no-catalog-source', 'Phase 4 must not define permission catalog entries');
+          }
+        }
+      }
+    }
+    if (phase4Source && ts.isObjectLiteralExpression(node) && resemblesPermissionCatalogEntry(node)) {
+      report(node, 'phase4/no-catalog-source', 'catalog entry definitions belong only in the frozen bounded catalog');
     }
     if (
       ts.isImportDeclaration(node) &&
@@ -324,6 +370,20 @@ function runSelfTest() {
       diagnostic.includes('phase4/no-delivery-module'),
     ),
     'Phase 4 delivery module',
+  );
+  assertSelfTest(
+    lintDiagnostics(
+      'src/runtime/mutation.ts',
+      "import { BOUNDARYCI_PERMISSION_CATALOG } from '../permission-model/bounded-catalog.js';\nvoid BOUNDARYCI_PERMISSION_CATALOG;\n",
+    ).some((diagnostic) => diagnostic.includes('phase4/no-catalog-source')),
+    'Phase 4 production catalog import',
+  );
+  assertSelfTest(
+    lintDiagnostics(
+      'src/runtime/mutation.ts',
+      "const additionalCatalogRow = { status: 'resolved', operation: {}, requirement: {}, provenance: {} };\nvoid additionalCatalogRow;\n",
+    ).some((diagnostic) => diagnostic.includes('phase4/no-catalog-source')),
+    'Phase 4 catalog entry definition',
   );
 
   const encoder = new TextEncoder();
