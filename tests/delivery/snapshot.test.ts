@@ -106,4 +106,67 @@ describe('immutable comparison snapshot acquisition', () => {
       maxElapsedMilliseconds: 60_000,
     });
   });
+
+  it('keeps the first validated source byte but returns positive-evidence-only at the next source-file boundary', async () => {
+    const first = Buffer.from('export const first = true;\n');
+    const second = Buffer.from('export const second = true;\n');
+    const baseTree = '9'.repeat(40);
+    const headTree = 'a'.repeat(40);
+    const firstBlob = 'b'.repeat(40);
+    const secondBlob = 'c'.repeat(40);
+    const baseSha = 'd'.repeat(40);
+    const headSha = 'e'.repeat(40);
+    const read = createGitHubReadFake({
+      commit: (sha) => ({ sha, treeSha: sha === baseSha ? baseTree : headTree }),
+      tree: (sha) => ({
+        sha,
+        entries: [
+          { path: 'a.ts', mode: '100644', type: 'blob', sha: firstBlob, size: first.byteLength },
+          { path: 'b.ts', mode: '100644', type: 'blob', sha: secondBlob, size: second.byteLength },
+        ],
+      }),
+      blob: (sha) => {
+        const bytes = sha === firstBlob ? first : second;
+        return { sha, encoding: 'base64', content: bytes.toString('base64'), size: bytes.byteLength };
+      },
+    });
+    const acquired = await acquireComparisonRoots({
+      capability: read.capability,
+      baseSha,
+      headSha,
+      limits: { ...DELIVERY_LIMITS_V1, maxSourceFiles: 1 },
+    });
+    roots.push(acquired);
+
+    expect(acquired.result).toMatchObject({
+      status: 'incomplete', semanticUsability: 'positive-evidence-only', causes: [{ code: 'source-file-limit', frontier: 'b.ts' }],
+    });
+    expect(await readFile(`${acquired.roots.base}/a.ts`, 'utf8')).toBe(first.toString('utf8'));
+    await expect(readFile(`${acquired.roots.base}/b.ts`, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('reports relevant symlinks as incomplete and rejects non-UTF8 path identities before any blob read', async () => {
+    const symlink = createGitHubReadFake({
+      tree: (sha) => ({ sha, entries: [{ path: 'src/link.ts', mode: '120000', type: 'blob', sha: DELIVERY_FIXTURES.baseBlobSha, size: 1 }] }),
+    });
+    const incomplete = await acquireComparisonRoots({
+      capability: symlink.capability,
+      baseSha: DELIVERY_FIXTURES.baseSha,
+      headSha: DELIVERY_FIXTURES.headSha,
+    });
+    roots.push(incomplete);
+    expect(incomplete.result).toMatchObject({ status: 'incomplete', causes: [{ code: 'relevant-symlink', frontier: 'src/link.ts' }] });
+    expect(symlink.calls.some((call) => call.startsWith('blob:'))).toBe(false);
+
+    const malformed = createGitHubReadFake({
+      tree: (sha) => ({ sha, entries: [{ path: '\ud800.ts', mode: '100644', type: 'blob', sha: DELIVERY_FIXTURES.baseBlobSha, size: 1 }] }),
+    });
+    const failed = await acquireComparisonRoots({
+      capability: malformed.capability,
+      baseSha: DELIVERY_FIXTURES.baseSha,
+      headSha: DELIVERY_FIXTURES.headSha,
+    });
+    roots.push(failed);
+    expect(failed.result).toMatchObject({ status: 'acquisition-security-failure', reason: 'unsafe-path' });
+  });
 });

@@ -386,6 +386,27 @@ function failure(status: AcquisitionStop['status'], reason: AcquisitionFailureRe
   return Object.freeze({ status, reason });
 }
 
+function dedupeCauses(causes: readonly AcquisitionCause[]): readonly AcquisitionCause[] {
+  const ordered = [...causes].sort((left, right) => {
+    const leftKey = `${left.code}\0${left.frontier ?? ''}\0${left.configured ?? ''}\0${left.consumed ?? ''}`;
+    const rightKey = `${right.code}\0${right.frontier ?? ''}\0${right.configured ?? ''}\0${right.consumed ?? ''}`;
+    return comparePathBytes(leftKey, rightKey);
+  });
+  const unique: AcquisitionCause[] = [];
+  for (const cause of ordered) {
+    const previous = unique.at(-1);
+    if (
+      previous !== undefined &&
+      previous.code === cause.code &&
+      previous.frontier === cause.frontier &&
+      previous.configured === cause.configured &&
+      previous.consumed === cause.consumed
+    ) continue;
+    unique.push(Object.freeze({ ...cause }));
+  }
+  return Object.freeze(unique);
+}
+
 /**
  * Acquires exact Git object snapshots. Returned root paths are an internal lifecycle handle and
  * never form part of the JSON-safe AcquisitionResult evidence.
@@ -430,7 +451,7 @@ export async function acquireComparisonRoots(input: AcquireComparisonRootsInput)
       }
       return Object.freeze({
         result: Object.freeze({
-          status: 'incomplete', config: selection, snapshots, causes: Object.freeze([...causes]), semanticUsability: 'positive-evidence-only',
+          status: 'incomplete', config: selection, snapshots, causes: dedupeCauses(causes), semanticUsability: 'positive-evidence-only',
           allowedClaims: Object.freeze(['present-observations', 'present-requirements']) as ['present-observations', 'present-requirements'],
         }),
         roots,
@@ -444,7 +465,7 @@ export async function acquireComparisonRoots(input: AcquireComparisonRootsInput)
         });
         return Object.freeze({
           result: Object.freeze({
-            status: 'incomplete', config: selection, snapshots, causes: Object.freeze([...causes]), semanticUsability: 'positive-evidence-only',
+            status: 'incomplete', config: selection, snapshots, causes: dedupeCauses(causes), semanticUsability: 'positive-evidence-only',
             allowedClaims: Object.freeze(['present-observations', 'present-requirements']) as ['present-observations', 'present-requirements'],
           }),
           roots,
