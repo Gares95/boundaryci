@@ -43,6 +43,7 @@ describe('immutable comparison snapshot acquisition', () => {
     roots.push(acquired);
 
     expect(acquired.result.status).toBe('complete');
+    if (acquired.result.status !== 'complete') throw new Error('expected complete acquisition');
     expect(acquired.result.config.authority.source).toBe('base');
     expect(await readFile(`${acquired.roots.base}/src/app.ts`, 'utf8')).toBe(sourceBytes.toString('utf8'));
     expect(await readFile(`${acquired.roots.head}/src/app.ts`, 'utf8')).toBe(sourceBytes.toString('utf8'));
@@ -65,6 +66,7 @@ describe('immutable comparison snapshot acquisition', () => {
     roots.push(acquired);
 
     expect(acquired.result.status).toBe('input-configuration-failure');
+    if (acquired.result.status !== 'input-configuration-failure') throw new Error('expected config failure');
     expect(acquired.result.reason).toBe('configuration-census-incomplete');
     expect(read.calls).toEqual([
       `commit:${DELIVERY_FIXTURES.baseSha}`,

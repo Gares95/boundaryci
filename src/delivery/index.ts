@@ -67,15 +67,17 @@ export interface GitCommit {
 export interface GitTree {
   sha: string;
   entries: readonly GitTreeEntry[];
+  /** A GitHub response prefix is never a complete tree census. */
+  truncated?: boolean;
 }
 
-/** Only regular blobs are materialized by this retained tracer. */
+/** One Git tree entry. Snapshot acquisition validates type/mode relationships before selection. */
 export interface GitTreeEntry {
   path: string;
   mode: string;
-  type: 'blob';
+  type: 'blob' | 'tree' | 'commit';
   sha: string;
-  size: number;
+  size?: number | null;
 }
 
 /** One exact base64 Git blob response. */
