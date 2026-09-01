@@ -19,6 +19,7 @@ const MAX_LOCKFILE_BYTES = 4 * 1024 * 1024;
 
 export const STATIC_ARTIFACT_SOURCES = {
   appPermissions: {
+    rootDependencySection: 'devDependencies',
     packageName: '@octokit/app-permissions',
     version: '2.1.0',
     packagePath: 'node_modules/@octokit/app-permissions',
@@ -26,6 +27,7 @@ export const STATIC_ARTIFACT_SOURCES = {
     maxDataBytes: 4 * 1024 * 1024,
   },
   octokit: {
+    rootDependencySection: 'devDependencies',
     packageName: 'octokit',
     version: '5.0.5',
     packagePath: 'node_modules/octokit',
@@ -33,6 +35,7 @@ export const STATIC_ARTIFACT_SOURCES = {
     maxDataBytes: 0,
   },
   openApi: {
+    rootDependencySection: 'devDependencies',
     packageName: '@octokit/openapi',
     version: '22.0.0',
     packagePath: 'node_modules/@octokit/openapi',
@@ -40,6 +43,7 @@ export const STATIC_ARTIFACT_SOURCES = {
     maxDataBytes: 20 * 1024 * 1024,
   },
   probot: {
+    rootDependencySection: 'dependencies',
     packageName: 'probot',
     version: '14.3.2',
     packagePath: 'node_modules/probot',
@@ -47,6 +51,7 @@ export const STATIC_ARTIFACT_SOURCES = {
     maxDataBytes: 0,
   },
   standaloneEndpointMethods: {
+    rootDependencySection: 'devDependencies',
     packageName: '@octokit/plugin-rest-endpoint-methods',
     version: '18.0.0',
     packagePath: 'node_modules/@octokit/plugin-rest-endpoint-methods',
@@ -54,6 +59,7 @@ export const STATIC_ARTIFACT_SOURCES = {
     maxDataBytes: 4 * 1024 * 1024,
   },
   typescript: {
+    rootDependencySection: 'devDependencies',
     packageName: 'typescript',
     version: '6.0.2',
     packagePath: 'node_modules/typescript',
@@ -73,6 +79,7 @@ interface PackageJson {
   version: string;
   repository?: string | { url?: string };
   dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 }
 
 function decodeYamlKey(raw: string): string {
@@ -238,6 +245,12 @@ function asPackageJson(value: unknown, expectedName: string, expectedVersion: st
       if (typeof dependency !== 'string') throw new TypeError(`${label}.dependencies must contain strings`);
     }
   }
+  if (value.devDependencies !== undefined) {
+    assertPlainObject(value.devDependencies, `${label}.devDependencies`);
+    for (const dependency of Object.values(value.devDependencies)) {
+      if (typeof dependency !== 'string') throw new TypeError(`${label}.devDependencies must contain strings`);
+    }
+  }
   return value as unknown as PackageJson;
 }
 
@@ -257,6 +270,18 @@ function requireMapValue(map: Map<string, string>, key: string, label: string): 
   const value = map.get(key);
   if (value === undefined) throw new Error(`${label} is missing ${key}`);
   return value;
+}
+
+function requireRootDependencySection(
+  rootPackage: Record<string, unknown>,
+  section: 'dependencies' | 'devDependencies',
+): Record<string, string> {
+  const value = rootPackage[section];
+  assertPlainObject(value, `package.json.${section}`);
+  for (const dependency of Object.values(value)) {
+    if (typeof dependency !== 'string') throw new TypeError(`package.json.${section} must contain strings`);
+  }
+  return value as Record<string, string>;
 }
 
 function baseLockIdentity(name: string, version: string): string {
@@ -333,7 +358,10 @@ export function buildArtifactManifest(projectRoot: string): ArtifactManifest {
   const rootPackage = parseBoundedJson(projectRoot, packageJsonPath, MAX_PACKAGE_JSON_BYTES);
   assertPlainObject(rootPackage, 'package.json');
   if (typeof rootPackage.packageManager !== 'string') throw new TypeError('packageManager must be a string');
-  assertPlainObject(rootPackage.devDependencies, 'package.json.devDependencies');
+  const rootDependencySections = {
+    dependencies: requireRootDependencySection(rootPackage, 'dependencies'),
+    devDependencies: requireRootDependencySection(rootPackage, 'devDependencies'),
+  };
 
   const lockBytes = readBoundedArtifact(projectRoot, lockfilePath, MAX_LOCKFILE_BYTES);
   const lock = parsePnpmLockfile(lockBytes.toString('utf8'));
@@ -342,8 +370,13 @@ export function buildArtifactManifest(projectRoot: string): ArtifactManifest {
     keyof typeof STATIC_ARTIFACT_SOURCES,
     (typeof STATIC_ARTIFACT_SOURCES)[keyof typeof STATIC_ARTIFACT_SOURCES],
   ][]) {
-    if (rootPackage.devDependencies[source.packageName] !== source.version) {
-      throw new Error(`package.json version mismatch for ${source.packageName}`);
+    const rootDependencies = rootDependencySections[source.rootDependencySection];
+    if (rootDependencies[source.packageName] !== source.version) {
+      throw new Error(`package.json ${source.rootDependencySection} version mismatch for ${source.packageName}`);
+    }
+    const otherSection = source.rootDependencySection === 'dependencies' ? 'devDependencies' : 'dependencies';
+    if (rootDependencySections[otherSection][source.packageName] !== undefined) {
+      throw new Error(`package.json duplicates ${source.packageName} across dependency sections`);
     }
     const rootVersion = requireMapValue(lock.directVersions, source.packageName, 'root lock importer');
     if (rootVersion !== source.version && !rootVersion.startsWith(`${source.version}(`)) {

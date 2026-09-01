@@ -64,6 +64,12 @@ describe('portable artifact manifest', () => {
       standaloneEndpointMethods: '18.0.0',
       typescript: '6.0.2',
     });
+    const rootPackage = JSON.parse(readFileSync(`${PROJECT_ROOT}/package.json`, 'utf8')) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    expect(rootPackage.dependencies.probot).toBe('14.3.2');
+    expect(rootPackage.devDependencies.probot).toBeUndefined();
     expect(manifest.runtimeEndpointSelection).toEqual({
       selectedRole: 'runtimeEndpointMethods',
       peerContext: '@octokit/core@7.0.7',
