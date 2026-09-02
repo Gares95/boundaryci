@@ -1,8 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { emitDeliveryEvent, type DeliveryLogEvent } from '../../src/delivery/logging.js';
 import { createRepositoryReadCapability, SanitizedGitHubReadError } from '../../src/delivery/github-read.js';
+import { cleanupComparisonRoots, cleanupSnapshotResidue } from '../../src/delivery/snapshot.js';
 import { createRuntimeSentinels } from './support.js';
+
+const temporaryParents: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(temporaryParents.splice(0).map(async (path) => rm(path, { force: true, recursive: true })));
+});
 
 function validEvent(): DeliveryLogEvent {
   return {
@@ -66,4 +76,54 @@ describe('Phase 5 non-leakage boundaries', () => {
     expect(events).toEqual([]);
   });
 
+  it('removes source/config bytes with a bounded retry but preserves cleanup failure as a non-handoff condition', async () => {
+    const sentinels = createRuntimeSentinels();
+    const parent = await mkdtemp(join(tmpdir(), 'boundaryci-non-leakage-'));
+    temporaryParents.push(parent);
+    const base = join(parent, 'base');
+    const head = join(parent, 'head');
+    await Promise.all([mkdir(base), mkdir(head)]);
+    await Promise.all([
+      writeFile(join(base, 'source.ts'), sentinels.source!),
+      writeFile(join(head, '.boundaryci.yml'), sentinels.config!),
+    ]);
+
+    let attempts = 0;
+    let firstBaseAttempt = true;
+    const cleaned = await cleanupComparisonRoots(
+      { roots: { base, head } },
+      {
+        removeRoot: async (root) => {
+          attempts += 1;
+          await rm(root, { force: true, recursive: true });
+          if (root === base && firstBaseAttempt) {
+            firstBaseAttempt = false;
+            return false;
+          }
+          return true;
+        },
+      },
+    );
+
+    expect(cleaned).toBe(false);
+    expect(attempts).toBeGreaterThanOrEqual(3);
+    await expect(access(base)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(access(head)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('deletes untrusted startup residue without following a symbolic link or retaining source bytes', async () => {
+    const sentinels = createRuntimeSentinels();
+    const parent = await mkdtemp(join(tmpdir(), 'boundaryci-residue-'));
+    temporaryParents.push(parent);
+    const external = await mkdtemp(join(tmpdir(), 'boundaryci-external-'));
+    temporaryParents.push(external);
+    await writeFile(join(parent, 'boundaryci-snapshot-stale-source'), sentinels.source!);
+    await writeFile(join(external, 'outside'), sentinels.config!);
+    await symlink(external, join(parent, 'boundaryci-snapshot-stale-link'));
+
+    await expect(cleanupSnapshotResidue(parent)).resolves.toBe(true);
+    await expect(access(join(parent, 'boundaryci-snapshot-stale-source'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(access(join(parent, 'boundaryci-snapshot-stale-link'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(access(join(external, 'outside'))).resolves.toBeUndefined();
+  });
 });

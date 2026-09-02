@@ -1,4 +1,4 @@
-import { access, chmod, lstat, mkdir, mkdtemp, open, rm } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, open, readdir, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
@@ -13,7 +13,10 @@ import { DELIVERY_LIMITS_V1, type DeliveryLimits, validateDeliveryLimits } from 
 
 const CONFIG_PATH = '.boundaryci.yml';
 const ROOT_PREFIX = 'boundaryci-snapshot-';
+const ROOT_PARENT_NAME = 'boundaryci-snapshot-v1';
+const MAX_STARTUP_RESIDUES = 1_024;
 const SHA = /^[a-f0-9]{40}$/u;
+let preparedRootParent: Promise<string> | undefined;
 
 export interface PrivateComparisonRoots {
   base: string;
@@ -157,8 +160,73 @@ function relevantSource(path: string, config: EffectiveConfig): boolean {
   return includes.some((glob) => glob.test(segments)) && !excludes.some((glob) => glob.test(segments));
 }
 
+function snapshotRootParent(): string {
+  return join(tmpdir(), ROOT_PARENT_NAME);
+}
+
+async function pathAbsent(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return false;
+  } catch (error) {
+    return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ENOENT';
+  }
+}
+
+async function removeOwnedRoot(root: string): Promise<boolean> {
+  try {
+    await rm(root, { recursive: true, force: true, maxRetries: 0 });
+    return pathAbsent(root);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Removes only stale BoundaryCI-owned entries from an already-validated private parent. Links
+ * are removed as links by `rm`; their targets are never traversed or used as lifecycle state.
+ */
+export async function cleanupSnapshotResidue(parent = snapshotRootParent()): Promise<boolean> {
+  let parentDetails;
+  try {
+    parentDetails = await lstat(parent);
+  } catch {
+    return false;
+  }
+  if (!parentDetails.isDirectory() || parentDetails.isSymbolicLink() || (parentDetails.mode & 0o077) !== 0) return false;
+  let entries;
+  try {
+    entries = (await readdir(parent)).sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+  } catch {
+    return false;
+  }
+  if (entries.length > MAX_STARTUP_RESIDUES || entries.some((entry) => !entry.startsWith(ROOT_PREFIX))) return false;
+  for (const entry of entries) {
+    const target = join(parent, entry);
+    if (!await removeOwnedRoot(target)) return false;
+  }
+  try {
+    return (await readdir(parent)).length === 0;
+  } catch {
+    return false;
+  }
+}
+
+async function prepareSnapshotRootParent(): Promise<string> {
+  const parent = snapshotRootParent();
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const details = await lstat(parent);
+  if (!details.isDirectory() || details.isSymbolicLink() || (details.mode & 0o077) !== 0) {
+    throw new AcquisitionStop('acquisition-security-failure', 'unsafe-path');
+  }
+  await chmod(parent, 0o700);
+  if (!await cleanupSnapshotResidue(parent)) throw new AcquisitionStop('acquisition-security-failure', 'unsafe-path');
+  return parent;
+}
+
 async function createPrivateRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), ROOT_PREFIX));
+  preparedRootParent ??= prepareSnapshotRootParent();
+  const root = await mkdtemp(join(await preparedRootParent, ROOT_PREFIX));
   await chmod(root, 0o700);
   return root;
 }
@@ -480,16 +548,21 @@ export async function acquireComparisonRoots(input: AcquireComparisonRootsInput)
 }
 
 /** Deletes both owned roots and reports absence without exposing or trusting any residue. */
-export async function cleanupComparisonRoots(acquired: Pick<AcquiredComparisonRoots, 'roots'>): Promise<boolean> {
-  const cleanup = async (root: string): Promise<boolean> => {
-    try {
-      await rm(root, { recursive: true, force: true });
-      await access(root);
-      return false;
-    } catch (error) {
-      return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ENOENT';
-    }
-  };
-  const [base, head] = await Promise.all([cleanup(acquired.roots.base), cleanup(acquired.roots.head)]);
-  return base && head;
+export interface CleanupComparisonRootsOptions {
+  removeRoot?: (root: string) => Promise<boolean>;
+}
+
+/**
+ * Deletes each owned root once, retries the bounded local cleanup operation once on any fault,
+ * and reports the original cleanup fault even when the emergency retry establishes absence.
+ */
+export async function cleanupComparisonRoots(
+  acquired: Pick<AcquiredComparisonRoots, 'roots'>,
+  options: CleanupComparisonRootsOptions = {},
+): Promise<boolean> {
+  const removeRoot = options.removeRoot ?? removeOwnedRoot;
+  const first = await Promise.all([removeRoot(acquired.roots.base), removeRoot(acquired.roots.head)]);
+  if (first[0] && first[1]) return true;
+  await Promise.all([removeRoot(acquired.roots.base), removeRoot(acquired.roots.head)]);
+  return false;
 }
