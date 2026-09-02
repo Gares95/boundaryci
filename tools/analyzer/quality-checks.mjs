@@ -38,6 +38,11 @@ const PHASE4_SOURCE_PREFIXES = ['src/cli/', 'src/config/', 'src/diff/', 'src/pol
 const PHASE4_ALLOWED_CATALOG_IMPORT = 'BOUNDARYCI_PERMISSION_CATALOG_IDENTITY';
 const PERMISSION_CATALOG_ENTRY_TYPE = 'PermissionCatalogEntry';
 const DELIVERY_MODULE = /^(?:@octokit\/|octokit$|probot$)/u;
+const DELIVERY_SOURCE_PREFIX = 'src/delivery/';
+const DELIVERY_TRANSPORT_OWNERS = new Set(['src/delivery/app.ts', 'src/delivery/index.ts']);
+const FORBIDDEN_DELIVERY_API_MEMBERS = new Set([
+  'create', 'createCheckRun', 'delete', 'downloadArchive', 'getArchiveLink', 'getContent', 'getContents', 'graphql', 'request', 'update', 'updateCheckRun',
+]);
 const PLACEHOLDER_WORDS = [`${'FIX'}${'ME'}`, `${'T'}${'BD'}`, `${'TO'}${'DO'}`];
 const PLACEHOLDER = new RegExp(`\\b(?:${PLACEHOLDER_WORDS.join('|')})\\b`, 'u');
 const ASSISTANT_ATTRIBUTION = /\b(?:Anthropic|Claude|Codex|OpenAI)\b/u;
@@ -169,6 +174,18 @@ function memberName(expression) {
   return null;
 }
 
+function rootReceiverName(expression) {
+  let current = expression;
+  while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) current = current.expression;
+  return ts.isIdentifier(current) ? current.text : null;
+}
+
+function resemblesGitHubReceiver(expression) {
+  if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) return false;
+  const root = rootReceiverName(expression.expression);
+  return root !== null && /(?:client|context|github|octokit)/iu.test(root);
+}
+
 function sourcePosition(sourceFile, node) {
   const point = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
   return `${point.line + 1}:${point.character + 1}`;
@@ -199,9 +216,10 @@ function lintDiagnostics(path, text) {
     const point = sourceFile.getLineAndCharacterOfPosition(start);
     return `${path}:${point.line + 1}:${point.character + 1} lint/syntax: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`;
   });
-  const analyzerSource = path.startsWith('src/analyzer/');
+  const sourceCode = path.startsWith('src/');
   const phase4Source = PHASE4_SOURCE_PREFIXES.some((prefix) => path.startsWith(prefix));
-  if (!analyzerSource && !phase4Source) return diagnostics;
+  const deliverySource = path.startsWith(DELIVERY_SOURCE_PREFIX);
+  if (!sourceCode) return diagnostics;
 
   const report = (node, rule, detail) => diagnostics.push(`${path}:${sourcePosition(sourceFile, node)} ${rule}: ${detail}`);
   const visit = (node) => {
@@ -215,6 +233,22 @@ function lintDiagnostics(path, text) {
       DELIVERY_MODULE.test(node.moduleSpecifier.text)
     ) {
       report(node, 'phase4/no-delivery-module', `delivery module is outside Phase 4: ${node.moduleSpecifier.text}`);
+    }
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      DELIVERY_MODULE.test(node.moduleSpecifier.text) &&
+      !DELIVERY_TRANSPORT_OWNERS.has(path)
+    ) {
+      report(node, 'delivery/sdk-import-owner', `delivery SDK import is limited to transport/auth owners: ${node.moduleSpecifier.text}`);
+    }
+    if (
+      !deliverySource &&
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      /(?:^|\/)delivery(?:\/|$)/u.test(node.moduleSpecifier.text)
+    ) {
+      report(node, 'delivery/no-lower-layer-import', `lower product layer cannot import delivery: ${node.moduleSpecifier.text}`);
     }
     if (phase4Source && ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       const bindings = node.importClause?.namedBindings;
@@ -277,6 +311,10 @@ function lintDiagnostics(path, text) {
       }
     }
     if (ts.isCallExpression(node)) {
+      const member = memberName(node.expression);
+      if (deliverySource && member !== null && FORBIDDEN_DELIVERY_API_MEMBERS.has(member) && resemblesGitHubReceiver(node.expression)) {
+        report(node, 'delivery/no-unsupported-github-api', `delivery cannot call ${member}()`);
+      }
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
         report(node, 'isolation/no-target-module-load', 'dynamic import is forbidden');
       } else if (ts.isIdentifier(node.expression) && node.expression.text === 'require') {
@@ -301,7 +339,9 @@ function publicTextDiagnostics(path, text) {
   if (PLACEHOLDER.test(text)) diagnostics.push(`${path}:1:1 hygiene/placeholder: resolvable placeholder token is forbidden`);
   if (ASSISTANT_ATTRIBUTION.test(text)) diagnostics.push(`${path}:1:1 hygiene/assistant-attribution: assistant attribution is forbidden`);
   if (LOCAL_WORKFLOW_PATH.test(text)) diagnostics.push(`${path}:1:1 hygiene/local-workflow: local workflow path is forbidden`);
-  if (SECRET_MATERIAL.test(text)) diagnostics.push(`${path}:1:1 hygiene/secret-material: possible secret material is forbidden`);
+  const inertTestKeyMarker = path.startsWith('tests/') && /-----BEGIN PRIVATE KEY-----\\nunused\\n-----END PRIVATE KEY-----/u.test(text);
+  const secretMaterial = SECRET_MATERIAL.test(text) && !inertTestKeyMarker;
+  if (secretMaterial) diagnostics.push(`${path}:1:1 hygiene/secret-material: possible secret material is forbidden`);
   return diagnostics;
 }
 
@@ -366,6 +406,24 @@ function runSelfTest() {
     'Phase 4 subprocess module',
   );
   assertSelfTest(
+    lintDiagnostics('src/runtime/mutation.ts', "import { createBoundaryCiApp } from '../delivery/app.js';\nvoid createBoundaryCiApp;\n").some((diagnostic) =>
+      diagnostic.includes('delivery/no-lower-layer-import'),
+    ),
+    'lower layer delivery import',
+  );
+  assertSelfTest(
+    lintDiagnostics('src/delivery/mutation.ts', "import { Octokit } from 'octokit';\nvoid Octokit;\n").some((diagnostic) =>
+      diagnostic.includes('delivery/sdk-import-owner'),
+    ),
+    'delivery SDK import owner',
+  );
+  assertSelfTest(
+    lintDiagnostics('src/delivery/mutation.ts', 'client.request({});\n').some((diagnostic) =>
+      diagnostic.includes('delivery/no-unsupported-github-api'),
+    ),
+    'delivery generic request',
+  );
+  assertSelfTest(
     lintDiagnostics('src/cli/mutation.ts', "import { Probot } from 'probot';\nvoid Probot;\n").some((diagnostic) =>
       diagnostic.includes('phase4/no-delivery-module'),
     ),
@@ -400,6 +458,14 @@ function runSelfTest() {
   for (const [name, path, bytes, rule] of formatMutations) {
     assertSelfTest(formatDiagnostics(path, bytes).some((diagnostic) => diagnostic.includes(rule)), name);
   }
+  assertSelfTest(
+    publicTextDiagnostics('tests/delivery/fixture.ts', "const inert = '-----BEGIN PRIVATE KEY-----\\nunused\\n-----END PRIVATE KEY-----';\n").length === 0,
+    'inert delivery test key marker',
+  );
+  assertSelfTest(
+    publicTextDiagnostics('src/delivery/unsafe.ts', '-----BEGIN PRIVATE KEY-----\n').some((diagnostic) => diagnostic.includes('hygiene/secret-material')),
+    'delivery private key material',
+  );
 }
 
 function printDiagnostics(diagnostics) {

@@ -21,6 +21,7 @@
     "test:delivery": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot tests/delivery",
     "test:analyzer": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot tests/analyzer",
     "typecheck": "node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
+    "quality:delivery": "npm run test:delivery && npm run typecheck && npm run lint && npm run format:check && npm run build",
     "quality:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/quality-checks.mjs"
   },
   "dependencies": {
