@@ -19,7 +19,7 @@ function provider(overrides: Partial<RepositoryReadProvider> = {}): RepositoryRe
         permissions: Object.freeze({ contents: 'read', pull_requests: 'read' }),
         transport: Object.freeze({
           getCurrentPull: async (pullNumber: number) => currentPull({ number: pullNumber }),
-          listOpenPullsByBase: async () => Object.freeze([]),
+          listOpenPullsByBase: async () => Object.freeze({ pulls: Object.freeze([]), nextPage: null, normalizedBytes: 2 }),
           getCommit: async (sha: string) => commit(sha),
           getTree: async (sha: string) => tree(sha),
           getBlob: async (sha: string) => blob(sha),

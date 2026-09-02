@@ -2,10 +2,17 @@ import type { CurrentPull, GitBlob, GitCommit, GitTree } from './index.js';
 
 export interface GitHubReadCapability {
   getCurrentPull(pullNumber: number): Promise<CurrentPull>;
-  listOpenPullsByBase(baseRef: string): Promise<readonly CurrentPull[]>;
+  listOpenPullsByBase(baseRef: string, page: number): Promise<GitHubPullPage>;
   getCommit(sha: string): Promise<GitCommit>;
   getTree(sha: string): Promise<GitTree>;
   getBlob(sha: string): Promise<GitBlob>;
+}
+
+/** One normalized, bounded fan-out page; pagination state is never a GitHub URL. */
+export interface GitHubPullPage {
+  pulls: readonly CurrentPull[];
+  nextPage: number | null;
+  normalizedBytes: number;
 }
 
 export type SanitizedGitHubReadErrorKind =
@@ -49,7 +56,7 @@ export interface RepositoryReadIssueRequest {
 
 interface RepositoryReadTransport {
   getCurrentPull(pullNumber: number): Promise<unknown>;
-  listOpenPullsByBase(baseRef: string): Promise<unknown>;
+  listOpenPullsByBase(baseRef: string, page: number): Promise<unknown>;
   getCommit(sha: string): Promise<unknown>;
   getTree(sha: string): Promise<unknown>;
   getBlob(sha: string): Promise<unknown>;
@@ -147,7 +154,7 @@ function validateIssuedRole(value: unknown, identity: RepositoryReadIdentity): I
   return issued as unknown as IssuedRepositoryReadRole;
 }
 
-function validatePull(value: unknown, requestedNumber: number, repositoryId: number): CurrentPull {
+export function validateCurrentPull(value: unknown, requestedNumber: number, repositoryId: number): CurrentPull {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new SanitizedGitHubReadError('contract-invalid', false);
   const record = value as Record<string, unknown>;
   if (!exactKeys(record, ['base', 'draft', 'head', 'merged', 'number', 'repositoryId', 'state'])) {
@@ -176,6 +183,23 @@ function validatePull(value: unknown, requestedNumber: number, repositoryId: num
     base: Object.freeze({ repositoryId, ref: baseRecord.ref, sha: baseRecord.sha }),
     head: Object.freeze({ repositoryId: headRecord.repositoryId, sha: headRecord.sha }),
   });
+}
+
+function validatePullPage(value: unknown, repositoryId: number): GitHubPullPage {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new SanitizedGitHubReadError('contract-invalid', false);
+  const record = value as Record<string, unknown>;
+  if (!exactKeys(record, ['nextPage', 'normalizedBytes', 'pulls']) || !Array.isArray(record.pulls) ||
+    (record.nextPage !== null && (!safePositiveInteger(record.nextPage))) ||
+    !Number.isSafeInteger(record.normalizedBytes) || (record.normalizedBytes as number) < 0) {
+    throw new SanitizedGitHubReadError('contract-invalid', false);
+  }
+  const pulls = record.pulls.map((pull) => {
+    if (typeof pull !== 'object' || pull === null || Array.isArray(pull) || !safePositiveInteger((pull as Record<string, unknown>).number)) {
+      throw new SanitizedGitHubReadError('contract-invalid', false);
+    }
+    return validateCurrentPull(pull, (pull as Record<string, unknown>).number as number, repositoryId);
+  });
+  return Object.freeze({ pulls: Object.freeze(pulls), nextPage: record.nextPage, normalizedBytes: record.normalizedBytes as number });
 }
 
 function validateCommit(value: unknown, requestedSha: string): GitCommit {
@@ -245,19 +269,12 @@ export async function createRepositoryReadCapability(
   return Object.freeze({
     getCurrentPull: async (pullNumber: number) => {
       assertReadInput(pullNumber, 'number');
-      return operation(() => issued.transport.getCurrentPull(pullNumber), (value) => validatePull(value, pullNumber, identity.repositoryId));
+      return operation(() => issued.transport.getCurrentPull(pullNumber), (value) => validateCurrentPull(value, pullNumber, identity.repositoryId));
     },
-    listOpenPullsByBase: async (baseRef: string) => {
+    listOpenPullsByBase: async (baseRef: string, page: number) => {
       assertReadInput(baseRef, 'ref');
-      return operation(() => issued.transport.listOpenPullsByBase(baseRef), (value) => {
-        if (!Array.isArray(value)) throw new SanitizedGitHubReadError('contract-invalid', false);
-        return Object.freeze(value.map((pull) => {
-          if (typeof pull !== 'object' || pull === null || Array.isArray(pull) || !safePositiveInteger((pull as Record<string, unknown>).number)) {
-            throw new SanitizedGitHubReadError('contract-invalid', false);
-          }
-          return validatePull(pull, (pull as Record<string, unknown>).number as number, identity.repositoryId);
-        }));
-      });
+      assertReadInput(page, 'number');
+      return operation(() => issued.transport.listOpenPullsByBase(baseRef, page), (value) => validatePullPage(value, identity.repositoryId));
     },
     getCommit: async (sha: string) => {
       assertReadInput(sha, 'sha');

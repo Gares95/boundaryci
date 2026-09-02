@@ -83,12 +83,55 @@ describe('verified trigger normalization and resolution', () => {
     await expect(resolveTriggerWork(trigger, read.capability)).resolves.toMatchObject({ status: 'fanout-work', work: [{ pullNumber: 19 }, { pullNumber: 20 }] });
     expect(read.calls).toEqual(['list:main:1']);
 
-    const overLimit = capability({ page: () => Object.freeze({
-      pulls: Object.freeze(Array.from({ length: 501 }, (_, index) => currentPull({ number: index + 1 }))),
-      nextPage: null,
+    const overLimit = capability({ page: (page) => Object.freeze({
+      pulls: Object.freeze(Array.from({ length: page === 6 ? 1 : 100 }, (_, index) => currentPull({ number: ((page - 1) * 100) + index + 1 }))),
+      nextPage: page === 6 ? null : page + 1,
       normalizedBytes: 128,
     }) });
     await expect(resolveTriggerWork(trigger, overLimit.capability)).resolves.toMatchObject({ status: 'fanout-incomplete', retryable: true, cause: 'pull-request-limit' });
-    expect(overLimit.calls).toEqual(['list:main:1']);
+    expect(overLimit.calls).toEqual(['list:main:1', 'list:main:2', 'list:main:3', 'list:main:4', 'list:main:5', 'list:main:6']);
+  });
+
+  it('returns no subset when the bounded fan-out cannot establish every page', async () => {
+    const trigger = normalizeVerifiedTrigger('push', { installation: { id: 42 }, repository: { id: 7 }, ref: 'refs/heads/main' }, 'delivery-push');
+    if (trigger === null) throw new Error('test push did not normalize');
+
+    const exactlyFiveHundred = capability({ page: (page) => Object.freeze({
+      pulls: Object.freeze(Array.from({ length: 100 }, (_, index) => currentPull({ number: ((page - 1) * 100) + index + 1 }))),
+      nextPage: page === 5 ? null : page + 1,
+      normalizedBytes: 128,
+    }) });
+    await expect(resolveTriggerWork(trigger, exactlyFiveHundred.capability)).resolves.toMatchObject({
+      status: 'fanout-work',
+      work: expect.arrayContaining([expect.objectContaining({ pullNumber: 1 }), expect.objectContaining({ pullNumber: 500 })]),
+    });
+    expect(exactlyFiveHundred.calls).toHaveLength(5);
+
+    const pageLimit = capability({ page: (page) => Object.freeze({
+      pulls: Object.freeze([]),
+      nextPage: page + 1,
+      normalizedBytes: 2,
+    }) });
+    await expect(resolveTriggerWork(trigger, pageLimit.capability)).resolves.toEqual({
+      status: 'fanout-incomplete', retryable: true, cause: 'page-limit', frontier: 11,
+    });
+    expect(pageLimit.calls).toHaveLength(10);
+
+    const overBytes = capability({ page: () => Object.freeze({ pulls: Object.freeze([]), nextPage: null, normalizedBytes: 4_000_001 }) });
+    await expect(resolveTriggerWork(trigger, overBytes.capability)).resolves.toEqual({
+      status: 'fanout-incomplete', retryable: true, cause: 'response-bytes-limit', frontier: 1,
+    });
+
+    const transientPage = capability({ page: () => { throw new Error('temporary service failure'); } });
+    await expect(resolveTriggerWork(trigger, transientPage.capability)).resolves.toEqual({
+      status: 'fanout-incomplete', retryable: true, cause: 'page-read-failed', frontier: 1,
+    });
+
+    const timestamps = [0, 0, 10_001];
+    const slowPage = capability();
+    await expect(resolveTriggerWork(trigger, slowPage.capability, { now: () => timestamps.shift() ?? 10_001 })).resolves.toEqual({
+      status: 'fanout-incomplete', retryable: true, cause: 'elapsed-limit', frontier: 1,
+    });
+    expect(slowPage.calls).toEqual(['list:main:1']);
   });
 });
