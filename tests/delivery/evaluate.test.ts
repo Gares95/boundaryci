@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { AcquiredComparisonRoots } from '../../src/delivery/snapshot.js';
 import { evaluateAcquiredComparison } from '../../src/delivery/evaluate.js';
+import { evaluateCurrentComparison } from '../../src/delivery/evaluate.js';
 import type { LocalComparisonResult } from '../../src/runtime/evaluate.js';
 
 const acquired: AcquiredComparisonRoots[] = [];
@@ -95,5 +96,105 @@ describe('acquisition-aware local evaluation', () => {
     await expect(evaluateAcquiredComparison(entry, evaluate)).resolves.toEqual({
       status: 'diagnostic-only', acquisition: { status: 'acquisition-security-failure', reason: 'unsafe-path' },
     });
+  });
+});
+
+describe('Phase 6 handoff envelope', () => {
+  const current = {
+    number: 19,
+    repositoryId: 7,
+    state: 'open' as const,
+    draft: false,
+    merged: false,
+    base: { repositoryId: 7, ref: 'main', sha: 'a'.repeat(40) },
+    head: { repositoryId: 7, sha: 'b'.repeat(40) },
+  };
+
+  it('only marks a source-free semantic envelope publishable after cleanup and final freshness', async () => {
+    const privateRoots = await roots();
+    const entry = {
+      roots: privateRoots,
+      result: {
+        status: 'complete',
+        config: { status: 'selected', authority: { source: 'built-in-default', config: {}, identity: 'a'.repeat(64) }, head: { status: 'absent' } },
+        snapshots: {
+          base: { commitSha: 'a'.repeat(40), treeSha: 'b'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
+          head: { commitSha: 'b'.repeat(40), treeSha: 'c'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
+        }, causes: [], semanticUsability: 'complete',
+      },
+    } as unknown as AcquiredComparisonRoots;
+    acquired.push(entry);
+    let finalRead = false;
+    const result = await evaluateCurrentComparison({
+      work: { installationId: 1, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' },
+      baseRef: 'main',
+      triggerDeliveryIds: ['delivery-1'],
+      acquire: async () => entry,
+      evaluator: async () => evaluation,
+      getCurrentPull: async () => {
+        finalRead = true;
+        await expect(access(privateRoots.base)).rejects.toMatchObject({ code: 'ENOENT' });
+        await expect(access(privateRoots.head)).rejects.toMatchObject({ code: 'ENOENT' });
+        return current;
+      },
+    });
+    expect(finalRead).toBe(true);
+    expect(result).toMatchObject({ schemaVersion: 1, lifecycle: 'current', handoff: 'publishable-semantic', phase6FreshnessRequired: true });
+    expect(JSON.stringify(result)).not.toContain(privateRoots.base);
+    expect(JSON.stringify(result)).not.toContain(privateRoots.head);
+  });
+
+  it('returns stale without handoff when final authenticated identity drifts', async () => {
+    const privateRoots = await roots();
+    const entry = {
+      roots: privateRoots,
+      result: {
+        status: 'runtime-infrastructure-failure', reason: 'runtime-operation-failed',
+      },
+    } as unknown as AcquiredComparisonRoots;
+    acquired.push(entry);
+    const result = await evaluateCurrentComparison({
+      work: { installationId: 1, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' },
+      baseRef: 'main', triggerDeliveryIds: [],
+      acquire: async () => entry,
+      getCurrentPull: async () => ({ ...current, head: { ...current.head, sha: 'd'.repeat(40) } }),
+    });
+    expect(result).toMatchObject({ lifecycle: 'stale', handoff: 'none' });
+  });
+
+  it('keeps evaluator failure diagnostic-only after cleanup and current freshness', async () => {
+    const privateRoots = await roots();
+    const entry = {
+      roots: privateRoots,
+      result: {
+        status: 'complete',
+        config: { status: 'selected', authority: { source: 'built-in-default', config: {}, identity: 'a'.repeat(64) }, head: { status: 'absent' } },
+        snapshots: {
+          base: { commitSha: 'a'.repeat(40), treeSha: 'b'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
+          head: { commitSha: 'b'.repeat(40), treeSha: 'c'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
+        }, causes: [], semanticUsability: 'complete',
+      },
+    } as unknown as AcquiredComparisonRoots;
+    acquired.push(entry);
+    const result = await evaluateCurrentComparison({
+      work: { installationId: 1, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' },
+      baseRef: 'main', triggerDeliveryIds: [], acquire: async () => entry,
+      evaluator: async () => { throw new Error('target-controlled detail must not escape'); },
+      getCurrentPull: async () => current,
+    });
+    expect(result).toMatchObject({ lifecycle: 'current', handoff: 'diagnostic-only', diagnostic: { code: 'evaluator-runtime-failure' } });
+    expect(result).not.toHaveProperty('semantic');
+    expect(JSON.stringify(result)).not.toContain('target-controlled detail');
+  });
+
+  it('keeps acquisition-security failure as a non-handoff trust outcome', async () => {
+    const privateRoots = await roots();
+    const entry = { roots: privateRoots, result: { status: 'acquisition-security-failure', reason: 'unsafe-path' } } as unknown as AcquiredComparisonRoots;
+    acquired.push(entry);
+    const result = await evaluateCurrentComparison({
+      work: { installationId: 1, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' },
+      baseRef: 'main', triggerDeliveryIds: [], acquire: async () => entry, getCurrentPull: async () => current,
+    });
+    expect(result).toMatchObject({ lifecycle: 'trust-failure', handoff: 'none', reason: 'acquisition-security-failure' });
   });
 });

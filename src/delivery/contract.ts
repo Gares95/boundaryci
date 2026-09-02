@@ -210,6 +210,36 @@ function validateMatch(value: unknown): asserts value is Phase6FreshnessMatch {
     record.topology !== 'same-repository' || record.eligibility !== 'open') throw new TypeError('freshness match is invalid');
 }
 
+function validateTrigger(value: unknown): void {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || !exactKeys(value as Record<string, unknown>, ['deliveryIds'])) {
+    throw new TypeError('delivery trigger evidence is invalid');
+  }
+  const { deliveryIds } = value as { deliveryIds: unknown };
+  if (!Array.isArray(deliveryIds) || deliveryIds.length > 64 || deliveryIds.some((id) => typeof id !== 'string' || id.length === 0 || id.length > 256)) {
+    throw new TypeError('delivery trigger identifiers are invalid');
+  }
+}
+
+function validateSemantic(value: unknown): void {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || !exactKeys(value as Record<string, unknown>, ['evaluation', 'semanticUsability', 'status'])) {
+    throw new TypeError('semantic envelope evidence is invalid');
+  }
+  const record = value as Record<string, unknown>;
+  if ((record.status !== 'complete' && record.status !== 'incomplete') ||
+    (record.semanticUsability !== 'complete' && record.semanticUsability !== 'positive-evidence-only')) {
+    throw new TypeError('semantic envelope status is invalid');
+  }
+}
+
+function validateDiagnostic(value: unknown): void {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || !exactKeys(value as Record<string, unknown>, ['code'])) {
+    throw new TypeError('delivery diagnostic is invalid');
+  }
+  if (!['input-configuration-failure', 'acquisition-runtime-failure', 'evaluator-runtime-failure', 'unsupported-topology'].includes((value as { code?: unknown }).code as string)) {
+    throw new TypeError('delivery diagnostic code is invalid');
+  }
+}
+
 /** Exact validates the portable, source-free Phase 5 to Phase 6 contract. */
 export function validateDeliveryEnvelope(value: unknown): asserts value is DeliveryEnvelopeV1 {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('delivery envelope must be an object');
@@ -222,6 +252,14 @@ export function validateDeliveryEnvelope(value: unknown): asserts value is Deliv
       record.lifecycle !== 'current' || record.phase6FreshnessRequired !== true) throw new TypeError('publishable delivery envelope is invalid');
     validateWorkIdentity(record.work);
     validateAcquisitionResult(record.acquisition);
+    validateTrigger(record.trigger);
+    validateSemantic(record.semantic);
+    const acquisition = record.acquisition as AcquisitionResult;
+    const semantic = record.semantic as { status: unknown; semanticUsability: unknown };
+    if ((acquisition.status !== 'complete' && acquisition.status !== 'incomplete') ||
+      acquisition.status !== semantic.status || acquisition.semanticUsability !== semantic.semanticUsability) {
+      throw new TypeError('semantic evidence does not match acquisition completeness');
+    }
     validateMatch(record.phase6Match);
     return;
   }
@@ -229,11 +267,14 @@ export function validateDeliveryEnvelope(value: unknown): asserts value is Deliv
     if (!exactKeys(record, ['diagnostic', 'handoff', 'lifecycle', 'phase6FreshnessRequired', 'phase6Match', 'schemaVersion', 'trigger', 'work']) ||
       record.lifecycle !== 'current' || record.phase6FreshnessRequired !== true) throw new TypeError('diagnostic delivery envelope is invalid');
     validateWorkIdentity(record.work);
+    validateTrigger(record.trigger);
+    validateDiagnostic(record.diagnostic);
     validateMatch(record.phase6Match);
     return;
   }
   if (record.handoff === 'none') {
-    if (!['stale', 'superseded', 'cancelled', 'obsolete', 'trust-failure', 'fanout-incomplete', 'cleanup-failure', 'runtime-infrastructure-failure'].includes(record.lifecycle) ||
+    if (!exactKeys(record, record.newestIdentity === undefined ? ['handoff', 'lifecycle', 'reason', 'schemaVersion', 'work'] : ['handoff', 'lifecycle', 'newestIdentity', 'reason', 'schemaVersion', 'work']) ||
+      !['stale', 'superseded', 'cancelled', 'obsolete', 'trust-failure', 'fanout-incomplete', 'cleanup-failure', 'runtime-infrastructure-failure'].includes(record.lifecycle) ||
       typeof record.reason !== 'string') throw new TypeError('non-handoff delivery envelope is invalid');
     if (record.work !== null) validateWorkIdentity(record.work);
     if (record.newestIdentity !== undefined) validateWorkIdentity(record.newestIdentity);

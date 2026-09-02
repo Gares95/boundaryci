@@ -1,6 +1,7 @@
 import { cleanupComparisonRoots, type AcquiredComparisonRoots } from './snapshot.js';
-import type { AcquisitionResult } from './contract.js';
-import { validateAcquisitionResult } from './contract.js';
+import type { CurrentPull } from './index.js';
+import type { AcquisitionResult, DeliveryEnvelopeV1, Phase6FreshnessMatch, WorkIdentity } from './contract.js';
+import { validateAcquisitionResult, validateDeliveryEnvelope, validateWorkIdentity } from './contract.js';
 import { evaluateLocalComparison, type LocalComparisonResult } from '../runtime/evaluate.js';
 
 /**
@@ -25,6 +26,148 @@ export type AcquiredEvaluationResult =
   | { status: 'cleanup-failure'; acquisition: AcquisitionResult };
 
 export type LocalComparisonEvaluator = (baseRoot: string, headRoot: string) => Promise<LocalComparisonResult>;
+
+export interface EvaluateCurrentComparisonInput {
+  work: WorkIdentity;
+  baseRef: string;
+  triggerDeliveryIds: readonly string[];
+  acquire(): Promise<AcquiredComparisonRoots>;
+  evaluator?: LocalComparisonEvaluator;
+  getCurrentPull(pullNumber: number): Promise<CurrentPull>;
+}
+
+function freezeClone<T>(value: T): T {
+  const cloned = structuredClone(value);
+  const freeze = (item: unknown): void => {
+    if (typeof item !== 'object' || item === null || Object.isFrozen(item)) return;
+    for (const child of Object.values(item)) freeze(child);
+    Object.freeze(item);
+  };
+  freeze(cloned);
+  return cloned;
+}
+
+function freshnessMatch(work: WorkIdentity, baseRef: string): Phase6FreshnessMatch {
+  return Object.freeze({
+    repositoryId: work.repositoryId,
+    pullNumber: work.pullNumber,
+    baseRepositoryId: work.repositoryId,
+    baseRef,
+    baseSha: work.baseSha,
+    headRepositoryId: work.repositoryId,
+    headSha: work.headSha,
+    topology: 'same-repository',
+    eligibility: 'open',
+  });
+}
+
+function currentMatches(work: WorkIdentity, baseRef: string, pull: CurrentPull): boolean {
+  return pull.number === work.pullNumber && pull.repositoryId === work.repositoryId && pull.state === 'open' && !pull.merged &&
+    pull.base.repositoryId === work.repositoryId && pull.base.ref === baseRef && pull.base.sha === work.baseSha &&
+    pull.head.repositoryId === work.repositoryId && pull.head.sha === work.headSha;
+}
+
+function newestWork(work: WorkIdentity, pull: CurrentPull): WorkIdentity | undefined {
+  if (pull.number !== work.pullNumber || pull.repositoryId !== work.repositoryId || pull.base.repositoryId !== work.repositoryId ||
+    pull.head.repositoryId !== work.repositoryId || pull.state !== 'open' || pull.merged) return undefined;
+  return Object.freeze({ ...work, baseSha: pull.base.sha, headSha: pull.head.sha });
+}
+
+function noHandoff(
+  lifecycle: Exclude<DeliveryEnvelopeV1['lifecycle'], 'current'>,
+  work: WorkIdentity | null,
+  reason: string,
+  newestIdentity?: WorkIdentity,
+): DeliveryEnvelopeV1 {
+  const envelope = Object.freeze({ schemaVersion: 1 as const, lifecycle, handoff: 'none' as const, work, reason, ...(newestIdentity === undefined ? {} : { newestIdentity }) });
+  validateDeliveryEnvelope(envelope);
+  return envelope;
+}
+
+/**
+ * Builds only source-free Phase 6 evidence after acquisition/evaluation cleanup and a final
+ * authenticated equality check. This module intentionally performs no Check presentation or write.
+ */
+export async function evaluateCurrentComparison(input: EvaluateCurrentComparisonInput): Promise<DeliveryEnvelopeV1> {
+  try {
+    validateWorkIdentity(input.work);
+    if (typeof input.baseRef !== 'string' || input.baseRef.length === 0 || input.baseRef.length > 256) {
+      return noHandoff('trust-failure', null, 'invalid-base-target');
+    }
+    if (!Array.isArray(input.triggerDeliveryIds)) return noHandoff('trust-failure', null, 'invalid-trigger-trace');
+    const work = freezeClone(input.work);
+    const trigger = freezeClone({ deliveryIds: [...input.triggerDeliveryIds] });
+    const acquired = await input.acquire();
+    validateAcquisitionResult(acquired.result);
+    const acquisition = freezeClone(acquired.result);
+    let semantic: { status: 'complete' | 'incomplete'; semanticUsability: 'complete' | 'positive-evidence-only'; evaluation: LocalComparisonResult } | undefined;
+    let evaluatorFailed = false;
+    if (acquisition.status === 'complete' || acquisition.status === 'incomplete') {
+      try {
+        semantic = freezeClone({
+          status: acquisition.status,
+          semanticUsability: acquisition.semanticUsability,
+          evaluation: await (input.evaluator ?? evaluateLocalComparison)(acquired.roots.base, acquired.roots.head),
+        });
+      } catch {
+        evaluatorFailed = true;
+      }
+    }
+    if (!await cleanupComparisonRoots(acquired)) return noHandoff('cleanup-failure', work, 'private-root-cleanup-not-verified');
+
+    let current: CurrentPull;
+    try {
+      current = await input.getCurrentPull(work.pullNumber);
+    } catch {
+      return noHandoff('runtime-infrastructure-failure', work, 'final-freshness-read-failed');
+    }
+    if (!currentMatches(work, input.baseRef, current)) {
+      return noHandoff('stale', work, 'authenticated-comparison-drift', newestWork(work, current));
+    }
+
+    const phase6Match = freshnessMatch(work, input.baseRef);
+    if (semantic !== undefined) {
+      const envelope = freezeClone({
+        schemaVersion: 1 as const,
+        lifecycle: 'current' as const,
+        handoff: 'publishable-semantic' as const,
+        work,
+        trigger,
+        acquisition,
+        semantic,
+        phase6FreshnessRequired: true as const,
+        phase6Match,
+      });
+      validateDeliveryEnvelope(envelope);
+      return envelope;
+    }
+
+    const diagnostic = evaluatorFailed
+      ? 'evaluator-runtime-failure'
+      : acquisition.status === 'input-configuration-failure'
+      ? 'input-configuration-failure'
+      : acquisition.status === 'runtime-infrastructure-failure'
+        ? 'acquisition-runtime-failure'
+        : acquisition.status === 'acquisition-security-failure'
+          ? undefined
+          : 'evaluator-runtime-failure';
+    if (diagnostic === undefined) return noHandoff('trust-failure', work, 'acquisition-security-failure');
+    const envelope = freezeClone({
+      schemaVersion: 1 as const,
+      lifecycle: 'current' as const,
+      handoff: 'diagnostic-only' as const,
+      work,
+      trigger,
+      diagnostic: { code: diagnostic },
+      phase6FreshnessRequired: true as const,
+      phase6Match,
+    });
+    validateDeliveryEnvelope(envelope);
+    return envelope;
+  } catch {
+    return noHandoff('runtime-infrastructure-failure', null, 'delivery-lifecycle-operation-failed');
+  }
+}
 
 /**
  * Evaluates materialized roots exactly once when, and only when, acquisition supplied trusted

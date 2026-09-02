@@ -26,8 +26,9 @@ describe('delivery coordinator', () => {
     const baseline = work();
     expect(createWorkKey(baseline)).toBe(createWorkKey({ ...baseline }));
     for (const field of ['installationId', 'repositoryId', 'pullNumber', 'baseSha', 'headSha', 'evaluatorIdentity'] as const) {
-      const changed = field.endsWith('Sha') ? SHA(field === 'baseSha' ? 'c' : 'd') :
-        field === 'evaluatorIdentity' ? 'boundaryci-evaluator-v2' : baseline[field] + 10;
+      const changed = field === 'baseSha' ? SHA('c') :
+        field === 'headSha' ? SHA('d') :
+          field === 'evaluatorIdentity' ? 'boundaryci-evaluator-v2' : baseline[field] + 10;
       expect(createWorkKey(baseline)).not.toBe(createWorkKey({ ...baseline, [field]: changed }));
     }
   });
