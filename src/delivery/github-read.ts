@@ -1,4 +1,5 @@
 import type { CurrentPull, GitBlob, GitCommit, GitTree } from './index.js';
+import { emitDeliveryEvent, type DeliveryLogSink } from './logging.js';
 
 export interface GitHubReadCapability {
   getCurrentPull(pullNumber: number): Promise<CurrentPull>;
@@ -244,6 +245,7 @@ function assertReadInput(value: unknown, kind: 'number' | 'sha' | 'ref'): void {
 export async function createRepositoryReadCapability(
   identity: RepositoryReadIdentity,
   provider: RepositoryReadProvider,
+  logSink?: DeliveryLogSink,
 ): Promise<GitHubReadCapability> {
   if (!safePositiveInteger(identity.installationId) || !safePositiveInteger(identity.repositoryId)) {
     throw new SanitizedGitHubReadError('credential-scope-mismatch', false);
@@ -257,8 +259,21 @@ export async function createRepositoryReadCapability(
   try {
     issued = validateIssuedRole(await provider.issue(request), identity);
   } catch (error) {
-    throw sanitizeFailure(error);
+    const sanitized = sanitizeFailure(error);
+    emitDeliveryEvent({
+      stage: 'github-read', outcome: 'rejected', reason: 'read-capability-rejected',
+      workId: `repository-read:${identity.installationId}:${identity.repositoryId}`, deliveryId: 'adapter',
+      installationId: identity.installationId, repositoryId: identity.repositoryId, pullNumber: null,
+      baseSha: null, headSha: null, count: 1, durationMilliseconds: 0, attempt: 0, delayMilliseconds: 0,
+    }, logSink);
+    throw sanitized;
   }
+  emitDeliveryEvent({
+    stage: 'github-read', outcome: 'accepted', reason: 'read-capability-issued',
+    workId: `repository-read:${identity.installationId}:${identity.repositoryId}`, deliveryId: 'adapter',
+    installationId: identity.installationId, repositoryId: identity.repositoryId, pullNumber: null,
+    baseSha: null, headSha: null, count: 1, durationMilliseconds: 0, attempt: 0, delayMilliseconds: 0,
+  }, logSink);
   const operation = async <T>(call: () => Promise<unknown>, validate: (value: unknown) => T): Promise<T> => {
     try {
       return validate(await call());
