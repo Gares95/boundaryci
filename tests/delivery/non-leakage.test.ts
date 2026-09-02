@@ -46,6 +46,18 @@ describe('Phase 5 non-leakage boundaries', () => {
     expect(events).toHaveLength(1);
   });
 
+  it('contains a logging sink failure without changing the validated operational event', () => {
+    const event = validEvent();
+    const emitted = emitDeliveryEvent(event, {
+      emit: () => {
+        throw new Error('sink-failure-must-not-cross-delivery-boundary');
+      },
+    });
+
+    expect(emitted).toEqual(event);
+    expect(Object.isFrozen(emitted)).toBe(true);
+  });
+
   it('contains credential, payload, header, and raw external-error sentinels at the adapter and logging boundaries', async () => {
     const sentinels = createRuntimeSentinels();
     const provider = {
