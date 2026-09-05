@@ -72,6 +72,12 @@ class SafeIncomplete extends Error {
   }
 }
 
+/** A source-free signal that a partial-root rollback could not prove absence. */
+export class SnapshotRollbackCleanupFailure extends Error {
+  readonly name = 'SnapshotRollbackCleanupFailure';
+  constructor() { super('private-root-cleanup-not-verified'); }
+}
+
 function safeCount(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
 }
@@ -512,7 +518,7 @@ export async function acquireComparisonRoots(input: AcquireComparisonRootsInput)
   try {
     head = await createPrivateRoot();
   } catch (error) {
-    await removeOwnedRoot(base);
+    if (!await removeOwnedRoot(base)) throw new SnapshotRollbackCleanupFailure();
     throw error;
   }
   const roots = Object.freeze({ base, head });

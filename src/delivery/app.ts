@@ -58,6 +58,18 @@ function withCoalescedDeliveries(envelope: DeliveryEnvelopeV1, deliveryIds: read
   return enriched;
 }
 
+function coalescedDeliveryOverflow(work: WorkIdentity): DeliveryEnvelopeV1 {
+  const envelope = Object.freeze({
+    schemaVersion: 1 as const,
+    lifecycle: 'runtime-infrastructure-failure' as const,
+    handoff: 'none' as const,
+    work,
+    reason: 'coalesced-delivery-overflow' as const,
+  });
+  validateDeliveryEnvelope(envelope);
+  return envelope;
+}
+
 async function scheduleComparison(
   comparison: AuthenticatedComparisonIdentity,
   deliveryId: string,
@@ -91,7 +103,9 @@ async function scheduleComparison(
   });
   const scheduled = await submission.result;
   if (submission.owner && scheduled.status === 'current') {
-    await options.onEnvelope?.(withCoalescedDeliveries(scheduled.value, submission.deliveryIds()));
+    await options.onEnvelope?.(submission.overflowed()
+      ? coalescedDeliveryOverflow(work)
+      : withCoalescedDeliveries(scheduled.value, submission.deliveryIds()));
   }
 }
 

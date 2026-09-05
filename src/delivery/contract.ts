@@ -162,6 +162,7 @@ export type DeliveryNoHandoffReason =
   | 'acquisition-security-failure'
   | 'authenticated-comparison-drift'
   | 'comparison-cancelled'
+  | 'coalesced-delivery-overflow'
   | 'delivery-lifecycle-operation-failed'
   | 'final-freshness-read-failed'
   | 'invalid-acquisition-root-handle'
@@ -359,7 +360,7 @@ export function validateDeliveryEnvelope(value: unknown): asserts value is Deliv
       'trust-failure': ['acquisition-security-failure', 'invalid-acquisition-root-handle', 'invalid-base-target', 'invalid-trigger-trace'],
       'fanout-incomplete': ['fanout-duplicate-pull-request', 'fanout-elapsed-limit', 'fanout-page-limit', 'fanout-page-read-failed', 'fanout-page-shape', 'fanout-pull-request-limit', 'fanout-response-bytes-limit'],
       'cleanup-failure': ['private-root-cleanup-not-verified'],
-      'runtime-infrastructure-failure': ['delivery-lifecycle-operation-failed', 'final-freshness-read-failed'],
+      'runtime-infrastructure-failure': ['coalesced-delivery-overflow', 'delivery-lifecycle-operation-failed', 'final-freshness-read-failed'],
     };
     if (!Object.hasOwn(allowed, record.lifecycle) || typeof record.reason !== 'string' ||
       !allowed[record.lifecycle]!.includes(record.reason as DeliveryNoHandoffReason)) throw new TypeError('non-handoff delivery envelope reason is invalid');
@@ -369,7 +370,10 @@ export function validateDeliveryEnvelope(value: unknown): asserts value is Deliv
       ? ['handoff', 'lifecycle', 'newestIdentity', 'reason', 'schemaVersion', 'work']
       : ['handoff', 'lifecycle', 'reason', 'schemaVersion', 'work'])) throw new TypeError('non-handoff delivery envelope has an unsafe shape');
     if (fanout && record.work !== null) throw new TypeError('fanout-incomplete delivery envelope is invalid');
-    if (stale && record.work === null) throw new TypeError('stale delivery envelope work is invalid');
+    const nullWork = (record.lifecycle === 'fanout-incomplete') ||
+      (record.lifecycle === 'trust-failure' && ['invalid-base-target', 'invalid-trigger-trace'].includes(record.reason as string)) ||
+      (record.lifecycle === 'runtime-infrastructure-failure' && record.reason === 'delivery-lifecycle-operation-failed');
+    if (nullWork !== (record.work === null)) throw new TypeError('non-handoff delivery envelope work identity is invalid');
     if (!stale && record.newestIdentity !== undefined) throw new TypeError('non-stale delivery envelope newest identity is invalid');
     if (record.work !== null) validateWorkIdentity(record.work);
     if (stale && record.newestIdentity !== undefined) validateWorkIdentity(record.newestIdentity);

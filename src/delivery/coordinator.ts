@@ -24,6 +24,7 @@ interface ActiveWork<T> {
   cancellation: 'cancelled' | 'superseded' | null;
   abort: AbortController;
   deliveryIds: Set<string>;
+  deliveryOverflow: boolean;
   promise: Promise<CoordinatedWorkResult<T>>;
 }
 
@@ -31,6 +32,7 @@ export interface CoordinatedSubmission<T> {
   owner: boolean;
   result: Promise<CoordinatedWorkResult<T>>;
   deliveryIds(): readonly string[];
+  overflowed(): boolean;
 }
 
 export interface BoundedReadOptions {
@@ -99,8 +101,9 @@ export class DeliveryCoordinator {
     const key = createWorkKey(identity);
     const existing = this.activeByWork.get(key) as ActiveWork<T> | undefined;
     if (existing !== undefined) {
-      existing.deliveryIds.add(deliveryId);
-      return Object.freeze({ owner: false, result: existing.promise, deliveryIds: () => Object.freeze([...existing.deliveryIds]) });
+      if (!existing.deliveryIds.has(deliveryId) && existing.deliveryIds.size >= 64) existing.deliveryOverflow = true;
+      else existing.deliveryIds.add(deliveryId);
+      return Object.freeze({ owner: false, result: existing.promise, deliveryIds: () => Object.freeze([...existing.deliveryIds]), overflowed: () => existing.deliveryOverflow });
     }
 
     const perPull = pullKey(identity);
@@ -112,7 +115,7 @@ export class DeliveryCoordinator {
     }
 
     const active: ActiveWork<T> = {
-      identity: Object.freeze({ ...identity }), key, pullKey: perPull, cancelled: false, cancellation: null, abort: new AbortController(), deliveryIds: new Set([deliveryId]),
+      identity: Object.freeze({ ...identity }), key, pullKey: perPull, cancelled: false, cancellation: null, abort: new AbortController(), deliveryIds: new Set([deliveryId]), deliveryOverflow: false,
       promise: Promise.resolve({ status: 'cancelled' }) as Promise<CoordinatedWorkResult<T>>,
     };
     const control: WorkControl = Object.freeze({
@@ -126,7 +129,7 @@ export class DeliveryCoordinator {
       .catch(() => this.finish(active, undefined as T, true));
     this.activeByWork.set(key, active as ActiveWork<unknown>);
     this.latestByPull.set(perPull, active as ActiveWork<unknown>);
-    return Object.freeze({ owner: true, result: active.promise, deliveryIds: () => Object.freeze([...active.deliveryIds]) });
+    return Object.freeze({ owner: true, result: active.promise, deliveryIds: () => Object.freeze([...active.deliveryIds]), overflowed: () => active.deliveryOverflow });
   }
 
   cancel(identity: WorkIdentity): boolean {
@@ -154,6 +157,24 @@ export class DeliveryCoordinator {
 
 function retryable(error: SanitizedGitHubReadError): boolean {
   return error.retryable && ['transient-transport', 'transient-service', 'rate-limited'].includes(error.kind);
+}
+
+async function sleepUntilAbortable(
+  sleep: (milliseconds: number) => Promise<void>,
+  milliseconds: number,
+  signal: AbortSignal,
+  failure: () => BoundedReadSessionFailure,
+): Promise<void> {
+  if (signal.aborted) throw failure();
+  let rejectAbort!: (error: BoundedReadSessionFailure) => void;
+  const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject as (error: BoundedReadSessionFailure) => void; });
+  const onAbort = (): void => rejectAbort(failure());
+  signal.addEventListener('abort', onAbort, { once: true });
+  try {
+    await Promise.race([sleep(milliseconds), aborted]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
 }
 
 /**
@@ -226,7 +247,7 @@ export function createBoundedReadSession(options: BoundedReadOptions = {}): Boun
           if (!positive(delay)) {
             throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
           }
-          await sleep(delay);
+          await sleepUntilAbortable(sleep, delay, abort.signal, failureForAbort);
         } finally {
           if (timer !== undefined) clearTimer(timer);
           abort.signal.removeEventListener('abort', onAbort);

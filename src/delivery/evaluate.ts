@@ -1,4 +1,4 @@
-import { cleanupComparisonRoots, ownsComparisonRoots, type AcquiredComparisonRoots } from './snapshot.js';
+import { cleanupComparisonRoots, ownsComparisonRoots, SnapshotRollbackCleanupFailure, type AcquiredComparisonRoots } from './snapshot.js';
 import type { CurrentPull } from './types.js';
 import type { AcquisitionResult, DeliveryEnvelopeV1, DeliveryNoHandoffReason, Phase6FreshnessMatch, WorkIdentity } from './contract.js';
 import { validateAcquisitionResult, validateDeliveryEnvelope, validateWorkIdentity } from './contract.js';
@@ -192,7 +192,8 @@ export async function evaluateCurrentComparison(input: EvaluateCurrentComparison
     });
     validateDeliveryEnvelope(envelope);
     return envelope;
-  } catch {
+  } catch (error) {
+    if (error instanceof SnapshotRollbackCleanupFailure) return noHandoff('cleanup-failure', input.work, 'private-root-cleanup-not-verified');
     return noHandoff('runtime-infrastructure-failure', null, 'delivery-lifecycle-operation-failed');
   } finally {
     if (ownedRoots !== undefined) await cleanupComparisonRoots(ownedRoots);

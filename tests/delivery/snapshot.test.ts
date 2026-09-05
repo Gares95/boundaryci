@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { acquireComparisonRoots, cleanupComparisonRoots } from '../../src/delivery/snapshot.js';
+import { acquireComparisonRoots, cleanupComparisonRoots, SnapshotRollbackCleanupFailure } from '../../src/delivery/snapshot.js';
 import { DELIVERY_LIMITS_V1 } from '../../src/delivery/limits.js';
 import { createGitHubReadFake } from './support.js';
 import { DELIVERY_FIXTURES, blob, commit, tree } from './fixtures/index.js';
 
-const rootAllocation = vi.hoisted(() => ({ count: 0, failAt: 0 }));
+const rootAllocation = vi.hoisted(() => ({ count: 0, failAt: 0, failRollback: false, failRollbackOnAllocation: false }));
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -16,8 +16,15 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     ...actual,
     mkdtemp: async (...args: Parameters<typeof actual.mkdtemp>) => {
       rootAllocation.count += 1;
-      if (rootAllocation.count === rootAllocation.failAt) throw new Error('second-allocation-failure');
+      if (rootAllocation.count === rootAllocation.failAt) {
+        rootAllocation.failRollback = rootAllocation.failRollbackOnAllocation;
+        throw new Error('second-allocation-failure');
+      }
       return actual.mkdtemp(...args);
+    },
+    rm: async (...args: Parameters<typeof actual.rm>) => {
+      if (rootAllocation.failRollback) throw new Error('rollback-removal-failure');
+      return actual.rm(...args);
     },
   };
 });
@@ -40,6 +47,19 @@ describe('immutable comparison snapshot acquisition', () => {
     })).rejects.toThrow('second-allocation-failure');
     rootAllocation.failAt = 0;
     expect(new Set(await readdir(parent))).toEqual(before);
+  });
+
+  it('surfaces a fail-closed rollback cleanup failure when second allocation and removal both fail', async () => {
+    rootAllocation.failRollbackOnAllocation = true;
+    rootAllocation.failAt = rootAllocation.count + 2;
+    await expect(acquireComparisonRoots({
+      capability: createGitHubReadFake().capability,
+      baseSha: DELIVERY_FIXTURES.baseSha,
+      headSha: DELIVERY_FIXTURES.headSha,
+    })).rejects.toBeInstanceOf(SnapshotRollbackCleanupFailure);
+    rootAllocation.failAt = 0;
+    rootAllocation.failRollback = false;
+    rootAllocation.failRollbackOnAllocation = false;
   });
 
   it('bootstraps exact base/head configuration before selecting and materializing source blobs', async () => {

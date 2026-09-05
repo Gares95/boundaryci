@@ -127,6 +127,15 @@ describe('Phase 5 non-leakage boundaries', () => {
       if (candidate.lifecycle !== 'stale') expect(() => validateDeliveryEnvelope({ ...envelope, newestIdentity: work })).toThrow();
     }
     expect(() => validateDeliveryEnvelope({ schemaVersion: 1, lifecycle: 'stale', handoff: 'none', work: null, reason: 'authenticated-comparison-drift' })).toThrow();
+    for (const candidate of [
+      { lifecycle: 'superseded', reason: 'newer-comparison-superseded' },
+      { lifecycle: 'cancelled', reason: 'comparison-cancelled' },
+      { lifecycle: 'obsolete', reason: 'pull-request-obsolete' },
+      { lifecycle: 'cleanup-failure', reason: 'private-root-cleanup-not-verified' },
+      { lifecycle: 'trust-failure', reason: 'acquisition-security-failure' },
+      { lifecycle: 'runtime-infrastructure-failure', reason: 'final-freshness-read-failed' },
+      { lifecycle: 'runtime-infrastructure-failure', reason: 'coalesced-delivery-overflow' },
+    ]) expect(() => validateDeliveryEnvelope({ schemaVersion: 1, handoff: 'none', work: null, ...candidate })).toThrow();
   });
 
   it('refuses cleanup targets outside the private snapshot parent', async () => {

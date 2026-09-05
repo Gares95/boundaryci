@@ -69,6 +69,40 @@ describe('delivery coordinator', () => {
     expect(first.deliveryIds()).toEqual(['delivery-a', 'delivery-b']);
   });
 
+  it('bounds coalesced provenance and reports deterministic overflow after 65 distinct deliveries', async () => {
+    const coordinator = new DeliveryCoordinator();
+    let release!: () => void;
+    const owner = coordinator.submitWithOwnership(work(), 'delivery-0', async () => new Promise<string>((resolve) => { release = () => resolve('done'); }));
+    for (let index = 1; index <= 64; index += 1) coordinator.submitWithOwnership(work(), `delivery-${index}`, async () => 'duplicate');
+    await Promise.resolve();
+    release();
+    await expect(owner.result).resolves.toMatchObject({ status: 'current' });
+    expect(owner.deliveryIds()).toHaveLength(64);
+    expect(owner.overflowed()).toBe(true);
+  });
+
+  it('settles a long retry delay immediately when coordinator work is superseded', async () => {
+    const coordinator = new DeliveryCoordinator();
+    let releaseSleep!: () => void;
+    let beganSleep!: () => void;
+    const sleepBegun = new Promise<void>((resolve) => { beganSleep = resolve; });
+    let control!: AbortSignal;
+    const older = coordinator.submit(work(), async (workControl) => {
+      control = workControl.signal;
+      const session = createBoundedReadSession({ signal: workControl.signal, isCancelled: workControl.isCancelled, sleep: async () => new Promise<void>((resolve) => { beganSleep(); releaseSleep = resolve; }) });
+      try {
+        await session.read(async () => { throw new SanitizedGitHubReadError('rate-limited', true, 59_000); });
+      } finally { session.close(); }
+      return 'unreachable';
+    });
+    await sleepBegun;
+    const newer = coordinator.submit(work({ headSha: SHA('c') }), async () => 'newer');
+    await expect(older).resolves.toMatchObject({ status: 'superseded' });
+    expect(control.aborted).toBe(true);
+    await expect(newer).resolves.toMatchObject({ status: 'current', value: 'newer' });
+    releaseSleep();
+  });
+
   it('retries only transient sanitized reads under one bounded clock', async () => {
     let time = 0;
     const sleeps: number[] = [];
