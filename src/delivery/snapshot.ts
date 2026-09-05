@@ -180,7 +180,7 @@ async function pathAbsent(path: string): Promise<boolean> {
 }
 
 /** Proves a cleanup target is a direct, private BoundaryCI snapshot child before recursive rm. */
-async function isOwnedRoot(root: unknown): Promise<root is string> {
+async function isOwnedRoot(root: unknown): Promise<boolean> {
   if (typeof root !== 'string' || dirname(root) !== snapshotRootParent() || !basename(root).startsWith(ROOT_PREFIX)) return false;
   try {
     const [parent, details] = await Promise.all([lstat(snapshotRootParent()), lstat(root)]);
@@ -192,7 +192,7 @@ async function isOwnedRoot(root: unknown): Promise<root is string> {
 }
 
 /** Validates the two distinct owned roots before lifecycle code can register recursive cleanup. */
-export async function ownsComparisonRoots(value: unknown): Promise<value is Pick<AcquiredComparisonRoots, 'roots'>> {
+export async function ownsComparisonRoots(value: unknown): Promise<boolean> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const roots = (value as { roots?: unknown }).roots;
   if (typeof roots !== 'object' || roots === null || Array.isArray(roots)) return false;
