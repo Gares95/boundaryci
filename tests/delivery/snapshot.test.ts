@@ -1,4 +1,3 @@
-import * as fs from 'node:fs/promises';
 import { access, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +7,20 @@ import { acquireComparisonRoots, cleanupComparisonRoots } from '../../src/delive
 import { DELIVERY_LIMITS_V1 } from '../../src/delivery/limits.js';
 import { createGitHubReadFake } from './support.js';
 import { DELIVERY_FIXTURES, blob, commit, tree } from './fixtures/index.js';
+
+const rootAllocation = vi.hoisted(() => ({ count: 0, failAt: 0 }));
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    mkdtemp: async (...args: Parameters<typeof actual.mkdtemp>) => {
+      rootAllocation.count += 1;
+      if (rootAllocation.count === rootAllocation.failAt) throw new Error('second-allocation-failure');
+      return actual.mkdtemp(...args);
+    },
+  };
+});
 
 const roots: Array<Awaited<ReturnType<typeof acquireComparisonRoots>>> = [];
 
@@ -19,19 +32,13 @@ describe('immutable comparison snapshot acquisition', () => {
   it('removes the first private root if allocating the second root fails', async () => {
     const parent = join(tmpdir(), 'boundaryci-snapshot-v1');
     const before = new Set(await readdir(parent).catch(() => []));
-    const original = fs.mkdtemp;
-    let allocations = 0;
-    const spy = vi.spyOn(fs, 'mkdtemp').mockImplementation(async (...args) => {
-      allocations += 1;
-      if (allocations === 2) throw new Error('second-allocation-failure');
-      return original(...args);
-    });
+    rootAllocation.failAt = rootAllocation.count + 2;
     await expect(acquireComparisonRoots({
       capability: createGitHubReadFake().capability,
       baseSha: DELIVERY_FIXTURES.baseSha,
       headSha: DELIVERY_FIXTURES.headSha,
     })).rejects.toThrow('second-allocation-failure');
-    spy.mockRestore();
+    rootAllocation.failAt = 0;
     expect(new Set(await readdir(parent))).toEqual(before);
   });
 

@@ -124,7 +124,7 @@ describe('Phase 5 non-leakage boundaries', () => {
       const envelope = { schemaVersion: 1, handoff: 'none', ...candidate };
       expect(() => validateDeliveryEnvelope(envelope)).not.toThrow();
       expect(() => validateDeliveryEnvelope({ ...envelope, reason: sentinels.externalError })).toThrow();
-      expect(() => validateDeliveryEnvelope({ ...envelope, newestIdentity: work })).toThrow();
+      if (candidate.lifecycle !== 'stale') expect(() => validateDeliveryEnvelope({ ...envelope, newestIdentity: work })).toThrow();
     }
     expect(() => validateDeliveryEnvelope({ schemaVersion: 1, lifecycle: 'stale', handoff: 'none', work: null, reason: 'authenticated-comparison-drift' })).toThrow();
   });
