@@ -1,6 +1,4 @@
-import { access, readFile, readdir } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { access, readFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { acquireComparisonRoots, cleanupComparisonRoots, SnapshotRollbackCleanupFailure } from '../../src/delivery/snapshot.js';
@@ -8,7 +6,7 @@ import { DELIVERY_LIMITS_V1 } from '../../src/delivery/limits.js';
 import { createGitHubReadFake } from './support.js';
 import { DELIVERY_FIXTURES, blob, commit, tree } from './fixtures/index.js';
 
-const rootAllocation = vi.hoisted(() => ({ count: 0, failAt: 0, failRollback: false, failRollbackOnAllocation: false }));
+const rootAllocation = vi.hoisted(() => ({ count: 0, failAt: 0, failRollback: false, failRollbackOnAllocation: false, createdRoots: [] as string[] }));
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -20,7 +18,9 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         rootAllocation.failRollback = rootAllocation.failRollbackOnAllocation;
         throw new Error('second-allocation-failure');
       }
-      return actual.mkdtemp(...args);
+      const root = await actual.mkdtemp(...args);
+      rootAllocation.createdRoots.push(root);
+      return root;
     },
     rm: async (...args: Parameters<typeof actual.rm>) => {
       if (rootAllocation.failRollback) throw new Error('rollback-removal-failure');
@@ -37,8 +37,7 @@ afterEach(async () => {
 
 describe('immutable comparison snapshot acquisition', () => {
   it('removes the first private root if allocating the second root fails', async () => {
-    const parent = join(tmpdir(), 'boundaryci-snapshot-v1');
-    const before = new Set(await readdir(parent).catch(() => []));
+    const firstRootIndex = rootAllocation.createdRoots.length;
     rootAllocation.failAt = rootAllocation.count + 2;
     await expect(acquireComparisonRoots({
       capability: createGitHubReadFake().capability,
@@ -46,7 +45,9 @@ describe('immutable comparison snapshot acquisition', () => {
       headSha: DELIVERY_FIXTURES.headSha,
     })).rejects.toThrow('second-allocation-failure');
     rootAllocation.failAt = 0;
-    expect(new Set(await readdir(parent))).toEqual(before);
+    const base = rootAllocation.createdRoots[firstRootIndex];
+    expect(base).toBeDefined();
+    await expect(access(base!)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('surfaces a fail-closed rollback cleanup failure when second allocation and removal both fail', async () => {
