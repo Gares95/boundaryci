@@ -116,7 +116,7 @@ describe('Phase 5 non-leakage boundaries', () => {
       { lifecycle: 'superseded', reason: 'newer-comparison-superseded', work },
       { lifecycle: 'cancelled', reason: 'comparison-cancelled', work },
       { lifecycle: 'obsolete', reason: 'pull-request-obsolete', work },
-      { lifecycle: 'trust-failure', reason: 'invalid-acquisition-root-handle', work: null },
+      { lifecycle: 'trust-failure', reason: 'invalid-acquisition-root-handle', work },
       { lifecycle: 'cleanup-failure', reason: 'private-root-cleanup-not-verified', work },
       { lifecycle: 'runtime-infrastructure-failure', reason: 'final-freshness-read-failed', work },
     ] as const;
