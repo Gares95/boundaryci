@@ -108,7 +108,7 @@ describe('Phase 5 non-leakage boundaries', () => {
     ]) expect(() => validateDeliveryEnvelope(candidate)).toThrow();
   });
 
-  it('removes source/config bytes with a bounded retry but preserves cleanup failure as a non-handoff condition', async () => {
+  it('refuses cleanup targets outside the private snapshot parent', async () => {
     const sentinels = createRuntimeSentinels();
     const parent = await mkdtemp(join(tmpdir(), 'boundaryci-non-leakage-'));
     temporaryParents.push(parent);
@@ -120,27 +120,16 @@ describe('Phase 5 non-leakage boundaries', () => {
       writeFile(join(head, '.boundaryci.yml'), sentinels.config!),
     ]);
 
-    let attempts = 0;
-    let firstBaseAttempt = true;
     const cleaned = await cleanupComparisonRoots(
       { roots: { base, head } },
       {
-        removeRoot: async (root) => {
-          attempts += 1;
-          await rm(root, { force: true, recursive: true });
-          if (root === base && firstBaseAttempt) {
-            firstBaseAttempt = false;
-            return false;
-          }
-          return true;
-        },
+        removeRoot: async () => { throw new Error('unowned roots must never reach recursive cleanup'); },
       },
     );
 
     expect(cleaned).toBe(false);
-    expect(attempts).toBeGreaterThanOrEqual(3);
-    await expect(access(base)).rejects.toMatchObject({ code: 'ENOENT' });
-    await expect(access(head)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(access(base)).resolves.toBeUndefined();
+    await expect(access(head)).resolves.toBeUndefined();
   });
 
   it('deletes untrusted startup residue without following a symbolic link or retaining source bytes', async () => {

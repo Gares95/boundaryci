@@ -1,7 +1,7 @@
 import { chmod, lstat, mkdir, mkdtemp, open, readdir, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 
 import { compileLimitedGlob } from '../analyzer/discovery.js';
 import { ANALYZER_SOURCE_EXTENSIONS } from '../analyzer/contract.js';
@@ -177,6 +177,28 @@ async function pathAbsent(path: string): Promise<boolean> {
   } catch (error) {
     return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ENOENT';
   }
+}
+
+/** Proves a cleanup target is a direct, private BoundaryCI snapshot child before recursive rm. */
+async function isOwnedRoot(root: unknown): Promise<root is string> {
+  if (typeof root !== 'string' || dirname(root) !== snapshotRootParent() || !basename(root).startsWith(ROOT_PREFIX)) return false;
+  try {
+    const [parent, details] = await Promise.all([lstat(snapshotRootParent()), lstat(root)]);
+    return parent.isDirectory() && !parent.isSymbolicLink() && (parent.mode & 0o077) === 0 &&
+      details.isDirectory() && !details.isSymbolicLink() && (details.mode & 0o077) === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Validates the two distinct owned roots before lifecycle code can register recursive cleanup. */
+export async function ownsComparisonRoots(value: unknown): Promise<value is Pick<AcquiredComparisonRoots, 'roots'>> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const roots = (value as { roots?: unknown }).roots;
+  if (typeof roots !== 'object' || roots === null || Array.isArray(roots)) return false;
+  const record = roots as Record<string, unknown>;
+  if (Object.keys(record).sort().join('\0') !== 'base\0head' || record.base === record.head) return false;
+  return (await Promise.all([isOwnedRoot(record.base), isOwnedRoot(record.head)])).every(Boolean);
 }
 
 async function removeOwnedRoot(root: string): Promise<boolean> {
@@ -569,6 +591,7 @@ export async function cleanupComparisonRoots(
   acquired: Pick<AcquiredComparisonRoots, 'roots'>,
   options: CleanupComparisonRootsOptions = {},
 ): Promise<boolean> {
+  if (!await ownsComparisonRoots(acquired)) return false;
   const removeRoot = options.removeRoot ?? removeOwnedRoot;
   const first = await Promise.all([removeRoot(acquired.roots.base), removeRoot(acquired.roots.head)]);
   if (first[0] && first[1]) return true;

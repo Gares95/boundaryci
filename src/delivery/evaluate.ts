@@ -1,4 +1,4 @@
-import { cleanupComparisonRoots, type AcquiredComparisonRoots } from './snapshot.js';
+import { cleanupComparisonRoots, ownsComparisonRoots, type AcquiredComparisonRoots } from './snapshot.js';
 import type { CurrentPull } from './types.js';
 import type { AcquisitionResult, DeliveryEnvelopeV1, Phase6FreshnessMatch, WorkIdentity } from './contract.js';
 import { validateAcquisitionResult, validateDeliveryEnvelope, validateWorkIdentity } from './contract.js';
@@ -119,8 +119,9 @@ export async function evaluateCurrentComparison(input: EvaluateCurrentComparison
     const acquired = await input.acquire();
     const roots = acquiredRootHandle(acquired);
     if (roots === null) return noHandoff('trust-failure', work, 'invalid-acquisition-root-handle');
-    ownedRoots = roots;
     exactAcquiredComparisonRoots(acquired);
+    if (!await ownsComparisonRoots(acquired)) return noHandoff('trust-failure', work, 'invalid-acquisition-root-handle');
+    ownedRoots = roots;
     validateAcquisitionResult(acquired.result);
     const acquisition = freezeClone(acquired.result);
     let semantic: { status: 'complete' | 'incomplete'; semanticUsability: 'complete' | 'positive-evidence-only'; evaluation: LocalComparisonResult } | undefined;
@@ -209,6 +210,7 @@ export async function evaluateAcquiredComparison(
 ): Promise<AcquiredEvaluationResult> {
   const ownedRoots = acquiredRootHandle(acquired);
   if (ownedRoots === null) throw new TypeError('acquisition response roots are invalid');
+  if (!await ownsComparisonRoots(acquired)) throw new TypeError('acquisition response roots are not owned');
   let result: AcquiredEvaluationResult;
   try {
     exactAcquiredComparisonRoots(acquired);

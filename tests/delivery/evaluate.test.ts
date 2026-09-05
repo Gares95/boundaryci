@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -18,11 +18,14 @@ afterEach(async () => {
 });
 
 async function roots(): Promise<{ base: string; head: string }> {
-  const parent = await mkdtemp(join(tmpdir(), 'boundaryci-evaluate-test-'));
-  const base = join(parent, 'base');
-  const head = join(parent, 'head');
-  await mkdir(base);
-  await mkdir(head);
+  const parent = join(tmpdir(), 'boundaryci-snapshot-v1');
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  await chmod(parent, 0o700);
+  const [base, head] = await Promise.all([
+    mkdtemp(join(parent, 'boundaryci-snapshot-')),
+    mkdtemp(join(parent, 'boundaryci-snapshot-')),
+  ]);
+  await Promise.all([chmod(base, 0o700), chmod(head, 0o700)]);
   await Promise.all([writeFile(join(base, '.boundaryci.yml'), 'version: 1\n'), writeFile(join(head, '.boundaryci.yml'), 'version: 1\n')]);
   return { base, head };
 }
@@ -234,6 +237,26 @@ describe('Phase 6 handoff envelope', () => {
     expect(JSON.stringify(result)).not.toContain(secret);
     await expect(access(privateRoots.base)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(access(privateRoots.head)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('never recursively removes an unowned acquisition path', async () => {
+    const sentinelParent = await mkdtemp(join(tmpdir(), 'boundaryci-sentinel-'));
+    const sentinel = join(sentinelParent, 'must-survive');
+    await mkdir(sentinel);
+    await writeFile(join(sentinel, 'sentinel.txt'), 'must-not-be-removed');
+    const privateRoots = await roots();
+    const entry = {
+      roots: { base: sentinel, head: privateRoots.head },
+      result: { status: 'runtime-infrastructure-failure', reason: 'runtime-operation-failed' },
+    } as unknown as AcquiredComparisonRoots;
+    const result = await evaluateCurrentComparison({
+      work: { installationId: 1, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' },
+      baseRef: 'main', triggerDeliveryIds: [], acquire: async () => entry, getCurrentPull: async () => current,
+    });
+    expect(result).toMatchObject({ lifecycle: 'trust-failure', handoff: 'none', reason: 'invalid-acquisition-root-handle' });
+    await expect(access(join(sentinel, 'sentinel.txt'))).resolves.toBeUndefined();
+    await import('node:fs/promises').then(({ rm }) => rm(sentinelParent, { recursive: true, force: true }));
+    await import('../../src/delivery/snapshot.js').then(({ cleanupComparisonRoots }) => cleanupComparisonRoots({ roots: privateRoots }));
   });
 
   it('turns evaluator output with an unknown field into a source-free diagnostic-only envelope', async () => {
