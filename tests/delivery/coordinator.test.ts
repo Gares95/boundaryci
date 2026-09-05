@@ -55,6 +55,20 @@ describe('delivery coordinator', () => {
     expect(coordinator.snapshot()).toEqual({ active: 0, pending: 0, recovered: 0, delivered: 0 });
   });
 
+  it('assigns one owner and retains every coalesced delivery identifier', async () => {
+    const coordinator = new DeliveryCoordinator();
+    let release!: () => void;
+    const first = coordinator.submitWithOwnership(work(), 'delivery-a', async () => new Promise<string>((resolve) => { release = () => resolve('done'); }));
+    const duplicate = coordinator.submitWithOwnership(work(), 'delivery-b', async () => 'duplicate');
+    expect(first.owner).toBe(true);
+    expect(duplicate.owner).toBe(false);
+    expect(duplicate.result).toBe(first.result);
+    await Promise.resolve();
+    release();
+    await expect(first.result).resolves.toMatchObject({ status: 'current', value: 'done' });
+    expect(first.deliveryIds()).toEqual(['delivery-a', 'delivery-b']);
+  });
+
   it('retries only transient sanitized reads under one bounded clock', async () => {
     let time = 0;
     const sleeps: number[] = [];

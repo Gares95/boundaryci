@@ -23,7 +23,14 @@ interface ActiveWork<T> {
   cancelled: boolean;
   cancellation: 'cancelled' | 'superseded' | null;
   abort: AbortController;
+  deliveryIds: Set<string>;
   promise: Promise<CoordinatedWorkResult<T>>;
+}
+
+export interface CoordinatedSubmission<T> {
+  owner: boolean;
+  result: Promise<CoordinatedWorkResult<T>>;
+  deliveryIds(): readonly string[];
 }
 
 export interface BoundedReadOptions {
@@ -84,9 +91,17 @@ export class DeliveryCoordinator {
   private readonly latestByPull = new Map<string, ActiveWork<unknown>>();
 
   submit<T>(identity: WorkIdentity, run: (control: WorkControl) => Promise<T>): Promise<CoordinatedWorkResult<T>> {
+    return this.submitWithOwnership(identity, 'internal', run).result;
+  }
+
+  /** Coalesces exact work while preserving every verified delivery ID for the sole owner handoff. */
+  submitWithOwnership<T>(identity: WorkIdentity, deliveryId: string, run: (control: WorkControl) => Promise<T>): CoordinatedSubmission<T> {
     const key = createWorkKey(identity);
     const existing = this.activeByWork.get(key) as ActiveWork<T> | undefined;
-    if (existing !== undefined) return existing.promise;
+    if (existing !== undefined) {
+      existing.deliveryIds.add(deliveryId);
+      return Object.freeze({ owner: false, result: existing.promise, deliveryIds: () => Object.freeze([...existing.deliveryIds]) });
+    }
 
     const perPull = pullKey(identity);
     const previous = this.latestByPull.get(perPull);
@@ -97,7 +112,7 @@ export class DeliveryCoordinator {
     }
 
     const active: ActiveWork<T> = {
-      identity: Object.freeze({ ...identity }), key, pullKey: perPull, cancelled: false, cancellation: null, abort: new AbortController(),
+      identity: Object.freeze({ ...identity }), key, pullKey: perPull, cancelled: false, cancellation: null, abort: new AbortController(), deliveryIds: new Set([deliveryId]),
       promise: Promise.resolve({ status: 'cancelled' }) as Promise<CoordinatedWorkResult<T>>,
     };
     const control: WorkControl = Object.freeze({
@@ -111,7 +126,7 @@ export class DeliveryCoordinator {
       .catch(() => this.finish(active, undefined as T, true));
     this.activeByWork.set(key, active as ActiveWork<unknown>);
     this.latestByPull.set(perPull, active as ActiveWork<unknown>);
-    return active.promise;
+    return Object.freeze({ owner: true, result: active.promise, deliveryIds: () => Object.freeze([...active.deliveryIds]) });
   }
 
   cancel(identity: WorkIdentity): boolean {

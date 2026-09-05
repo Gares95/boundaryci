@@ -50,6 +50,14 @@ function verifiedRepositoryRoute(context: { repo(): { owner: unknown; repo: unkn
   return Object.freeze({ owner: route.owner, repo: route.repo });
 }
 
+function withCoalescedDeliveries(envelope: DeliveryEnvelopeV1, deliveryIds: readonly string[]): DeliveryEnvelopeV1 {
+  if (!Object.hasOwn(envelope, 'trigger')) return envelope;
+  const trigger = Object.freeze({ deliveryIds: Object.freeze([...deliveryIds]) });
+  const enriched = Object.freeze({ ...envelope, trigger });
+  validateDeliveryEnvelope(enriched);
+  return enriched;
+}
+
 async function scheduleComparison(
   comparison: AuthenticatedComparisonIdentity,
   deliveryId: string,
@@ -58,7 +66,7 @@ async function scheduleComparison(
   coordinator: DeliveryCoordinator,
 ): Promise<void> {
   const work = workIdentity(comparison, options.evaluatorIdentity ?? DEFAULT_EVALUATOR_IDENTITY);
-  const scheduled = await coordinator.submit(work, async (control) => {
+  const submission = coordinator.submitWithOwnership(work, deliveryId, async (control) => {
     // This session deliberately begins inside the coordinator run. Each comparison gets a
     // fresh cancellation-bound budget, including its final freshness read.
     const session = createBoundedReadSession({ isCancelled: control.isCancelled, signal: control.signal });
@@ -81,7 +89,10 @@ async function scheduleComparison(
       session.close();
     }
   });
-  if (scheduled.status === 'current') await options.onEnvelope?.(scheduled.value);
+  const scheduled = await submission.result;
+  if (submission.owner && scheduled.status === 'current') {
+    await options.onEnvelope?.(withCoalescedDeliveries(scheduled.value, submission.deliveryIds()));
+  }
 }
 
 async function scheduleResolution(
