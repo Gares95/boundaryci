@@ -101,5 +101,29 @@ describe('delivery coordinator', () => {
     await expect(session.read(async () => {
       throw new SanitizedGitHubReadError('transient-transport', true);
     })).rejects.toThrow('bounded-read:runtime-infrastructure-failure');
+    session.close();
+  });
+
+  it('aborts a never-settling in-flight read at its deadline and clears its timer', async () => {
+    let deadline!: () => void;
+    const cleared: unknown[] = [];
+    const session = createBoundedReadSession({
+      maxElapsedMilliseconds: 25,
+      setTimer: (callback) => {
+        deadline = callback;
+        return 'deadline-timer' as unknown as ReturnType<typeof setTimeout>;
+      },
+      clearTimer: (timer) => { cleared.push(timer); },
+    });
+    let observedSignal: AbortSignal | undefined;
+    const pending = session.read(async ({ signal }) => {
+      observedSignal = signal;
+      return new Promise<string>(() => undefined);
+    });
+    deadline();
+    await expect(pending).rejects.toThrow('bounded-read:runtime-infrastructure-failure');
+    expect(observedSignal?.aborted).toBe(true);
+    expect(cleared).toEqual(['deadline-timer']);
+    session.close();
   });
 });

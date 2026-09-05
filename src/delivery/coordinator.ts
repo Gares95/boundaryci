@@ -9,6 +9,7 @@ const BACKOFFS = Object.freeze([250, 1_000]);
 export interface WorkControl {
   isCancelled(): boolean;
   checkpoint(): 'continue' | 'cancelled';
+  signal: AbortSignal;
 }
 
 export type CoordinatedWorkResult<T> =
@@ -21,6 +22,7 @@ interface ActiveWork<T> {
   pullKey: string;
   cancelled: boolean;
   cancellation: 'cancelled' | 'superseded' | null;
+  abort: AbortController;
   promise: Promise<CoordinatedWorkResult<T>>;
 }
 
@@ -28,6 +30,10 @@ export interface BoundedReadOptions {
   now?: () => number;
   sleep?: (milliseconds: number) => Promise<void>;
   isCancelled?: () => boolean;
+  signal?: AbortSignal;
+  maxElapsedMilliseconds?: number;
+  setTimer?: (callback: () => void, milliseconds: number) => ReturnType<typeof setTimeout>;
+  clearTimer?: (timer: ReturnType<typeof setTimeout>) => void;
 }
 
 /**
@@ -35,7 +41,8 @@ export interface BoundedReadOptions {
  * callers deliberately create it at a lifecycle boundary rather than around each REST call.
  */
 export interface BoundedReadSession {
-  read<T>(operation: () => Promise<T>): Promise<T>;
+  read<T>(operation: (options: { signal: AbortSignal }) => Promise<T>): Promise<T>;
+  close(): void;
 }
 
 export type BoundedReadResult<T> =
@@ -86,15 +93,17 @@ export class DeliveryCoordinator {
     if (previous !== undefined && previous.key !== key) {
       previous.cancelled = true;
       previous.cancellation = 'superseded';
+      previous.abort.abort();
     }
 
     const active: ActiveWork<T> = {
-      identity: Object.freeze({ ...identity }), key, pullKey: perPull, cancelled: false, cancellation: null,
+      identity: Object.freeze({ ...identity }), key, pullKey: perPull, cancelled: false, cancellation: null, abort: new AbortController(),
       promise: Promise.resolve({ status: 'cancelled' }) as Promise<CoordinatedWorkResult<T>>,
     };
     const control: WorkControl = Object.freeze({
       isCancelled: () => active.cancelled,
       checkpoint: () => active.cancelled ? 'cancelled' : 'continue',
+      signal: active.abort.signal,
     });
     active.promise = Promise.resolve()
       .then(async () => run(control))
@@ -110,6 +119,7 @@ export class DeliveryCoordinator {
     if (active === undefined) return false;
     active.cancelled = true;
     active.cancellation = 'cancelled';
+    active.abort.abort();
     return true;
   }
 
@@ -138,25 +148,48 @@ function retryable(error: SanitizedGitHubReadError): boolean {
 export function createBoundedReadSession(options: BoundedReadOptions = {}): BoundedReadSession {
   const now = options.now ?? (() => performance.now());
   const sleep = options.sleep ?? (async (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  const maxElapsedMilliseconds = options.maxElapsedMilliseconds ?? MAX_ELAPSED_MILLISECONDS;
+  const setTimer = options.setTimer ?? ((callback, milliseconds) => setTimeout(callback, milliseconds));
+  const clearTimer = options.clearTimer ?? ((timer) => clearTimeout(timer));
   const started = now();
   let attempts = 0;
   let retries = 0;
+  let closed = false;
+  const abort = new AbortController();
+  const cancel = (): void => abort.abort();
+  options.signal?.addEventListener('abort', cancel, { once: true });
+
+  const failureForAbort = (): BoundedReadSessionFailure => new BoundedReadSessionFailure(
+    options.isCancelled?.() || options.signal?.aborted
+      ? { status: 'cancelled', attempts }
+      : { status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts },
+  );
 
   return Object.freeze({
-    async read<T>(operation: () => Promise<T>): Promise<T> {
+    async read<T>(operation: (readOptions: { signal: AbortSignal }) => Promise<T>): Promise<T> {
       if (!Number.isFinite(started)) {
         throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
       }
       while (true) {
-        if (options.isCancelled?.()) throw new BoundedReadSessionFailure({ status: 'cancelled', attempts });
+        if (closed || options.isCancelled?.() || abort.signal.aborted) throw failureForAbort();
         const elapsed = elapsedMilliseconds(started, now);
-        if (elapsed === null || elapsed > MAX_ELAPSED_MILLISECONDS) {
+        if (elapsed === null || elapsed >= maxElapsedMilliseconds) {
           throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
         }
         attempts += 1;
+        const remaining = maxElapsedMilliseconds - elapsed;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let rejectAbort!: (reason: BoundedReadSessionFailure) => void;
+        const aborting = new Promise<never>((_resolve, reject) => {
+          rejectAbort = reject as (reason: BoundedReadSessionFailure) => void;
+        });
+        const onAbort = (): void => rejectAbort(failureForAbort());
+        abort.signal.addEventListener('abort', onAbort, { once: true });
+        timer = setTimer(() => abort.abort(), remaining);
         try {
-          return await operation();
+          return await Promise.race([operation({ signal: abort.signal }), aborting]);
         } catch (error) {
+          if (error instanceof BoundedReadSessionFailure) throw error;
           const sanitized = error instanceof SanitizedGitHubReadError ? error : new SanitizedGitHubReadError('contract-invalid', false);
           if (!retryable(sanitized)) throw sanitized;
           retries += 1;
@@ -165,10 +198,10 @@ export function createBoundedReadSession(options: BoundedReadOptions = {}): Boun
           }
           if (options.isCancelled?.()) throw new BoundedReadSessionFailure({ status: 'cancelled', attempts });
           const beforeSleep = elapsedMilliseconds(started, now);
-          if (beforeSleep === null || beforeSleep >= MAX_ELAPSED_MILLISECONDS) {
+          if (beforeSleep === null || beforeSleep >= maxElapsedMilliseconds) {
             throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
           }
-          const remaining = MAX_ELAPSED_MILLISECONDS - beforeSleep;
+          const remaining = maxElapsedMilliseconds - beforeSleep;
           const localBackoff = BACKOFFS[retries - 1];
           if (localBackoff === undefined) {
             throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
@@ -179,8 +212,16 @@ export function createBoundedReadSession(options: BoundedReadOptions = {}): Boun
             throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
           }
           await sleep(delay);
+        } finally {
+          if (timer !== undefined) clearTimer(timer);
+          abort.signal.removeEventListener('abort', onAbort);
         }
       }
+    },
+    close(): void {
+      closed = true;
+      options.signal?.removeEventListener('abort', cancel);
+      abort.abort();
     },
   });
 }
@@ -188,11 +229,11 @@ export function createBoundedReadSession(options: BoundedReadOptions = {}): Boun
 /** Wraps precisely the already-issued five-operation capability without adding a route escape hatch. */
 export function bindBoundedReadSession(read: GitHubReadCapability, session: BoundedReadSession): GitHubReadCapability {
   return Object.freeze({
-    getCurrentPull: (pullNumber: number) => session.read(() => read.getCurrentPull(pullNumber)),
-    listOpenPullsByBase: (baseRef: string, page: number) => session.read(() => read.listOpenPullsByBase(baseRef, page)),
-    getCommit: (sha: string) => session.read(() => read.getCommit(sha)),
-    getTree: (sha: string) => session.read(() => read.getTree(sha)),
-    getBlob: (sha: string) => session.read(() => read.getBlob(sha)),
+    getCurrentPull: (pullNumber: number) => session.read((options) => read.getCurrentPull(pullNumber, options)),
+    listOpenPullsByBase: (baseRef: string, page: number) => session.read((options) => read.listOpenPullsByBase(baseRef, page, options)),
+    getCommit: (sha: string) => session.read((options) => read.getCommit(sha, options)),
+    getTree: (sha: string) => session.read((options) => read.getTree(sha, options)),
+    getBlob: (sha: string) => session.read((options) => read.getBlob(sha, options)),
   });
 }
 

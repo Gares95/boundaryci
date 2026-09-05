@@ -61,8 +61,10 @@ async function scheduleComparison(
   const scheduled = await coordinator.submit(work, async (control) => {
     // This session deliberately begins inside the coordinator run. Each comparison gets a
     // fresh cancellation-bound budget, including its final freshness read.
-    const workRead = bindBoundedReadSession(read, createBoundedReadSession({ isCancelled: control.isCancelled }));
-    return evaluateCurrentComparison({
+    const session = createBoundedReadSession({ isCancelled: control.isCancelled, signal: control.signal });
+    const workRead = bindBoundedReadSession(read, session);
+    try {
+      return await evaluateCurrentComparison({
       work,
       baseRef: comparison.baseRef,
       triggerDeliveryIds: [deliveryId],
@@ -74,7 +76,10 @@ async function scheduleComparison(
       }),
       ...(options.evaluator === undefined ? {} : { evaluator: options.evaluator }),
       getCurrentPull: (pullNumber) => workRead.getCurrentPull(pullNumber),
-    });
+      });
+    } finally {
+      session.close();
+    }
   });
   if (scheduled.status === 'current') await options.onEnvelope?.(scheduled.value);
 }
@@ -195,8 +200,13 @@ export function createBoundaryCiApp(options: CreateBoundaryCiAppOptions): Probot
         route,
         options.logSink,
       );
-      const preWorkRead = bindBoundedReadSession(read, createBoundedReadSession());
-      await scheduleResolution(await resolveTriggerWork(trigger, preWorkRead), trigger, trigger.deliveryId, preWorkRead, read, options, coordinator);
+      const session = createBoundedReadSession();
+      const preWorkRead = bindBoundedReadSession(read, session);
+      try {
+        await scheduleResolution(await resolveTriggerWork(trigger, preWorkRead), trigger, trigger.deliveryId, preWorkRead, read, options, coordinator);
+      } finally {
+        session.close();
+      }
     } catch {
       log('rejected', 'trigger-read-failed', trigger);
     }

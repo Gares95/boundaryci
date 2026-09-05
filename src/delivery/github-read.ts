@@ -1,12 +1,16 @@
 import type { CurrentPull, GitBlob, GitCommit, GitTree } from './types.js';
 import { emitDeliveryEvent, type DeliveryLogSink } from './logging.js';
 
+export interface GitHubReadOptions {
+  signal?: AbortSignal;
+}
+
 export interface GitHubReadCapability {
-  getCurrentPull(pullNumber: number): Promise<CurrentPull>;
-  listOpenPullsByBase(baseRef: string, page: number): Promise<GitHubPullPage>;
-  getCommit(sha: string): Promise<GitCommit>;
-  getTree(sha: string): Promise<GitTree>;
-  getBlob(sha: string): Promise<GitBlob>;
+  getCurrentPull(pullNumber: number, options?: GitHubReadOptions): Promise<CurrentPull>;
+  listOpenPullsByBase(baseRef: string, page: number, options?: GitHubReadOptions): Promise<GitHubPullPage>;
+  getCommit(sha: string, options?: GitHubReadOptions): Promise<GitCommit>;
+  getTree(sha: string, options?: GitHubReadOptions): Promise<GitTree>;
+  getBlob(sha: string, options?: GitHubReadOptions): Promise<GitBlob>;
 }
 
 /** One normalized, bounded fan-out page; pagination state is never a GitHub URL. */
@@ -61,11 +65,11 @@ export interface RepositoryReadIssueRequest {
 }
 
 interface RepositoryReadTransport {
-  getCurrentPull(pullNumber: number): Promise<unknown>;
-  listOpenPullsByBase(baseRef: string, page: number): Promise<unknown>;
-  getCommit(sha: string): Promise<unknown>;
-  getTree(sha: string): Promise<unknown>;
-  getBlob(sha: string): Promise<unknown>;
+  getCurrentPull(pullNumber: number, options?: GitHubReadOptions): Promise<unknown>;
+  listOpenPullsByBase(baseRef: string, page: number, options?: GitHubReadOptions): Promise<unknown>;
+  getCommit(sha: string, options?: GitHubReadOptions): Promise<unknown>;
+  getTree(sha: string, options?: GitHubReadOptions): Promise<unknown>;
+  getBlob(sha: string, options?: GitHubReadOptions): Promise<unknown>;
 }
 
 interface IssuedRepositoryReadRole {
@@ -297,26 +301,26 @@ export async function createRepositoryReadCapability(
     }
   };
   return Object.freeze({
-    getCurrentPull: async (pullNumber: number) => {
+    getCurrentPull: async (pullNumber: number, options?: GitHubReadOptions) => {
       assertReadInput(pullNumber, 'number');
-      return operation(() => issued.transport.getCurrentPull(pullNumber), (value) => validateCurrentPull(value, pullNumber, identity.repositoryId));
+      return operation(() => issued.transport.getCurrentPull(pullNumber, options), (value) => validateCurrentPull(value, pullNumber, identity.repositoryId));
     },
-    listOpenPullsByBase: async (baseRef: string, page: number) => {
+    listOpenPullsByBase: async (baseRef: string, page: number, options?: GitHubReadOptions) => {
       assertReadInput(baseRef, 'ref');
       assertReadInput(page, 'number');
-      return operation(() => issued.transport.listOpenPullsByBase(baseRef, page), (value) => validatePullPage(value, identity.repositoryId));
+      return operation(() => issued.transport.listOpenPullsByBase(baseRef, page, options), (value) => validatePullPage(value, identity.repositoryId));
     },
-    getCommit: async (sha: string) => {
+    getCommit: async (sha: string, options?: GitHubReadOptions) => {
       assertReadInput(sha, 'sha');
-      return operation(() => issued.transport.getCommit(sha), (value) => validateCommit(value, sha));
+      return operation(() => issued.transport.getCommit(sha, options), (value) => validateCommit(value, sha));
     },
-    getTree: async (sha: string) => {
+    getTree: async (sha: string, options?: GitHubReadOptions) => {
       assertReadInput(sha, 'sha');
-      return operation(() => issued.transport.getTree(sha), (value) => validateTree(value, sha));
+      return operation(() => issued.transport.getTree(sha, options), (value) => validateTree(value, sha));
     },
-    getBlob: async (sha: string) => {
+    getBlob: async (sha: string, options?: GitHubReadOptions) => {
       assertReadInput(sha, 'sha');
-      return operation(() => issued.transport.getBlob(sha), (value) => validateBlob(value, sha));
+      return operation(() => issued.transport.getBlob(sha, options), (value) => validateBlob(value, sha));
     },
   });
 }
@@ -391,6 +395,10 @@ function blobResponse(value: unknown): unknown {
   return { sha: record.sha, encoding: record.encoding, content: record.content, size: record.size };
 }
 
+function requestSignal(signal: AbortSignal | undefined): Readonly<Record<string, unknown>> {
+  return signal === undefined ? Object.freeze({}) : Object.freeze({ request: Object.freeze({ signal }) });
+}
+
 /**
  * Converts only Probot's public installation-authenticated `context.octokit` REST methods
  * into the delivery capability. The Octokit client remains in this closure: no token, header,
@@ -412,11 +420,11 @@ export async function createProbotRepositoryReadCapability(
         repositoryIds: Object.freeze([identity.repositoryId]),
         permissions: MINIMUM_REGISTRATION_EQUIVALENT,
         transport: Object.freeze({
-          getCurrentPull: async (pullNumber: number) => pullResponse(await octokit.rest.pulls.get({ owner: route.owner, repo: route.repo, pull_number: pullNumber }), identity.repositoryId),
-          listOpenPullsByBase: async (baseRef: string, page: number) => pullPageResponse(await octokit.rest.pulls.list({ owner: route.owner, repo: route.repo, base: baseRef, state: 'open', per_page: 100, page }), identity.repositoryId, page),
-          getCommit: async (sha: string) => commitResponse(await octokit.rest.git.getCommit({ owner: route.owner, repo: route.repo, commit_sha: sha })),
-          getTree: async (sha: string) => treeResponse(await octokit.rest.git.getTree({ owner: route.owner, repo: route.repo, tree_sha: sha, recursive: 'false' })),
-          getBlob: async (sha: string) => blobResponse(await octokit.rest.git.getBlob({ owner: route.owner, repo: route.repo, file_sha: sha })),
+          getCurrentPull: async (pullNumber: number, options?: GitHubReadOptions) => pullResponse(await octokit.rest.pulls.get({ owner: route.owner, repo: route.repo, pull_number: pullNumber, ...requestSignal(options?.signal) }), identity.repositoryId),
+          listOpenPullsByBase: async (baseRef: string, page: number, options?: GitHubReadOptions) => pullPageResponse(await octokit.rest.pulls.list({ owner: route.owner, repo: route.repo, base: baseRef, state: 'open', per_page: 100, page, ...requestSignal(options?.signal) }), identity.repositoryId, page),
+          getCommit: async (sha: string, options?: GitHubReadOptions) => commitResponse(await octokit.rest.git.getCommit({ owner: route.owner, repo: route.repo, commit_sha: sha, ...requestSignal(options?.signal) })),
+          getTree: async (sha: string, options?: GitHubReadOptions) => treeResponse(await octokit.rest.git.getTree({ owner: route.owner, repo: route.repo, tree_sha: sha, recursive: 'false', ...requestSignal(options?.signal) })),
+          getBlob: async (sha: string, options?: GitHubReadOptions) => blobResponse(await octokit.rest.git.getBlob({ owner: route.owner, repo: route.repo, file_sha: sha, ...requestSignal(options?.signal) })),
         }),
       });
     },
