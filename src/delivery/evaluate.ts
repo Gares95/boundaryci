@@ -1,6 +1,6 @@
 import { cleanupComparisonRoots, ownsComparisonRoots, type AcquiredComparisonRoots } from './snapshot.js';
 import type { CurrentPull } from './types.js';
-import type { AcquisitionResult, DeliveryEnvelopeV1, Phase6FreshnessMatch, WorkIdentity } from './contract.js';
+import type { AcquisitionResult, DeliveryEnvelopeV1, DeliveryNoHandoffReason, Phase6FreshnessMatch, WorkIdentity } from './contract.js';
 import { validateAcquisitionResult, validateDeliveryEnvelope, validateWorkIdentity } from './contract.js';
 import { validateLocalComparisonResult } from '../runtime/evaluate.js';
 import { evaluateLocalComparison, type LocalComparisonResult } from '../runtime/evaluate.js';
@@ -77,7 +77,7 @@ function newestWork(work: WorkIdentity, pull: CurrentPull): WorkIdentity | undef
 function noHandoff(
   lifecycle: Exclude<DeliveryEnvelopeV1['lifecycle'], 'current'>,
   work: WorkIdentity | null,
-  reason: string,
+  reason: DeliveryNoHandoffReason,
   newestIdentity?: WorkIdentity,
 ): DeliveryEnvelopeV1 {
   const envelope = Object.freeze({ schemaVersion: 1 as const, lifecycle, handoff: 'none' as const, work, reason, ...(newestIdentity === undefined ? {} : { newestIdentity }) });

@@ -158,6 +158,26 @@ export type DeliveryLifecycleOutcome =
   | 'cleanup-failure'
   | 'runtime-infrastructure-failure';
 
+export type DeliveryNoHandoffReason =
+  | 'acquisition-security-failure'
+  | 'authenticated-comparison-drift'
+  | 'comparison-cancelled'
+  | 'delivery-lifecycle-operation-failed'
+  | 'final-freshness-read-failed'
+  | 'invalid-acquisition-root-handle'
+  | 'invalid-base-target'
+  | 'invalid-trigger-trace'
+  | 'newer-comparison-superseded'
+  | 'private-root-cleanup-not-verified'
+  | 'pull-request-obsolete'
+  | 'fanout-duplicate-pull-request'
+  | 'fanout-elapsed-limit'
+  | 'fanout-page-limit'
+  | 'fanout-page-read-failed'
+  | 'fanout-page-shape'
+  | 'fanout-pull-request-limit'
+  | 'fanout-response-bytes-limit';
+
 export interface Phase6FreshnessMatch {
   repositoryId: number;
   pullNumber: number;
@@ -202,7 +222,7 @@ export type DeliveryEnvelopeV1 =
       lifecycle: Exclude<DeliveryLifecycleOutcome, 'current'>;
       handoff: 'none';
       work: WorkIdentity | null;
-      reason: string;
+      reason: DeliveryNoHandoffReason;
       newestIdentity?: WorkIdentity;
     };
 
@@ -331,16 +351,28 @@ export function validateDeliveryEnvelope(value: unknown): asserts value is Deliv
     return;
   }
   if (record.handoff === 'none') {
-    const isFanoutIncomplete = record.lifecycle === 'fanout-incomplete';
-    if (!exactKeys(record, isFanoutIncomplete || record.newestIdentity === undefined ? ['handoff', 'lifecycle', 'reason', 'schemaVersion', 'work'] : ['handoff', 'lifecycle', 'newestIdentity', 'reason', 'schemaVersion', 'work']) ||
-      !['stale', 'superseded', 'cancelled', 'obsolete', 'trust-failure', 'fanout-incomplete', 'cleanup-failure', 'runtime-infrastructure-failure'].includes(record.lifecycle) ||
-      typeof record.reason !== 'string') throw new TypeError('non-handoff delivery envelope is invalid');
-    if (isFanoutIncomplete && (record.work !== null || ![
-      'fanout-duplicate-pull-request', 'fanout-elapsed-limit', 'fanout-page-limit', 'fanout-page-read-failed',
-      'fanout-page-shape', 'fanout-pull-request-limit', 'fanout-response-bytes-limit',
-    ].includes(record.reason))) throw new TypeError('fanout-incomplete delivery envelope is invalid');
+    const allowed: Readonly<Record<string, readonly DeliveryNoHandoffReason[]>> = {
+      stale: ['authenticated-comparison-drift'],
+      superseded: ['newer-comparison-superseded'],
+      cancelled: ['comparison-cancelled'],
+      obsolete: ['pull-request-obsolete'],
+      'trust-failure': ['acquisition-security-failure', 'invalid-acquisition-root-handle', 'invalid-base-target', 'invalid-trigger-trace'],
+      'fanout-incomplete': ['fanout-duplicate-pull-request', 'fanout-elapsed-limit', 'fanout-page-limit', 'fanout-page-read-failed', 'fanout-page-shape', 'fanout-pull-request-limit', 'fanout-response-bytes-limit'],
+      'cleanup-failure': ['private-root-cleanup-not-verified'],
+      'runtime-infrastructure-failure': ['delivery-lifecycle-operation-failed', 'final-freshness-read-failed'],
+    };
+    if (!Object.hasOwn(allowed, record.lifecycle) || typeof record.reason !== 'string' ||
+      !allowed[record.lifecycle]!.includes(record.reason as DeliveryNoHandoffReason)) throw new TypeError('non-handoff delivery envelope reason is invalid');
+    const stale = record.lifecycle === 'stale';
+    const fanout = record.lifecycle === 'fanout-incomplete';
+    if (!exactKeys(record, stale && record.newestIdentity !== undefined
+      ? ['handoff', 'lifecycle', 'newestIdentity', 'reason', 'schemaVersion', 'work']
+      : ['handoff', 'lifecycle', 'reason', 'schemaVersion', 'work'])) throw new TypeError('non-handoff delivery envelope has an unsafe shape');
+    if (fanout && record.work !== null) throw new TypeError('fanout-incomplete delivery envelope is invalid');
+    if (stale && record.work === null) throw new TypeError('stale delivery envelope work is invalid');
+    if (!stale && record.newestIdentity !== undefined) throw new TypeError('non-stale delivery envelope newest identity is invalid');
     if (record.work !== null) validateWorkIdentity(record.work);
-    if (record.newestIdentity !== undefined) validateWorkIdentity(record.newestIdentity);
+    if (stale && record.newestIdentity !== undefined) validateWorkIdentity(record.newestIdentity);
     return;
   }
   throw new TypeError('delivery envelope handoff is invalid');

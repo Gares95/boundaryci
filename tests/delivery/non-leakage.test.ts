@@ -108,6 +108,27 @@ describe('Phase 5 non-leakage boundaries', () => {
     ]) expect(() => validateDeliveryEnvelope(candidate)).toThrow();
   });
 
+  it('enforces finite source-free reasons and identity shapes for every non-handoff lifecycle', () => {
+    const sentinels = createRuntimeSentinels();
+    const work = { installationId: 42, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' };
+    const cases = [
+      { lifecycle: 'stale', reason: 'authenticated-comparison-drift', work },
+      { lifecycle: 'superseded', reason: 'newer-comparison-superseded', work },
+      { lifecycle: 'cancelled', reason: 'comparison-cancelled', work },
+      { lifecycle: 'obsolete', reason: 'pull-request-obsolete', work },
+      { lifecycle: 'trust-failure', reason: 'invalid-acquisition-root-handle', work: null },
+      { lifecycle: 'cleanup-failure', reason: 'private-root-cleanup-not-verified', work },
+      { lifecycle: 'runtime-infrastructure-failure', reason: 'final-freshness-read-failed', work },
+    ] as const;
+    for (const candidate of cases) {
+      const envelope = { schemaVersion: 1, handoff: 'none', ...candidate };
+      expect(() => validateDeliveryEnvelope(envelope)).not.toThrow();
+      expect(() => validateDeliveryEnvelope({ ...envelope, reason: sentinels.externalError })).toThrow();
+      expect(() => validateDeliveryEnvelope({ ...envelope, newestIdentity: work })).toThrow();
+    }
+    expect(() => validateDeliveryEnvelope({ schemaVersion: 1, lifecycle: 'stale', handoff: 'none', work: null, reason: 'authenticated-comparison-drift' })).toThrow();
+  });
+
   it('refuses cleanup targets outside the private snapshot parent', async () => {
     const sentinels = createRuntimeSentinels();
     const parent = await mkdtemp(join(tmpdir(), 'boundaryci-non-leakage-'));
