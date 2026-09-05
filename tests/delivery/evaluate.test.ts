@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { AcquiredComparisonRoots } from '../../src/delivery/snapshot.js';
+import { SnapshotRollbackCleanupFailure, type AcquiredComparisonRoots } from '../../src/delivery/snapshot.js';
 import { evaluateAcquiredComparison } from '../../src/delivery/evaluate.js';
 import { evaluateCurrentComparison } from '../../src/delivery/evaluate.js';
 import { BUILTIN_CONFIG, effectiveConfigIdentity } from '../../src/config/model.js';
@@ -125,6 +125,16 @@ describe('Phase 6 handoff envelope', () => {
     base: { repositoryId: 7, ref: 'main', sha: 'a'.repeat(40) },
     head: { repositoryId: 7, sha: 'b'.repeat(40) },
   };
+
+  it('returns a sanitized cleanup-failure envelope when partial-root rollback cannot be verified', async () => {
+    const result = await evaluateCurrentComparison({
+      work: { installationId: 1, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' },
+      baseRef: 'main', triggerDeliveryIds: [],
+      acquire: async () => { throw new SnapshotRollbackCleanupFailure(); },
+      getCurrentPull: async () => current,
+    });
+    expect(result).toMatchObject({ lifecycle: 'cleanup-failure', handoff: 'none', reason: 'private-root-cleanup-not-verified', work: { pullNumber: 19 } });
+  });
 
   it('only marks a source-free semantic envelope publishable after cleanup and final freshness', async () => {
     const privateRoots = await roots();
