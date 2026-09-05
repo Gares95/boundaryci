@@ -22,6 +22,16 @@ fallback. Installation credentials, authenticated clients, authorization headers
 secrets, App private keys, and App JWTs stay inside their transport or adapter owner and are not
 passed to the analyzer, evaluator, snapshot writer, envelope, or diagnostic contracts.
 
+The public receiver is Probot's original-byte verified webhook path. Its only supported
+installation-authenticated read surface is the verified handler's public `context.octokit`.
+BoundaryCI confines that client inside a private adapter that declares the fixed
+minimum-registration-equivalent requirement `{ contents: read, pull_requests: read, metadata:
+read }` and then exposes only five validated operations: current pull, bounded open-pull listing,
+commit, non-recursive tree, and blob reads. This declaration is implementation evidence, not
+evidence that any installed App or issued token has that scope. Deterministic tests prove the
+public composition and five-operation confinement; the live UAT below is the only proof of actual
+App registration and installation scope.
+
 The verified Probot receiver subscribes only to:
 
 - `pull_request.opened`
@@ -88,6 +98,20 @@ snapshot.
 
 ## Lifecycle, freshness, and retention
 
+There are exactly two non-resetting GitHub-read sessions. Each verified trigger creates one
+event-level pre-work session, used only for its current-pull lookup or its complete push fan-out
+enumeration. Each authenticated comparison creates a fresh independent session inside its
+coordinator run, bound to that `WorkControl.isCancelled`, for commit/tree/blob acquisition and the
+final freshness lookup. Every call in a session shares one monotonic start/elapsed ceiling and
+total retry accounting; individual methods do not reset either limit, and fan-out pull requests do
+not share a work session or retry budget. Only rate-limited, transient-service, and
+transient-transport reads retry. Authentication, identity, scope, contract, obsolete/not-found,
+security, cancellation, and supersession outcomes do not retry.
+
+An exhausted or invalid all-or-none push enumeration emits a single source-free
+`fanout-incomplete` envelope with `handoff: none` and no scheduled pull-request subset. Other
+pre-work failures retain their established trust, runtime, or no-op classifications.
+
 Base and head bytes are materialized into separate owner-only private temporary roots. Only
 validated regular source/configuration bytes enter those roots. Target bytes never determine an
 executable path, command, environment variable, credential location, or module load. Roots are
@@ -128,7 +152,8 @@ actually established. No source snapshots or envelopes are persisted by default.
 For a live deployment review, record only non-secret facts:
 
 1. Confirm the GitHub App is installed for the intended repository and has Contents read and Pull
-   requests read, plus Metadata read only if platform-implied.
+   requests read, plus Metadata read only if platform-implied. This is the human proof of actual
+   registration/installation scope; it is not inferred from the private adapter declaration.
 2. Confirm the selected webhook events match the list above and the receiver verifies original
    webhook bytes before trigger normalization.
 3. Observe one short-lived repository-scoped installation credential issuance and record only the
