@@ -507,7 +507,15 @@ function dedupeCauses(causes: readonly AcquisitionCause[]): readonly Acquisition
  * never form part of the JSON-safe AcquisitionResult evidence.
  */
 export async function acquireComparisonRoots(input: AcquireComparisonRootsInput): Promise<AcquiredComparisonRoots> {
-  const roots = Object.freeze({ base: await createPrivateRoot(), head: await createPrivateRoot() });
+  const base = await createPrivateRoot();
+  let head: string;
+  try {
+    head = await createPrivateRoot();
+  } catch (error) {
+    await removeOwnedRoot(base);
+    throw error;
+  }
+  const roots = Object.freeze({ base, head });
   try {
     assertSha(input.baseSha, 'base commit SHA');
     assertSha(input.headSha, 'head commit SHA');

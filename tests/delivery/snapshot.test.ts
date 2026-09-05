@@ -1,5 +1,8 @@
-import { access, readFile } from 'node:fs/promises';
-import { afterEach, describe, expect, it } from 'vitest';
+import * as fs from 'node:fs/promises';
+import { access, readFile, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { acquireComparisonRoots, cleanupComparisonRoots } from '../../src/delivery/snapshot.js';
 import { DELIVERY_LIMITS_V1 } from '../../src/delivery/limits.js';
@@ -13,6 +16,25 @@ afterEach(async () => {
 });
 
 describe('immutable comparison snapshot acquisition', () => {
+  it('removes the first private root if allocating the second root fails', async () => {
+    const parent = join(tmpdir(), 'boundaryci-snapshot-v1');
+    const before = new Set(await readdir(parent).catch(() => []));
+    const original = fs.mkdtemp;
+    let allocations = 0;
+    const spy = vi.spyOn(fs, 'mkdtemp').mockImplementation(async (...args) => {
+      allocations += 1;
+      if (allocations === 2) throw new Error('second-allocation-failure');
+      return original(...args);
+    });
+    await expect(acquireComparisonRoots({
+      capability: createGitHubReadFake().capability,
+      baseSha: DELIVERY_FIXTURES.baseSha,
+      headSha: DELIVERY_FIXTURES.headSha,
+    })).rejects.toThrow('second-allocation-failure');
+    spy.mockRestore();
+    expect(new Set(await readdir(parent))).toEqual(before);
+  });
+
   it('bootstraps exact base/head configuration before selecting and materializing source blobs', async () => {
     const configBytes = Buffer.from('version: 1\nanalysis:\n  include: ["**/*.ts"]\n');
     const sourceBytes = Buffer.from('export const current = true;\n');
