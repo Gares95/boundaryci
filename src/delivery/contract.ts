@@ -166,7 +166,12 @@ export interface Phase6FreshnessMatch {
   baseSha: string;
   headRepositoryId: number;
   headSha: string;
-  topology: 'same-repository';
+  /**
+   * Semantic evaluation is restricted to same-repository PRs. A current authenticated fork is
+   * nevertheless reportable as a source-free diagnostic, so Phase 6 must retain that distinct
+   * topology while it performs its own freshness check.
+   */
+  topology: 'same-repository' | 'unsupported-topology';
   eligibility: 'open';
 }
 
@@ -238,7 +243,9 @@ function validateMatch(value: unknown): asserts value is Phase6FreshnessMatch {
   assertSha(record.baseSha, 'freshness match baseSha');
   assertSha(record.headSha, 'freshness match headSha');
   if (typeof record.baseRef !== 'string' || record.baseRef.length === 0 || record.baseRef.length > 256 ||
-    record.topology !== 'same-repository' || record.eligibility !== 'open') throw new TypeError('freshness match is invalid');
+    (record.topology !== 'same-repository' && record.topology !== 'unsupported-topology') || record.eligibility !== 'open') {
+    throw new TypeError('freshness match is invalid');
+  }
 }
 
 function validateTrigger(value: unknown): void {
@@ -293,6 +300,12 @@ export function validateDeliveryEnvelope(value: unknown): asserts value is Deliv
       throw new TypeError('semantic evidence does not match acquisition completeness');
     }
     validateMatch(record.phase6Match);
+    const match = record.phase6Match as Phase6FreshnessMatch;
+    if (match.topology !== 'same-repository' || match.repositoryId !== record.work.repositoryId ||
+      match.baseRepositoryId !== record.work.repositoryId || match.headRepositoryId !== record.work.repositoryId ||
+      match.pullNumber !== record.work.pullNumber || match.baseSha !== record.work.baseSha || match.headSha !== record.work.headSha) {
+      throw new TypeError('publishable semantic freshness match is invalid');
+    }
     return;
   }
   if (record.handoff === 'diagnostic-only') {
@@ -302,6 +315,19 @@ export function validateDeliveryEnvelope(value: unknown): asserts value is Deliv
     validateTrigger(record.trigger);
     validateDiagnostic(record.diagnostic);
     validateMatch(record.phase6Match);
+    const match = record.phase6Match as Phase6FreshnessMatch;
+    const diagnostic = record.diagnostic as { code: unknown };
+    if (match.repositoryId !== record.work.repositoryId || match.baseRepositoryId !== record.work.repositoryId ||
+      match.pullNumber !== record.work.pullNumber || match.baseSha !== record.work.baseSha || match.headSha !== record.work.headSha) {
+      throw new TypeError('diagnostic freshness identity is invalid');
+    }
+    if (diagnostic.code === 'unsupported-topology') {
+      if (match.topology !== 'unsupported-topology' || match.headRepositoryId === record.work.repositoryId) {
+        throw new TypeError('unsupported topology diagnostic freshness match is invalid');
+      }
+    } else if (match.topology !== 'same-repository' || match.headRepositoryId !== record.work.repositoryId) {
+      throw new TypeError('same-repository diagnostic freshness match is invalid');
+    }
     return;
   }
   if (record.handoff === 'none') {

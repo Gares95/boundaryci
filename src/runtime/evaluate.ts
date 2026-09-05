@@ -153,8 +153,9 @@ function comparison(value: unknown, label: string): void {
   const checked = exactRecord(value, extra, label);
   validateRevisionAnalysis(checked.base);
   validateRevisionAnalysis(checked.head);
-  if ('reasons' in checked && (!Array.isArray(checked.reasons) || checked.reasons.some((reason) => typeof reason !== 'string' || reason.length > 256))) {
-    throw new TypeError(`${label}.reasons is invalid`);
+  const expected = compareRevisionAnalyses(checked.base as RevisionAnalysis, checked.head as RevisionAnalysis);
+  if (JSON.stringify(checked) !== JSON.stringify(expected)) {
+    throw new TypeError(`${label} does not match the validated revision evidence`);
   }
 }
 
@@ -169,20 +170,15 @@ export function validateLocalComparisonResult(value: unknown): asserts value is 
   const selected = exactRecord(value, ['authority', 'comparison', 'head', 'policy', 'status'], 'local comparison');
   validateAuthoritativeConfigSelection({ status: 'selected', authority: selected.authority, head: selected.head }, 'local comparison selection');
   comparison(selected.comparison, 'local comparison comparison');
+  const checkedComparison = selected.comparison as RevisionComparison;
   const policy = selected.policy as Record<string, unknown>;
-  const keys = policy.outcome === 'complete' || policy.outcome === 'incomplete' || policy.outcome === 'policy-failure'
-    ? ['check', 'comparison', 'outcome', 'policy', 'reasons']
-    : policy.outcome === 'input-configuration-failure' || policy.outcome === 'runtime-infrastructure-failure'
-      ? ['check', 'comparison', 'outcome', 'policy', 'reasons']
-      : null;
-  if (keys === null) throw new TypeError('local comparison policy outcome is invalid');
-  const checkedPolicy = exactRecord(policy, keys, 'local comparison policy');
+  const checkedPolicy = exactRecord(policy, ['check', 'comparison', 'outcome', 'policy', 'reasons'], 'local comparison policy');
   const flags = exactRecord(checkedPolicy.policy, ['failOnExpansion', 'failOnIncomplete'], 'local comparison policy flags');
-  if (typeof flags.failOnExpansion !== 'boolean' || typeof flags.failOnIncomplete !== 'boolean' || !Array.isArray(checkedPolicy.reasons) ||
-    checkedPolicy.reasons.some((reason) => reason !== 'expansion-not-permitted' && reason !== 'incomplete-analysis-not-permitted') ||
-    JSON.stringify(checkedPolicy.comparison) !== JSON.stringify(selected.comparison)) {
+  if (typeof flags.failOnExpansion !== 'boolean' || typeof flags.failOnIncomplete !== 'boolean') {
     throw new TypeError('local comparison policy is invalid');
   }
+  const expectedPolicy = evaluatePolicy(checkedComparison, flags as { failOnExpansion: boolean; failOnIncomplete: boolean });
+  if (JSON.stringify(checkedPolicy) !== JSON.stringify(expectedPolicy)) throw new TypeError('local comparison policy is invalid');
 }
 
 /**

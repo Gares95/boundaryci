@@ -1,12 +1,12 @@
 import { Probot } from 'probot';
 
-import type { DeliveryEnvelopeV1, WorkIdentity } from './contract.js';
+import { validateDeliveryEnvelope, type DeliveryEnvelopeV1, type WorkIdentity } from './contract.js';
 import { DeliveryCoordinator } from './coordinator.js';
 import { evaluateCurrentComparison, type LocalComparisonEvaluator } from './evaluate.js';
 import type { GitHubReadCapability } from './github-read.js';
 import { emitDeliveryEvent, type DeliveryLogSink } from './logging.js';
 import { acquireComparisonRoots } from './snapshot.js';
-import { normalizeVerifiedTrigger, REGISTERED_EVENTS, resolveTriggerWork, type AuthenticatedComparisonIdentity, type TriggerResolution } from './trigger.js';
+import { normalizeVerifiedTrigger, REGISTERED_EVENTS, resolveTriggerWork, type AuthenticatedComparisonIdentity, type TriggerResolution, type VerifiedTrigger } from './trigger.js';
 
 const SILENT_PROBOT_LOGGER = {
   child: () => SILENT_PROBOT_LOGGER,
@@ -69,6 +69,7 @@ async function scheduleComparison(
 
 async function scheduleResolution(
   result: TriggerResolution,
+  trigger: VerifiedTrigger,
   deliveryId: string,
   read: GitHubReadCapability,
   options: CreateBoundaryCiAppOptions,
@@ -80,7 +81,48 @@ async function scheduleResolution(
   }
   if (result.status === 'fanout-work') {
     await Promise.all(result.work.map(async (comparison) => scheduleComparison(comparison, deliveryId, read, options, coordinator)));
+    return;
   }
+  if (result.status !== 'diagnostic-only' || trigger.kind !== 'pull-request') return;
+
+  // ResolveTriggerWork already established a fork from authenticated state. Re-read immediately
+  // before the handoff so this source-free diagnostic has the same current-identity discipline
+  // as semantic results, without ever acquiring target bytes.
+  const pull = await read.getCurrentPull(trigger.pullNumber);
+  if (pull.number !== trigger.pullNumber || pull.repositoryId !== trigger.repositoryId || pull.state !== 'open' || pull.merged ||
+    pull.base.repositoryId !== trigger.repositoryId || pull.head.repositoryId === trigger.repositoryId ||
+    typeof pull.base.ref !== 'string' || pull.base.ref.length === 0 || pull.base.ref.length > 256) return;
+  const comparison: AuthenticatedComparisonIdentity = {
+    installationId: trigger.installationId,
+    repositoryId: trigger.repositoryId,
+    pullNumber: trigger.pullNumber,
+    baseRef: pull.base.ref,
+    baseSha: pull.base.sha,
+    headSha: pull.head.sha,
+  };
+  const work = workIdentity(comparison, options.evaluatorIdentity ?? DEFAULT_EVALUATOR_IDENTITY);
+  const envelope = Object.freeze({
+    schemaVersion: 1 as const,
+    lifecycle: 'current' as const,
+    handoff: 'diagnostic-only' as const,
+    work,
+    trigger: Object.freeze({ deliveryIds: Object.freeze([deliveryId]) }),
+    diagnostic: Object.freeze({ code: 'unsupported-topology' as const }),
+    phase6FreshnessRequired: true as const,
+    phase6Match: Object.freeze({
+      repositoryId: trigger.repositoryId,
+      pullNumber: trigger.pullNumber,
+      baseRepositoryId: trigger.repositoryId,
+      baseRef: pull.base.ref,
+      baseSha: pull.base.sha,
+      headRepositoryId: pull.head.repositoryId,
+      headSha: pull.head.sha,
+      topology: 'unsupported-topology' as const,
+      eligibility: 'open' as const,
+    }),
+  });
+  validateDeliveryEnvelope(envelope);
+  await options.onEnvelope?.(envelope);
 }
 
 /**
@@ -121,7 +163,7 @@ export function createBoundaryCiApp(options: CreateBoundaryCiAppOptions): Probot
     log('accepted', 'verified-trigger', trigger);
     try {
       const read = await options.createReadCapability({ installationId: trigger.installationId, repositoryId: trigger.repositoryId });
-      await scheduleResolution(await resolveTriggerWork(trigger, read), trigger.deliveryId, read, options, coordinator);
+      await scheduleResolution(await resolveTriggerWork(trigger, read), trigger, trigger.deliveryId, read, options, coordinator);
     } catch {
       log('rejected', 'trigger-read-failed', trigger);
     }

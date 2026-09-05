@@ -7,7 +7,7 @@ import type { AcquiredComparisonRoots } from '../../src/delivery/snapshot.js';
 import { evaluateAcquiredComparison } from '../../src/delivery/evaluate.js';
 import { evaluateCurrentComparison } from '../../src/delivery/evaluate.js';
 import { BUILTIN_CONFIG, effectiveConfigIdentity } from '../../src/config/model.js';
-import type { LocalComparisonResult } from '../../src/runtime/evaluate.js';
+import { evaluateLocalComparison, type LocalComparisonResult } from '../../src/runtime/evaluate.js';
 
 const acquired: AcquiredComparisonRoots[] = [];
 
@@ -258,5 +258,54 @@ describe('Phase 6 handoff envelope', () => {
     });
     expect(result).toMatchObject({ lifecycle: 'current', handoff: 'diagnostic-only', diagnostic: { code: 'evaluator-runtime-failure' } });
     expect(JSON.stringify(result)).not.toContain(secret);
+  });
+
+  it('rejects unknown nested comparison and policy evidence before it can become publishable', async () => {
+    const sentinel = 'nested-comparison-policy-secret-sentinel';
+    const mutate = [
+      (value: Record<string, unknown>) => {
+        const comparison = value.comparison as Record<string, unknown>;
+        comparison.boundary = { ...(comparison.boundary as Record<string, unknown>), sentinel };
+      },
+      (value: Record<string, unknown>) => {
+        const comparison = value.comparison as Record<string, unknown>;
+        comparison.changes = [{ permission: 'issues', base: 'none', head: 'read', change: 'expansion', sentinel }];
+      },
+      (value: Record<string, unknown>) => {
+        const policy = value.policy as Record<string, unknown>;
+        policy.policy = { ...(policy.policy as Record<string, unknown>), sentinel };
+      },
+      (value: Record<string, unknown>) => {
+        const policy = value.policy as Record<string, unknown>;
+        policy.comparison = { ...(policy.comparison as Record<string, unknown>), sentinel };
+      },
+    ];
+
+    for (const alter of mutate) {
+      const privateRoots = await roots();
+      const entry = {
+        roots: privateRoots,
+        result: {
+          status: 'complete', config: selectedConfig(),
+          snapshots: {
+            base: { commitSha: 'a'.repeat(40), treeSha: 'b'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
+            head: { commitSha: 'b'.repeat(40), treeSha: 'c'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
+          }, causes: [], semanticUsability: 'complete',
+        },
+      } as unknown as AcquiredComparisonRoots;
+      acquired.push(entry);
+      const valid = await evaluateLocalComparison(privateRoots.base, privateRoots.head);
+      if (valid.status !== 'selected' || valid.comparison.status !== 'complete') throw new Error('fixture must produce a selected complete comparison');
+      const compromised = structuredClone(valid) as unknown as Record<string, unknown>;
+      alter(compromised);
+      const result = await evaluateCurrentComparison({
+        work: { installationId: 1, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' },
+        baseRef: 'main', triggerDeliveryIds: [], acquire: async () => entry,
+        evaluator: async () => compromised as LocalComparisonResult,
+        getCurrentPull: async () => current,
+      });
+      expect(result).toMatchObject({ lifecycle: 'current', handoff: 'diagnostic-only', diagnostic: { code: 'evaluator-runtime-failure' } });
+      expect(JSON.stringify(result)).not.toContain(sentinel);
+    }
   });
 });

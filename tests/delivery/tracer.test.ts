@@ -44,6 +44,19 @@ function signature(body: string): string {
   return `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')}`;
 }
 
+function forkSignedBody(): string {
+  return JSON.stringify({
+    action: 'opened',
+    installation: { id: 42 },
+    repository: { id: 7, name: 'target', owner: { login: 'owner' } },
+    pull_request: {
+      number: 19,
+      base: { ref: 'main', sha: 'event-base-must-not-be-used', repo: { id: 7 } },
+      head: { sha: 'event-head-must-not-be-used', repo: { id: 9 } },
+    },
+  });
+}
+
 describe('verified delivery tracer', () => {
   it('accepts only a correctly signed original body and emits a source-free cleanup-gated envelope', async () => {
     const read = createGitHubReadFake();
@@ -123,6 +136,54 @@ describe('verified delivery tracer', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(read.calls).toEqual([]);
     expect(envelopes).toEqual([]);
+  });
+
+  it('hands off one current authenticated unsupported-topology diagnostic without acquiring fork source', async () => {
+    const read = createGitHubReadFake({
+      currentPull: () => ({
+        number: 19,
+        repositoryId: 7,
+        state: 'open',
+        draft: false,
+        merged: false,
+        base: { repositoryId: 7, ref: 'main', sha: BASE_SHA },
+        head: { repositoryId: 9, sha: HEAD_SHA },
+      }),
+    });
+    const envelopes: DeliveryEnvelopeV1[] = [];
+    const app = createBoundaryCiApp({
+      appId: 1,
+      privateKey: '-----BEGIN PRIVATE KEY-----\nunused\n-----END PRIVATE KEY-----',
+      webhookSecret: WEBHOOK_SECRET,
+      createReadCapability: async () => read.capability,
+      evaluator: async () => { throw new Error('fork source must not be evaluated'); },
+      onEnvelope: (envelope) => { envelopes.push(envelope); },
+    });
+    const harness = await createWebhookHarness(app);
+    harnesses.push(harness);
+    const body = forkSignedBody();
+
+    const response = await fetch(harness.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-github-event': 'pull_request',
+        'x-github-delivery': 'delivery-fork',
+        'x-hub-signature-256': signature(body),
+      },
+      body,
+    });
+
+    expect(response.status).toBe(200);
+    await expect.poll(() => envelopes).toHaveLength(1);
+    expect(envelopes[0]).toMatchObject({
+      lifecycle: 'current',
+      handoff: 'diagnostic-only',
+      diagnostic: { code: 'unsupported-topology' },
+      phase6Match: { topology: 'unsupported-topology', headRepositoryId: 9 },
+    });
+    expect(read.calls).toEqual(['pull:19', 'pull:19']);
+    expect(read.calls.some((call) => /^(blob|commit|tree):/u.test(call))).toBe(false);
   });
 
   it('keeps the reusable read fake, allowlisted sink, and temporary inspector bounded', async () => {
