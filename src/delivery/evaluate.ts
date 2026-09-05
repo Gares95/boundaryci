@@ -1,7 +1,8 @@
 import { cleanupComparisonRoots, type AcquiredComparisonRoots } from './snapshot.js';
-import type { CurrentPull } from './index.js';
+import type { CurrentPull } from './types.js';
 import type { AcquisitionResult, DeliveryEnvelopeV1, Phase6FreshnessMatch, WorkIdentity } from './contract.js';
 import { validateAcquisitionResult, validateDeliveryEnvelope, validateWorkIdentity } from './contract.js';
+import { validateLocalComparisonResult } from '../runtime/evaluate.js';
 import { evaluateLocalComparison, type LocalComparisonResult } from '../runtime/evaluate.js';
 
 /**
@@ -84,11 +85,29 @@ function noHandoff(
   return envelope;
 }
 
+function acquiredRootHandle(value: unknown): Pick<AcquiredComparisonRoots, 'roots'> | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const roots = (value as Record<string, unknown>).roots;
+  if (typeof roots !== 'object' || roots === null || Array.isArray(roots)) return null;
+  const record = roots as Record<string, unknown>;
+  if (Object.keys(record).sort().join('\0') !== 'base\0head' || typeof record.base !== 'string' || typeof record.head !== 'string' ||
+    record.base.length === 0 || record.head.length === 0) return null;
+  return { roots: { base: record.base, head: record.head } };
+}
+
+function exactAcquiredComparisonRoots(value: unknown): asserts value is AcquiredComparisonRoots {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('acquisition response must be an object');
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).sort().join('\0') !== 'result\0roots') throw new TypeError('acquisition response has an unsafe shape');
+  if (acquiredRootHandle(value) === null) throw new TypeError('acquisition response roots are invalid');
+}
+
 /**
  * Builds only source-free Phase 6 evidence after acquisition/evaluation cleanup and a final
  * authenticated equality check. This module intentionally performs no Check presentation or write.
  */
 export async function evaluateCurrentComparison(input: EvaluateCurrentComparisonInput): Promise<DeliveryEnvelopeV1> {
+  let ownedRoots: Pick<AcquiredComparisonRoots, 'roots'> | undefined;
   try {
     validateWorkIdentity(input.work);
     if (typeof input.baseRef !== 'string' || input.baseRef.length === 0 || input.baseRef.length > 256) {
@@ -98,22 +117,30 @@ export async function evaluateCurrentComparison(input: EvaluateCurrentComparison
     const work = freezeClone(input.work);
     const trigger = freezeClone({ deliveryIds: [...input.triggerDeliveryIds] });
     const acquired = await input.acquire();
+    const roots = acquiredRootHandle(acquired);
+    if (roots === null) return noHandoff('trust-failure', work, 'invalid-acquisition-root-handle');
+    ownedRoots = roots;
+    exactAcquiredComparisonRoots(acquired);
     validateAcquisitionResult(acquired.result);
     const acquisition = freezeClone(acquired.result);
     let semantic: { status: 'complete' | 'incomplete'; semanticUsability: 'complete' | 'positive-evidence-only'; evaluation: LocalComparisonResult } | undefined;
     let evaluatorFailed = false;
     if (acquisition.status === 'complete' || acquisition.status === 'incomplete') {
       try {
+        const evaluation = await (input.evaluator ?? evaluateLocalComparison)(acquired.roots.base, acquired.roots.head);
+        validateLocalComparisonResult(evaluation);
         semantic = freezeClone({
           status: acquisition.status,
           semanticUsability: acquisition.semanticUsability,
-          evaluation: await (input.evaluator ?? evaluateLocalComparison)(acquired.roots.base, acquired.roots.head),
+          evaluation,
         });
       } catch {
         evaluatorFailed = true;
       }
     }
-    if (!await cleanupComparisonRoots(acquired)) return noHandoff('cleanup-failure', work, 'private-root-cleanup-not-verified');
+    const cleanupSucceeded = await cleanupComparisonRoots(acquired);
+    ownedRoots = undefined;
+    if (!cleanupSucceeded) return noHandoff('cleanup-failure', work, 'private-root-cleanup-not-verified');
 
     let current: CurrentPull;
     try {
@@ -166,6 +193,8 @@ export async function evaluateCurrentComparison(input: EvaluateCurrentComparison
     return envelope;
   } catch {
     return noHandoff('runtime-infrastructure-failure', null, 'delivery-lifecycle-operation-failed');
+  } finally {
+    if (ownedRoots !== undefined) await cleanupComparisonRoots(ownedRoots);
   }
 }
 
@@ -178,13 +207,17 @@ export async function evaluateAcquiredComparison(
   acquired: AcquiredComparisonRoots,
   evaluator: LocalComparisonEvaluator = evaluateLocalComparison,
 ): Promise<AcquiredEvaluationResult> {
-  validateAcquisitionResult(acquired.result);
+  const ownedRoots = acquiredRootHandle(acquired);
+  if (ownedRoots === null) throw new TypeError('acquisition response roots are invalid');
   let result: AcquiredEvaluationResult;
   try {
+    exactAcquiredComparisonRoots(acquired);
+    validateAcquisitionResult(acquired.result);
     if (acquired.result.status !== 'complete' && acquired.result.status !== 'incomplete') {
       result = Object.freeze({ status: 'diagnostic-only', acquisition: structuredClone(acquired.result) });
     } else {
       const evaluation = await evaluator(acquired.roots.base, acquired.roots.head);
+      validateLocalComparisonResult(evaluation);
       if (acquired.result.status === 'complete') {
         result = Object.freeze({
           status: 'complete',
@@ -209,7 +242,7 @@ export async function evaluateAcquiredComparison(
     });
   }
 
-  const cleaned = await cleanupComparisonRoots(acquired);
+  const cleaned = await cleanupComparisonRoots(ownedRoots);
   if (!cleaned) return Object.freeze({ status: 'cleanup-failure', acquisition: structuredClone(acquired.result) });
   return result;
 }

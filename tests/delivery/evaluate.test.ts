@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { AcquiredComparisonRoots } from '../../src/delivery/snapshot.js';
 import { evaluateAcquiredComparison } from '../../src/delivery/evaluate.js';
 import { evaluateCurrentComparison } from '../../src/delivery/evaluate.js';
+import { BUILTIN_CONFIG, effectiveConfigIdentity } from '../../src/config/model.js';
 import type { LocalComparisonResult } from '../../src/runtime/evaluate.js';
 
 const acquired: AcquiredComparisonRoots[] = [];
@@ -32,6 +33,18 @@ const evaluation: LocalComparisonResult = Object.freeze({
   diagnostics: [],
 });
 
+function selectedConfig() {
+  return {
+    status: 'selected' as const,
+    authority: {
+      source: 'built-in-default' as const,
+      config: structuredClone(BUILTIN_CONFIG),
+      identity: effectiveConfigIdentity(BUILTIN_CONFIG),
+    },
+    head: { status: 'absent' as const },
+  };
+}
+
 describe('acquisition-aware local evaluation', () => {
   it('preserves a complete acquisition evaluation unchanged and removes both private roots', async () => {
     const privateRoots = await roots();
@@ -39,7 +52,7 @@ describe('acquisition-aware local evaluation', () => {
       roots: privateRoots,
       result: {
         status: 'complete',
-        config: { status: 'selected', authority: { source: 'built-in-default', config: {}, identity: 'a'.repeat(64) }, head: { status: 'absent' } },
+        config: selectedConfig(),
         snapshots: {
           base: { commitSha: 'a'.repeat(40), treeSha: 'b'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
           head: { commitSha: 'c'.repeat(40), treeSha: 'd'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
@@ -63,7 +76,7 @@ describe('acquisition-aware local evaluation', () => {
       roots: privateRoots,
       result: {
         status: 'incomplete',
-        config: { status: 'selected', authority: { source: 'built-in-default', config: {}, identity: 'a'.repeat(64) }, head: { status: 'absent' } },
+        config: selectedConfig(),
         snapshots: {
           base: { commitSha: 'a'.repeat(40), treeSha: 'b'.repeat(40), sourceFileCount: 1, sourceBytes: 1 },
           head: { commitSha: 'c'.repeat(40), treeSha: 'd'.repeat(40), sourceFileCount: 1, sourceBytes: 1 },
@@ -116,7 +129,7 @@ describe('Phase 6 handoff envelope', () => {
       roots: privateRoots,
       result: {
         status: 'complete',
-        config: { status: 'selected', authority: { source: 'built-in-default', config: {}, identity: 'a'.repeat(64) }, head: { status: 'absent' } },
+        config: selectedConfig(),
         snapshots: {
           base: { commitSha: 'a'.repeat(40), treeSha: 'b'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
           head: { commitSha: 'b'.repeat(40), treeSha: 'c'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
@@ -168,7 +181,7 @@ describe('Phase 6 handoff envelope', () => {
       roots: privateRoots,
       result: {
         status: 'complete',
-        config: { status: 'selected', authority: { source: 'built-in-default', config: {}, identity: 'a'.repeat(64) }, head: { status: 'absent' } },
+        config: selectedConfig(),
         snapshots: {
           base: { commitSha: 'a'.repeat(40), treeSha: 'b'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
           head: { commitSha: 'b'.repeat(40), treeSha: 'c'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
@@ -196,5 +209,54 @@ describe('Phase 6 handoff envelope', () => {
       baseRef: 'main', triggerDeliveryIds: [], acquire: async () => entry, getCurrentPull: async () => current,
     });
     expect(result).toMatchObject({ lifecycle: 'trust-failure', handoff: 'none', reason: 'acquisition-security-failure' });
+  });
+
+  it('cleans owned roots when malformed acquisition evidence is rejected before evaluation', async () => {
+    const privateRoots = await roots();
+    const secret = 'acquisition-result-secret-sentinel';
+    const entry = {
+      roots: privateRoots,
+      result: { status: 'runtime-infrastructure-failure', reason: 'runtime-operation-failed', token: secret },
+    } as unknown as AcquiredComparisonRoots;
+    acquired.push(entry);
+    let evaluatorCalled = false;
+    const result = await evaluateCurrentComparison({
+      work: { installationId: 1, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' },
+      baseRef: 'main', triggerDeliveryIds: [], acquire: async () => entry,
+      evaluator: async () => {
+        evaluatorCalled = true;
+        return evaluation;
+      },
+      getCurrentPull: async () => current,
+    });
+    expect(evaluatorCalled).toBe(false);
+    expect(result).toMatchObject({ lifecycle: 'runtime-infrastructure-failure', handoff: 'none' });
+    expect(JSON.stringify(result)).not.toContain(secret);
+    await expect(access(privateRoots.base)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(access(privateRoots.head)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('turns evaluator output with an unknown field into a source-free diagnostic-only envelope', async () => {
+    const privateRoots = await roots();
+    const secret = 'evaluator-output-secret-sentinel';
+    const entry = {
+      roots: privateRoots,
+      result: {
+        status: 'complete', config: selectedConfig(),
+        snapshots: {
+          base: { commitSha: 'a'.repeat(40), treeSha: 'b'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
+          head: { commitSha: 'b'.repeat(40), treeSha: 'c'.repeat(40), sourceFileCount: 0, sourceBytes: 0 },
+        }, causes: [], semanticUsability: 'complete',
+      },
+    } as unknown as AcquiredComparisonRoots;
+    acquired.push(entry);
+    const result = await evaluateCurrentComparison({
+      work: { installationId: 1, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' },
+      baseRef: 'main', triggerDeliveryIds: [], acquire: async () => entry,
+      evaluator: async () => ({ ...evaluation, token: secret }) as never,
+      getCurrentPull: async () => current,
+    });
+    expect(result).toMatchObject({ lifecycle: 'current', handoff: 'diagnostic-only', diagnostic: { code: 'evaluator-runtime-failure' } });
+    expect(JSON.stringify(result)).not.toContain(secret);
   });
 });

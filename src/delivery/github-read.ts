@@ -1,4 +1,4 @@
-import type { CurrentPull, GitBlob, GitCommit, GitTree } from './index.js';
+import type { CurrentPull, GitBlob, GitCommit, GitTree } from './types.js';
 import { emitDeliveryEvent, type DeliveryLogSink } from './logging.js';
 
 export interface GitHubReadCapability {

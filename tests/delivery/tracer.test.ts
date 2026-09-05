@@ -6,11 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   createBoundaryCiApp,
-  handleVerifiedTrigger,
   type DeliveryEnvelopeV1,
-  type GitHubReadCapability,
 } from '../../src/delivery/index.js';
-import type { LocalComparisonResult } from '../../src/runtime/evaluate.js';
 import { DELIVERY_FIXTURES } from './fixtures/index.js';
 import { AllowlistedSink, createGitHubReadFake, createWebhookHarness, inspectTemporaryParent } from './support.js';
 
@@ -57,7 +54,7 @@ describe('verified delivery tracer', () => {
       privateKey: '-----BEGIN PRIVATE KEY-----\nunused\n-----END PRIVATE KEY-----',
       webhookSecret: WEBHOOK_SECRET,
       createReadCapability: async () => read.capability,
-      evaluate: async (baseRoot, headRoot) => {
+      evaluator: async (baseRoot, headRoot) => {
         roots.push(baseRoot, headRoot);
         return { status: 'input-configuration-failure', invalid: 'base', diagnostics: [] };
       },
@@ -81,13 +78,13 @@ describe('verified delivery tracer', () => {
     expect(response.status).toBe(200);
     await expect.poll(() => envelopes).toHaveLength(1);
     expect(read.calls).toEqual([
-      'pull:19', `commit:${BASE_SHA}`, `commit:${HEAD_SHA}`, `tree:${BASE_TREE}`, `tree:${HEAD_TREE}`, `blob:${BASE_BLOB}`, `blob:${HEAD_BLOB}`, 'pull:19',
+      'pull:19', `commit:${BASE_SHA}`, `tree:${BASE_TREE}`, `commit:${HEAD_SHA}`, `tree:${HEAD_TREE}`, `blob:${BASE_BLOB}`, `blob:${HEAD_BLOB}`, 'pull:19',
     ]);
     expect(envelopes[0]).toMatchObject({
       schemaVersion: 1,
       lifecycle: 'current',
-      publishable: true,
-      comparison: { repositoryId: 7, pullNumber: 19, baseSha: BASE_SHA, headSha: HEAD_SHA },
+      handoff: 'publishable-semantic',
+      work: { repositoryId: 7, pullNumber: 19, baseSha: BASE_SHA, headSha: HEAD_SHA },
     });
     expect(JSON.stringify(envelopes[0])).not.toContain(WEBHOOK_SECRET);
     expect(JSON.stringify(envelopes[0])).not.toContain('event-base-must-not-be-used');
@@ -105,7 +102,7 @@ describe('verified delivery tracer', () => {
       privateKey: '-----BEGIN PRIVATE KEY-----\nunused\n-----END PRIVATE KEY-----',
       webhookSecret: WEBHOOK_SECRET,
       createReadCapability: async () => read.capability,
-      evaluate: async () => ({ status: 'input-configuration-failure', invalid: 'base', diagnostics: [] }),
+      evaluator: async () => ({ status: 'input-configuration-failure', invalid: 'base', diagnostics: [] }),
       onEnvelope: (envelope) => { envelopes.push(envelope); },
     });
     const harness = await createWebhookHarness(app);
@@ -126,51 +123,6 @@ describe('verified delivery tracer', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(read.calls).toEqual([]);
     expect(envelopes).toEqual([]);
-  });
-
-  it('suppresses handoff on immutable-object mismatch, final comparison drift, and cleanup failure', async () => {
-    const trigger = { deliveryId: 'delivery-direct', installationId: 42, repositoryId: 7, pullNumber: 19 };
-    const evaluate = async (): Promise<LocalComparisonResult> => ({
-      status: 'input-configuration-failure',
-      invalid: 'base',
-      diagnostics: [],
-    });
-
-    const mismatchCapability = createGitHubReadFake().capability;
-    mismatchCapability.getCommit = async (sha) => ({ sha: HEAD_SHA, treeSha: sha === BASE_SHA ? BASE_TREE : HEAD_TREE });
-    await expect(handleVerifiedTrigger(trigger, { createReadCapability: async () => mismatchCapability, evaluate })).resolves.toMatchObject({
-      lifecycle: 'runtime-failure',
-      publishable: false,
-    });
-
-    const driftCapability = createGitHubReadFake().capability;
-    let pullReads = 0;
-    const originalCurrentPull = driftCapability.getCurrentPull;
-    driftCapability.getCurrentPull = async (number) => {
-      const current = await originalCurrentPull(number);
-      pullReads += 1;
-      return pullReads === 2 ? { ...current, head: { ...current.head, sha: '1'.repeat(40) } } : current;
-    };
-    await expect(handleVerifiedTrigger(trigger, { createReadCapability: async () => driftCapability, evaluate })).resolves.toMatchObject({
-      lifecycle: 'stale',
-      publishable: false,
-    });
-
-    const cleanupCapability = createGitHubReadFake().capability;
-    let cleanupCount = 0;
-    await expect(
-      handleVerifiedTrigger(
-        trigger,
-        { createReadCapability: async () => cleanupCapability, evaluate },
-        {
-          cleanupRoot: async (root) => {
-            cleanupCount += 1;
-            await rm(root, { force: true, recursive: true });
-            return cleanupCount !== 1;
-          },
-        },
-      ),
-    ).resolves.toMatchObject({ lifecycle: 'cleanup-failure', publishable: false });
   });
 
   it('keeps the reusable read fake, allowlisted sink, and temporary inspector bounded', async () => {

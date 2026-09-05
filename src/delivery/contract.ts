@@ -1,4 +1,6 @@
 import type { AuthoritativeConfigSelection } from '../config/load.js';
+import { validateAuthoritativeConfigSelection, validateLocalComparisonResult } from '../runtime/evaluate.js';
+import type { LocalComparisonResult } from '../runtime/evaluate.js';
 
 export type AcquisitionCauseCode =
   | 'acquisition-work-limit'
@@ -75,18 +77,45 @@ function assertSnapshot(value: unknown, label: string): asserts value is Snapsho
   }
 }
 
+function assertCause(value: unknown, label: string): asserts value is AcquisitionCause {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${label} must be an object`);
+  const record = value as Record<string, unknown>;
+  if (!exactKeys(record, ['code', 'configured', 'consumed', 'frontier'])) throw new TypeError(`${label} has an unsafe shape`);
+  if (![
+    'acquisition-work-limit', 'aggregate-source-bytes-limit', 'elapsed-time-limit', 'relevant-gitlink', 'relevant-symlink',
+    'relevant-unsupported-object', 'source-file-bytes-limit', 'source-file-limit', 'tree-entry-limit', 'tree-response-truncated',
+  ].includes(record.code as string) || (record.frontier !== null && (typeof record.frontier !== 'string' || record.frontier.length > 4_096)) ||
+    (record.configured !== null && (!Number.isSafeInteger(record.configured) || (record.configured as number) < 0)) ||
+    (record.consumed !== null && (!Number.isSafeInteger(record.consumed) || (record.consumed as number) < 0))) {
+    throw new TypeError(`${label} is invalid`);
+  }
+}
+
+const ACQUISITION_FAILURE_REASONS: readonly AcquisitionFailureReason[] = Object.freeze([
+  'cancelled', 'configuration-census-incomplete', 'configuration-entry-invalid', 'configuration-object-invalid',
+  'immutable-object-mismatch', 'invalid-trusted-input', 'malformed-object-relationship', 'runtime-operation-failed', 'unsafe-path',
+]);
+
 /** Exact-validates portable acquisition evidence; roots and source bytes are deliberately absent. */
 export function validateAcquisitionResult(value: unknown): asserts value is AcquisitionResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('acquisition result must be an object');
   const record = value as Record<string, unknown>;
   if (record.status === 'complete' || record.status === 'incomplete') {
+    const expected = record.status === 'complete'
+      ? ['causes', 'config', 'semanticUsability', 'snapshots', 'status']
+      : ['allowedClaims', 'causes', 'config', 'semanticUsability', 'snapshots', 'status'];
+    if (!exactKeys(record, expected)) throw new TypeError('acquisition result has an unsafe shape');
+    validateAuthoritativeConfigSelection(record.config, 'acquisition result config');
+    if ((record.config as { status?: unknown }).status !== 'selected') throw new TypeError('acquisition result config is not selected');
     if (typeof record.snapshots !== 'object' || record.snapshots === null || Array.isArray(record.snapshots)) {
       throw new TypeError('acquisition result snapshots must be an object');
     }
     const snapshots = record.snapshots as Record<string, unknown>;
+    if (!exactKeys(snapshots, ['base', 'head'])) throw new TypeError('acquisition result snapshots have an unsafe shape');
     assertSnapshot(snapshots.base, 'acquisition result snapshots.base');
     assertSnapshot(snapshots.head, 'acquisition result snapshots.head');
     if (!Array.isArray(record.causes)) throw new TypeError('acquisition result causes must be an array');
+    record.causes.forEach((cause, index) => assertCause(cause, `acquisition result causes[${index}]`));
     if (record.status === 'complete' && record.semanticUsability !== 'complete') throw new TypeError('complete acquisition usability is invalid');
     if (record.status === 'incomplete') {
       if (record.semanticUsability !== 'positive-evidence-only') throw new TypeError('incomplete acquisition usability is invalid');
@@ -103,7 +132,9 @@ export function validateAcquisitionResult(value: unknown): asserts value is Acqu
   ) {
     throw new TypeError('acquisition result status is invalid');
   }
-  if (typeof record.reason !== 'string') throw new TypeError('acquisition failure reason is invalid');
+  if (!exactKeys(record, ['reason', 'status']) || !ACQUISITION_FAILURE_REASONS.includes(record.reason as AcquisitionFailureReason)) {
+    throw new TypeError('acquisition failure reason is invalid');
+  }
 }
 
 /** The immutable comparison fields that define one in-process delivery evaluation (D-15). */
@@ -147,7 +178,7 @@ export type DeliveryEnvelopeV1 =
       work: WorkIdentity;
       trigger: { deliveryIds: readonly string[] };
       acquisition: AcquisitionResult;
-      semantic: { status: 'complete' | 'incomplete'; semanticUsability: 'complete' | 'positive-evidence-only'; evaluation: unknown };
+      semantic: { status: 'complete' | 'incomplete'; semanticUsability: 'complete' | 'positive-evidence-only'; evaluation: LocalComparisonResult };
       phase6FreshnessRequired: true;
       phase6Match: Phase6FreshnessMatch;
     }
@@ -229,6 +260,7 @@ function validateSemantic(value: unknown): void {
     (record.semanticUsability !== 'complete' && record.semanticUsability !== 'positive-evidence-only')) {
     throw new TypeError('semantic envelope status is invalid');
   }
+  validateLocalComparisonResult(record.evaluation);
 }
 
 function validateDiagnostic(value: unknown): void {

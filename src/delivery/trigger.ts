@@ -1,5 +1,5 @@
 import type { GitHubReadCapability } from './github-read.js';
-import type { CurrentPull } from './index.js';
+import type { CurrentPull } from './types.js';
 
 const SHA_PATTERN = /^[a-f0-9]{40}$/u;
 const MAX_FANOUT_BYTES = 4_000_000;

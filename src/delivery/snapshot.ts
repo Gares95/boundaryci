@@ -7,7 +7,8 @@ import { compileLimitedGlob } from '../analyzer/discovery.js';
 import { ANALYZER_SOURCE_EXTENSIONS } from '../analyzer/contract.js';
 import { loadSnapshotConfig, selectAuthoritativeConfig } from '../config/load.js';
 import type { EffectiveConfig } from '../config/model.js';
-import type { GitBlob, GitHubReadCapability, GitTree, GitTreeEntry } from './index.js';
+import type { GitHubReadCapability } from './github-read.js';
+import type { GitBlob, GitTree, GitTreeEntry } from './types.js';
 import type { AcquisitionCause, AcquisitionFailureReason, AcquisitionResult, SnapshotIdentity } from './contract.js';
 import { DELIVERY_LIMITS_V1, type DeliveryLimits, validateDeliveryLimits } from './limits.js';
 
@@ -49,6 +50,11 @@ interface ResolvedCommit {
   commitSha: string;
   treeSha: string;
   rootTree: GitTree;
+}
+
+interface MaterializedSourceCounts {
+  sourceFileCount: number;
+  sourceBytes: number;
 }
 
 class AcquisitionStop extends Error {
@@ -428,9 +434,8 @@ async function materializeSources(
   config: EffectiveConfig,
   budget: Budget,
   causes: AcquisitionCause[],
+  materialized: MaterializedSourceCounts,
 ): Promise<SnapshotIdentity> {
-  let sourceFileCount = 0;
-  let sourceBytes = 0;
   for (const entry of entries) {
     if (entry.path === CONFIG_PATH) continue;
     if (entry.type !== 'blob' || entry.mode === '120000' || entry.size === null) {
@@ -444,10 +449,10 @@ async function materializeSources(
     const bytes = await getBlob(capability, entry.sha, entry.size as number, budget);
     budget.before('write');
     await writeVerifiedBlob(root, entry.path, bytes);
-    sourceFileCount += 1;
-    sourceBytes += bytes.byteLength;
+    materialized.sourceFileCount += 1;
+    materialized.sourceBytes += bytes.byteLength;
   }
-  return { commitSha: '', treeSha: '', sourceFileCount, sourceBytes };
+  return { commitSha: '', treeSha: '', ...materialized };
 }
 
 function failure(status: AcquisitionStop['status'], reason: AcquisitionFailureReason): AcquisitionResult {
@@ -503,13 +508,17 @@ export async function acquireComparisonRoots(input: AcquireComparisonRootsInput)
     if (selection.status !== 'selected') return Object.freeze({ result: failure('input-configuration-failure', 'configuration-entry-invalid'), roots });
 
     const causes: AcquisitionCause[] = [];
+    const materialized = {
+      base: { sourceFileCount: 0, sourceBytes: 0 },
+      head: { sourceFileCount: 0, sourceBytes: 0 },
+    };
     let baseEntries: readonly EntryRecord[] = [];
     let headEntries: readonly EntryRecord[] = [];
     try {
       baseEntries = await censusEntries(input.capability, base, budget);
       headEntries = await censusEntries(input.capability, head, budget);
-      const baseIdentity = await materializeSources(roots.base, baseEntries, input.capability, selection.authority.config, budget, causes);
-      const headIdentity = await materializeSources(roots.head, headEntries, input.capability, selection.authority.config, budget, causes);
+      const baseIdentity = await materializeSources(roots.base, baseEntries, input.capability, selection.authority.config, budget, causes, materialized.base);
+      const headIdentity = await materializeSources(roots.head, headEntries, input.capability, selection.authority.config, budget, causes, materialized.head);
       const snapshots = Object.freeze({
         base: Object.freeze({ ...baseIdentity, commitSha: base.commitSha, treeSha: base.treeSha }),
         head: Object.freeze({ ...headIdentity, commitSha: head.commitSha, treeSha: head.treeSha }),
@@ -528,8 +537,8 @@ export async function acquireComparisonRoots(input: AcquireComparisonRootsInput)
       if (error instanceof SafeIncomplete) {
         causes.push(error.cause);
         const snapshots = Object.freeze({
-          base: Object.freeze({ commitSha: base.commitSha, treeSha: base.treeSha, sourceFileCount: budget.sourceFiles, sourceBytes: budget.sourceBytes }),
-          head: Object.freeze({ commitSha: head.commitSha, treeSha: head.treeSha, sourceFileCount: budget.sourceFiles, sourceBytes: budget.sourceBytes }),
+          base: Object.freeze({ commitSha: base.commitSha, treeSha: base.treeSha, ...materialized.base }),
+          head: Object.freeze({ commitSha: head.commitSha, treeSha: head.treeSha, ...materialized.head }),
         });
         return Object.freeze({
           result: Object.freeze({

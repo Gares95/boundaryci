@@ -145,6 +145,35 @@ describe('immutable comparison snapshot acquisition', () => {
     await expect(readFile(`${acquired.roots.base}/b.ts`, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  it('records the actual materialized subset for each revision under a shared cutoff', async () => {
+    const bytes = Buffer.from('export const present = true;\n');
+    const baseTree = '1'.repeat(40);
+    const headTree = '2'.repeat(40);
+    const baseSha = '3'.repeat(40);
+    const headSha = '4'.repeat(40);
+    const ids = ['5', '6', '7', '8'].map((digit) => digit.repeat(40));
+    const read = createGitHubReadFake({
+      commit: (sha) => ({ sha, treeSha: sha === baseSha ? baseTree : headTree }),
+      tree: (sha) => ({
+        sha,
+        entries: ids.map((id, index) => ({ path: `src/${index}.ts`, mode: '100644' as const, type: 'blob' as const, sha: id, size: bytes.byteLength })),
+      }),
+      blob: (sha) => ({ sha, encoding: 'base64' as const, content: bytes.toString('base64'), size: bytes.byteLength }),
+    });
+    const result = await acquireComparisonRoots({
+      capability: read.capability, baseSha, headSha,
+      limits: { ...DELIVERY_LIMITS_V1, maxSourceFiles: 5 },
+    });
+    roots.push(result);
+    expect(result.result).toMatchObject({
+      status: 'incomplete',
+      snapshots: {
+        base: { sourceFileCount: 4, sourceBytes: bytes.byteLength * 4 },
+        head: { sourceFileCount: 1, sourceBytes: bytes.byteLength },
+      },
+    });
+  });
+
   it('reports relevant symlinks as incomplete and rejects non-UTF8 path identities before any blob read', async () => {
     const symlink = createGitHubReadFake({
       tree: (sha) => ({ sha, entries: [{ path: 'src/link.ts', mode: '120000', type: 'blob', sha: DELIVERY_FIXTURES.baseBlobSha, size: 1 }] }),

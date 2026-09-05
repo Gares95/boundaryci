@@ -14,6 +14,7 @@ import type { AuthoritativeConfigSelection, ConfigDiagnostic } from '../config/l
 import { BUILTIN_CONFIG, effectiveConfigIdentity } from '../config/model.js';
 import type { ConfigIdentity, EffectiveConfig, ExpectedPermissionDeclaration } from '../config/model.js';
 import { compareRevisionAnalyses, createRevisionAnalysis } from '../diff/revision.js';
+import { validateRevisionAnalysis } from '../diff/revision.js';
 import type { RevisionAnalysis, RevisionComparison } from '../diff/revision.js';
 import { evaluatePolicy } from '../policy/evaluate.js';
 import type { PolicyDecision } from '../policy/evaluate.js';
@@ -57,6 +58,132 @@ export type LocalComparisonResult =
       comparison: RevisionComparison;
       policy: PolicyDecision;
     });
+
+function exactRecord(value: unknown, keys: readonly string[], label: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${label} must be an object`);
+  const record = value as Record<string, unknown>;
+  const actual = Object.keys(record).sort();
+  const expected = [...keys].sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new TypeError(`${label} has an unsafe shape`);
+  }
+  return record;
+}
+
+function sha256(value: unknown, label: string): asserts value is string {
+  if (typeof value !== 'string' || !/^[a-f0-9]{64}$/u.test(value)) throw new TypeError(`${label} must be a SHA-256 identity`);
+}
+
+function effectiveConfig(value: unknown, label: string): void {
+  const record = exactRecord(value, [
+    'declaredExpectedPermissions', 'exclude', 'failOnExpansion', 'failOnIncomplete', 'include', 'limits', 'probotEntrypoints', 'schemaVersion',
+  ], label);
+  if (!Number.isSafeInteger(record.schemaVersion) || typeof record.failOnExpansion !== 'boolean' || typeof record.failOnIncomplete !== 'boolean') {
+    throw new TypeError(`${label} is invalid`);
+  }
+  for (const key of ['include', 'exclude', 'probotEntrypoints'] as const) {
+    if (!Array.isArray(record[key]) || record[key].some((entry) => typeof entry !== 'string' || entry.length === 0 || entry.length > 4_096)) {
+      throw new TypeError(`${label}.${key} is invalid`);
+    }
+  }
+  const limits = exactRecord(record.limits, ['maxSourceFileBytes', 'maxSourceFiles', 'maxSourceWork', 'maxTotalSourceBytes'], `${label}.limits`);
+  if (Object.values(limits).some((entry) => !Number.isSafeInteger(entry) || (entry as number) < 0)) throw new TypeError(`${label}.limits is invalid`);
+  if (!Array.isArray(record.declaredExpectedPermissions) || record.declaredExpectedPermissions.some((entry) => {
+    const permission = exactRecord(entry, ['level', 'permission'], `${label}.declaredExpectedPermissions`);
+    return typeof permission.permission !== 'string' || permission.permission.length === 0 || (permission.level !== 'read' && permission.level !== 'write');
+  })) throw new TypeError(`${label}.declaredExpectedPermissions is invalid`);
+}
+
+function authority(value: unknown, label: string): void {
+  const record = exactRecord(value, ['config', 'identity', 'source'], label);
+  if (record.source !== 'base' && record.source !== 'built-in-default') throw new TypeError(`${label}.source is invalid`);
+  effectiveConfig(record.config, `${label}.config`);
+  sha256(record.identity, `${label}.identity`);
+}
+
+function diagnostics(value: unknown, label: string): void {
+  if (!Array.isArray(value)) throw new TypeError(`${label} must be an array`);
+  for (const diagnostic of value) {
+    const record = exactRecord(diagnostic, ['code', 'detail'], `${label} entry`);
+    if (typeof record.code !== 'string' || typeof record.detail !== 'string' || record.detail.length > 512) throw new TypeError(`${label} entry is invalid`);
+  }
+}
+
+export function validateAuthoritativeConfigSelection(value: unknown, label = 'authoritative configuration selection'): void {
+  const record = value as Record<string, unknown>;
+  if (record.status === 'selected') {
+    const selected = exactRecord(value, ['authority', 'head', 'status'], label);
+    authority(selected.authority, `${label}.authority`);
+    const head = selected.head as Record<string, unknown>;
+    if (head.status === 'absent') {
+      exactRecord(head, ['status'], `${label}.head`);
+    } else {
+      const valid = exactRecord(head, ['change', 'config', 'identity', 'status'], `${label}.head`);
+      if (valid.status !== 'valid' || (valid.change !== 'changed' && valid.change !== 'unchanged')) throw new TypeError(`${label}.head is invalid`);
+      effectiveConfig(valid.config, `${label}.head.config`);
+      sha256(valid.identity, `${label}.head.identity`);
+    }
+    return;
+  }
+  if (record.status !== 'input-configuration-failure') throw new TypeError(`${label}.status is invalid`);
+  if (record.invalid === 'base') {
+    const invalid = exactRecord(value, ['diagnostics', 'invalid', 'status'], label);
+    diagnostics(invalid.diagnostics, `${label}.diagnostics`);
+    return;
+  }
+  if (record.invalid === 'head') {
+    const invalid = exactRecord(value, ['authority', 'diagnostics', 'invalid', 'status'], label);
+    authority(invalid.authority, `${label}.authority`);
+    diagnostics(invalid.diagnostics, `${label}.diagnostics`);
+    return;
+  }
+  throw new TypeError(`${label}.invalid is invalid`);
+}
+
+function comparison(value: unknown, label: string): void {
+  const record = value as Record<string, unknown>;
+  const extra = record.status === 'complete'
+    ? ['base', 'boundary', 'changes', 'head', 'status']
+    : record.status === 'incomplete'
+      ? ['base', 'boundary', 'head', 'qualifiedChanges', 'reasons', 'status', 'uncertainty']
+      : record.status === 'input-configuration-failure' || record.status === 'runtime-infrastructure-failure'
+        ? ['base', 'head', 'reasons', 'status']
+        : null;
+  if (extra === null) throw new TypeError(`${label}.status is invalid`);
+  const checked = exactRecord(value, extra, label);
+  validateRevisionAnalysis(checked.base);
+  validateRevisionAnalysis(checked.head);
+  if ('reasons' in checked && (!Array.isArray(checked.reasons) || checked.reasons.some((reason) => typeof reason !== 'string' || reason.length > 256))) {
+    throw new TypeError(`${label}.reasons is invalid`);
+  }
+}
+
+/** Exact-validates the Phase 4 local comparison before it can enter Phase 5 evidence. */
+export function validateLocalComparisonResult(value: unknown): asserts value is LocalComparisonResult {
+  const record = value as Record<string, unknown>;
+  if (record.status === 'input-configuration-failure') {
+    validateAuthoritativeConfigSelection(value, 'local comparison');
+    return;
+  }
+  if (record.status !== 'selected') throw new TypeError('local comparison status is invalid');
+  const selected = exactRecord(value, ['authority', 'comparison', 'head', 'policy', 'status'], 'local comparison');
+  validateAuthoritativeConfigSelection({ status: 'selected', authority: selected.authority, head: selected.head }, 'local comparison selection');
+  comparison(selected.comparison, 'local comparison comparison');
+  const policy = selected.policy as Record<string, unknown>;
+  const keys = policy.outcome === 'complete' || policy.outcome === 'incomplete' || policy.outcome === 'policy-failure'
+    ? ['check', 'comparison', 'outcome', 'policy', 'reasons']
+    : policy.outcome === 'input-configuration-failure' || policy.outcome === 'runtime-infrastructure-failure'
+      ? ['check', 'comparison', 'outcome', 'policy', 'reasons']
+      : null;
+  if (keys === null) throw new TypeError('local comparison policy outcome is invalid');
+  const checkedPolicy = exactRecord(policy, keys, 'local comparison policy');
+  const flags = exactRecord(checkedPolicy.policy, ['failOnExpansion', 'failOnIncomplete'], 'local comparison policy flags');
+  if (typeof flags.failOnExpansion !== 'boolean' || typeof flags.failOnIncomplete !== 'boolean' || !Array.isArray(checkedPolicy.reasons) ||
+    checkedPolicy.reasons.some((reason) => reason !== 'expansion-not-permitted' && reason !== 'incomplete-analysis-not-permitted') ||
+    JSON.stringify(checkedPolicy.comparison) !== JSON.stringify(selected.comparison)) {
+    throw new TypeError('local comparison policy is invalid');
+  }
+}
 
 /**
  * Loads and selects the one authoritative configuration for `basePath`/`headPath`, then analyzes

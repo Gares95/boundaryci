@@ -36,9 +36,9 @@ export function createGitHubReadFake(options: ReadFakeOptions = {}): Programmabl
       pullReads += 1;
       return options.currentPull?.(pullNumber, pullReads) ?? currentPull({ number: pullNumber });
     },
-    async listOpenPullsByBase(baseRef) {
-      await record(`list:${baseRef}`);
-      return Object.freeze([]);
+    async listOpenPullsByBase(baseRef, page) {
+      await record(`list:${baseRef}:${page}`);
+      return Object.freeze({ pulls: Object.freeze([]), nextPage: null, normalizedBytes: 0 });
     },
     async getCommit(sha) {
       await record(`commit:${sha}`);
