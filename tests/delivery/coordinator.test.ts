@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DeliveryCoordinator, createWorkKey, runBoundedRead } from '../../src/delivery/coordinator.js';
+import { createBoundedReadSession, DeliveryCoordinator, createWorkKey, runBoundedRead } from '../../src/delivery/coordinator.js';
 import { SanitizedGitHubReadError } from '../../src/delivery/github-read.js';
 
 const SHA = (letter: string): string => letter.repeat(40);
@@ -84,5 +84,22 @@ describe('delivery coordinator', () => {
 
     const cancelled = await runBoundedRead(async () => 'never', { isCancelled: () => true });
     expect(cancelled).toEqual({ status: 'cancelled', attempts: 0 });
+  });
+
+  it('shares retry accounting and one clock across a lifecycle session without a per-method reset', async () => {
+    let time = 0;
+    const session = createBoundedReadSession({
+      now: () => time,
+      sleep: async (milliseconds) => { time += milliseconds; },
+    });
+    await session.read(async () => {
+      throw new SanitizedGitHubReadError('transient-service', true);
+    }).catch(() => undefined);
+    await session.read(async () => {
+      throw new SanitizedGitHubReadError('rate-limited', true);
+    }).catch(() => undefined);
+    await expect(session.read(async () => {
+      throw new SanitizedGitHubReadError('transient-transport', true);
+    })).rejects.toThrow('bounded-read:runtime-infrastructure-failure');
   });
 });

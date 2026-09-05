@@ -49,6 +49,11 @@ export interface RepositoryReadIdentity {
   repositoryId: number;
 }
 
+export interface RepositoryReadRoute {
+  owner: string;
+  repo: string;
+}
+
 export interface RepositoryReadIssueRequest {
   installationId: number;
   repositoryIds: readonly [number];
@@ -80,6 +85,16 @@ export interface RepositoryReadProvider {
 }
 
 const REQUEST_PERMISSIONS = Object.freeze({ contents: 'read' as const, pull_requests: 'read' as const });
+/**
+ * The narrowest registration BoundaryCI can demonstrate with Probot's supplied installation
+ * client. This is a declaration about the required App registration, not evidence of a live
+ * installation token's scope; deployment UAT records that separately without secrets.
+ */
+export const MINIMUM_REGISTRATION_EQUIVALENT = Object.freeze({
+  contents: 'read' as const,
+  pull_requests: 'read' as const,
+  metadata: 'read' as const,
+});
 const SHA_PATTERN = /^[a-f0-9]{40}$/u;
 
 function safePositiveInteger(value: unknown): value is number {
@@ -304,4 +319,107 @@ export async function createRepositoryReadCapability(
       return operation(() => issued.transport.getBlob(sha), (value) => validateBlob(value, sha));
     },
   });
+}
+
+interface PublicProbotOctokit {
+  rest: {
+    pulls: {
+      get(parameters: Readonly<Record<string, unknown>>): Promise<unknown>;
+      list(parameters: Readonly<Record<string, unknown>>): Promise<unknown>;
+    };
+    git: {
+      getCommit(parameters: Readonly<Record<string, unknown>>): Promise<unknown>;
+      getTree(parameters: Readonly<Record<string, unknown>>): Promise<unknown>;
+      getBlob(parameters: Readonly<Record<string, unknown>>): Promise<unknown>;
+    };
+  };
+}
+
+function responseData(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || !Object.hasOwn(value as Record<string, unknown>, 'data')) {
+    throw new SanitizedGitHubReadError('contract-invalid', false);
+  }
+  return (value as { data: unknown }).data;
+}
+
+function pullResponse(value: unknown, repositoryId: number): unknown {
+  const data = responseData(value);
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new SanitizedGitHubReadError('contract-invalid', false);
+  const record = data as Record<string, unknown>;
+  const base = record.base as Record<string, unknown> | undefined;
+  const head = record.head as Record<string, unknown> | undefined;
+  const baseRepository = base?.repo as Record<string, unknown> | undefined;
+  const headRepository = head?.repo as Record<string, unknown> | undefined;
+  return {
+    number: record.number,
+    repositoryId,
+    state: record.state,
+    draft: record.draft,
+    merged: record.merged,
+    base: { repositoryId: baseRepository?.id, ref: base?.ref, sha: base?.sha },
+    head: { repositoryId: headRepository?.id, sha: head?.sha },
+  };
+}
+
+function pullPageResponse(value: unknown, repositoryId: number, page: number): unknown {
+  const data = responseData(value);
+  if (!Array.isArray(data)) throw new SanitizedGitHubReadError('contract-invalid', false);
+  const pulls = data.map((entry) => pullResponse({ data: entry }, repositoryId));
+  const normalizedBytes = new TextEncoder().encode(JSON.stringify(pulls)).byteLength;
+  return { pulls, nextPage: data.length === 100 ? page + 1 : null, normalizedBytes };
+}
+
+function commitResponse(value: unknown): unknown {
+  const data = responseData(value);
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new SanitizedGitHubReadError('contract-invalid', false);
+  const record = data as Record<string, unknown>;
+  const tree = record.tree as Record<string, unknown> | undefined;
+  return { sha: record.sha, treeSha: tree?.sha };
+}
+
+function treeResponse(value: unknown): unknown {
+  const data = responseData(value);
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new SanitizedGitHubReadError('contract-invalid', false);
+  const record = data as Record<string, unknown>;
+  return { sha: record.sha, entries: record.tree, ...(record.truncated === undefined ? {} : { truncated: record.truncated }) };
+}
+
+function blobResponse(value: unknown): unknown {
+  const data = responseData(value);
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new SanitizedGitHubReadError('contract-invalid', false);
+  const record = data as Record<string, unknown>;
+  return { sha: record.sha, encoding: record.encoding, content: record.content, size: record.size };
+}
+
+/**
+ * Converts only Probot's public installation-authenticated `context.octokit` REST methods
+ * into the delivery capability. The Octokit client remains in this closure: no token, header,
+ * generic request function, or caller-selected authentication surface crosses this boundary.
+ */
+export async function createProbotRepositoryReadCapability(
+  identity: RepositoryReadIdentity,
+  octokit: PublicProbotOctokit,
+  route: RepositoryReadRoute,
+  logSink?: DeliveryLogSink,
+): Promise<GitHubReadCapability> {
+  const provider: RepositoryReadProvider = Object.freeze({
+    async issue(request: RepositoryReadIssueRequest) {
+      if (request.installationId !== identity.installationId || request.repositoryIds[0] !== identity.repositoryId) {
+        throw new SanitizedGitHubReadError('credential-scope-mismatch', false);
+      }
+      return Object.freeze({
+        credentialScope: 'minimum-registration-equivalent' as const,
+        repositoryIds: Object.freeze([identity.repositoryId]),
+        permissions: MINIMUM_REGISTRATION_EQUIVALENT,
+        transport: Object.freeze({
+          getCurrentPull: async (pullNumber: number) => pullResponse(await octokit.rest.pulls.get({ owner: route.owner, repo: route.repo, pull_number: pullNumber }), identity.repositoryId),
+          listOpenPullsByBase: async (baseRef: string, page: number) => pullPageResponse(await octokit.rest.pulls.list({ owner: route.owner, repo: route.repo, base: baseRef, state: 'open', per_page: 100, page }), identity.repositoryId, page),
+          getCommit: async (sha: string) => commitResponse(await octokit.rest.git.getCommit({ owner: route.owner, repo: route.repo, commit_sha: sha })),
+          getTree: async (sha: string) => treeResponse(await octokit.rest.git.getTree({ owner: route.owner, repo: route.repo, tree_sha: sha, recursive: 'false' })),
+          getBlob: async (sha: string) => blobResponse(await octokit.rest.git.getBlob({ owner: route.owner, repo: route.repo, file_sha: sha })),
+        }),
+      });
+    },
+  });
+  return createRepositoryReadCapability(identity, provider, logSink);
 }

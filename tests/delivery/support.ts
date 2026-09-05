@@ -8,6 +8,7 @@ import { blob, commit, currentPull, tree } from './fixtures/index.js';
 
 export interface ReadFakeOptions {
   currentPull?: (pullNumber: number, call: number) => Promise<CurrentPull> | CurrentPull;
+  list?: (baseRef: string, page: number) => Promise<{ pulls: readonly CurrentPull[]; nextPage: number | null; normalizedBytes: number }> | { pulls: readonly CurrentPull[]; nextPage: number | null; normalizedBytes: number };
   commit?: (sha: string) => Promise<GitCommit> | GitCommit;
   tree?: (sha: string) => Promise<GitTree> | GitTree;
   blob?: (sha: string) => Promise<GitBlob> | GitBlob;
@@ -38,7 +39,8 @@ export function createGitHubReadFake(options: ReadFakeOptions = {}): Programmabl
     },
     async listOpenPullsByBase(baseRef, page) {
       await record(`list:${baseRef}:${page}`);
-      return Object.freeze({ pulls: Object.freeze([]), nextPage: null, normalizedBytes: 0 });
+      const value = await options.list?.(baseRef, page) ?? { pulls: Object.freeze([]), nextPage: null, normalizedBytes: 0 };
+      return Object.freeze(value);
     },
     async getCommit(sha) {
       await record(`commit:${sha}`);

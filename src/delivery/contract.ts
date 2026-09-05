@@ -331,9 +331,14 @@ export function validateDeliveryEnvelope(value: unknown): asserts value is Deliv
     return;
   }
   if (record.handoff === 'none') {
-    if (!exactKeys(record, record.newestIdentity === undefined ? ['handoff', 'lifecycle', 'reason', 'schemaVersion', 'work'] : ['handoff', 'lifecycle', 'newestIdentity', 'reason', 'schemaVersion', 'work']) ||
+    const isFanoutIncomplete = record.lifecycle === 'fanout-incomplete';
+    if (!exactKeys(record, isFanoutIncomplete || record.newestIdentity === undefined ? ['handoff', 'lifecycle', 'reason', 'schemaVersion', 'work'] : ['handoff', 'lifecycle', 'newestIdentity', 'reason', 'schemaVersion', 'work']) ||
       !['stale', 'superseded', 'cancelled', 'obsolete', 'trust-failure', 'fanout-incomplete', 'cleanup-failure', 'runtime-infrastructure-failure'].includes(record.lifecycle) ||
       typeof record.reason !== 'string') throw new TypeError('non-handoff delivery envelope is invalid');
+    if (isFanoutIncomplete && (record.work !== null || ![
+      'fanout-duplicate-pull-request', 'fanout-elapsed-limit', 'fanout-page-limit', 'fanout-page-read-failed',
+      'fanout-page-shape', 'fanout-pull-request-limit', 'fanout-response-bytes-limit',
+    ].includes(record.reason))) throw new TypeError('fanout-incomplete delivery envelope is invalid');
     if (record.work !== null) validateWorkIdentity(record.work);
     if (record.newestIdentity !== undefined) validateWorkIdentity(record.newestIdentity);
     return;

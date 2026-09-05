@@ -1,4 +1,5 @@
 import { SanitizedGitHubReadError, type SanitizedGitHubReadErrorKind } from './github-read.js';
+import type { GitHubReadCapability } from './github-read.js';
 import { validateWorkIdentity, type WorkIdentity } from './contract.js';
 
 const MAX_ATTEMPTS = 3;
@@ -29,11 +30,25 @@ export interface BoundedReadOptions {
   isCancelled?: () => boolean;
 }
 
+/**
+ * A non-resetting read budget. A session owns one monotonic deadline and one retry counter;
+ * callers deliberately create it at a lifecycle boundary rather than around each REST call.
+ */
+export interface BoundedReadSession {
+  read<T>(operation: () => Promise<T>): Promise<T>;
+}
+
 export type BoundedReadResult<T> =
   | { status: 'success'; value: T; attempts: number }
   | { status: 'cancelled'; attempts: number }
   | { status: 'not-retryable'; cause: SanitizedGitHubReadErrorKind; attempts: number }
   | { status: 'runtime-infrastructure-failure'; cause: 'transient-read-exhausted' | 'retry-budget-exhausted'; attempts: number };
+
+class BoundedReadSessionFailure extends Error {
+  constructor(readonly result: Exclude<BoundedReadResult<never>, { status: 'success' }>) {
+    super(`bounded-read:${result.status}`);
+  }
+}
 
 function positive(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) > 0;
@@ -114,6 +129,71 @@ export class DeliveryCoordinator {
 
 function retryable(error: SanitizedGitHubReadError): boolean {
   return error.retryable && ['transient-transport', 'transient-service', 'rate-limited'].includes(error.kind);
+}
+
+/**
+ * Starts a finite read session. Successful calls do not consume retry budget, while every
+ * transient retry across every wrapped operation consumes the same session-owned allowance.
+ */
+export function createBoundedReadSession(options: BoundedReadOptions = {}): BoundedReadSession {
+  const now = options.now ?? (() => performance.now());
+  const sleep = options.sleep ?? (async (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  const started = now();
+  let attempts = 0;
+  let retries = 0;
+
+  return Object.freeze({
+    async read<T>(operation: () => Promise<T>): Promise<T> {
+      if (!Number.isFinite(started)) {
+        throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
+      }
+      while (true) {
+        if (options.isCancelled?.()) throw new BoundedReadSessionFailure({ status: 'cancelled', attempts });
+        const elapsed = elapsedMilliseconds(started, now);
+        if (elapsed === null || elapsed > MAX_ELAPSED_MILLISECONDS) {
+          throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
+        }
+        attempts += 1;
+        try {
+          return await operation();
+        } catch (error) {
+          const sanitized = error instanceof SanitizedGitHubReadError ? error : new SanitizedGitHubReadError('contract-invalid', false);
+          if (!retryable(sanitized)) throw sanitized;
+          retries += 1;
+          if (retries >= MAX_ATTEMPTS) {
+            throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'transient-read-exhausted', attempts });
+          }
+          if (options.isCancelled?.()) throw new BoundedReadSessionFailure({ status: 'cancelled', attempts });
+          const beforeSleep = elapsedMilliseconds(started, now);
+          if (beforeSleep === null || beforeSleep >= MAX_ELAPSED_MILLISECONDS) {
+            throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
+          }
+          const remaining = MAX_ELAPSED_MILLISECONDS - beforeSleep;
+          const localBackoff = BACKOFFS[retries - 1];
+          if (localBackoff === undefined) {
+            throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
+          }
+          const requested = sanitized.retryAfterMilliseconds ?? localBackoff;
+          const delay = Math.min(requested, remaining);
+          if (!positive(delay)) {
+            throw new BoundedReadSessionFailure({ status: 'runtime-infrastructure-failure', cause: 'retry-budget-exhausted', attempts });
+          }
+          await sleep(delay);
+        }
+      }
+    },
+  });
+}
+
+/** Wraps precisely the already-issued five-operation capability without adding a route escape hatch. */
+export function bindBoundedReadSession(read: GitHubReadCapability, session: BoundedReadSession): GitHubReadCapability {
+  return Object.freeze({
+    getCurrentPull: (pullNumber: number) => session.read(() => read.getCurrentPull(pullNumber)),
+    listOpenPullsByBase: (baseRef: string, page: number) => session.read(() => read.listOpenPullsByBase(baseRef, page)),
+    getCommit: (sha: string) => session.read(() => read.getCommit(sha)),
+    getTree: (sha: string) => session.read(() => read.getTree(sha)),
+    getBlob: (sha: string) => session.read(() => read.getBlob(sha)),
+  });
 }
 
 /** Runs only an already-authorized idempotent read with one finite per-work retry budget. */

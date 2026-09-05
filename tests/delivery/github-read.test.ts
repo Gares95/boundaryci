@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MINIMUM_REGISTRATION_EQUIVALENT,
+  createProbotRepositoryReadCapability,
   createRepositoryReadCapability,
   type RepositoryReadIssueRequest,
   type RepositoryReadProvider,
@@ -31,6 +33,48 @@ function provider(overrides: Partial<RepositoryReadProvider> = {}): RepositoryRe
 }
 
 describe('repository-scoped GitHub read capability', () => {
+  it('adapts only the fixed minimum-registration-equivalent Probot REST surface', async () => {
+    const calls: string[] = [];
+    const octokit = {
+      rest: {
+        pulls: {
+          get: async () => {
+            calls.push('pulls.get');
+            return { data: { number: 19, id: 7, state: 'open', draft: false, merged: false, base: { repo: { id: 7 }, ref: 'main', sha: DELIVERY_FIXTURES.baseSha }, head: { repo: { id: 7 }, sha: DELIVERY_FIXTURES.headSha } } };
+          },
+          list: async () => {
+            calls.push('pulls.list');
+            return { data: [] };
+          },
+        },
+        git: {
+          getCommit: async () => {
+            calls.push('git.getCommit');
+            return { data: { sha: DELIVERY_FIXTURES.baseSha, tree: { sha: DELIVERY_FIXTURES.baseTreeSha } } };
+          },
+          getTree: async () => {
+            calls.push('git.getTree');
+            return { data: { sha: DELIVERY_FIXTURES.baseTreeSha, tree: [] } };
+          },
+          getBlob: async () => {
+            calls.push('git.getBlob');
+            return { data: { sha: DELIVERY_FIXTURES.baseBlobSha, encoding: 'base64', content: '', size: 0 } };
+          },
+        },
+      },
+    };
+
+    const read = await createProbotRepositoryReadCapability(identity, octokit, { owner: 'owner', repo: 'target' });
+    expect(MINIMUM_REGISTRATION_EQUIVALENT).toEqual({ contents: 'read', pull_requests: 'read', metadata: 'read' });
+    await read.getCurrentPull(19);
+    await read.listOpenPullsByBase('main', 1);
+    await read.getCommit(DELIVERY_FIXTURES.baseSha);
+    await read.getTree(DELIVERY_FIXTURES.baseTreeSha);
+    await read.getBlob(DELIVERY_FIXTURES.baseBlobSha);
+    expect(calls).toEqual(['pulls.get', 'pulls.list', 'git.getCommit', 'git.getTree', 'git.getBlob']);
+    expect(Object.keys(read).sort()).toEqual(['getBlob', 'getCommit', 'getCurrentPull', 'getTree', 'listOpenPullsByBase']);
+  });
+
   it('issues only the exact repository/read role and rejects broadened or mismatched scope before a read', async () => {
     const requests: RepositoryReadIssueRequest[] = [];
     const read = await createRepositoryReadCapability(identity, provider({

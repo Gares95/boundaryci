@@ -1,9 +1,9 @@
 import { Probot } from 'probot';
 
 import { validateDeliveryEnvelope, type DeliveryEnvelopeV1, type WorkIdentity } from './contract.js';
-import { DeliveryCoordinator } from './coordinator.js';
+import { bindBoundedReadSession, createBoundedReadSession, DeliveryCoordinator } from './coordinator.js';
 import { evaluateCurrentComparison, type LocalComparisonEvaluator } from './evaluate.js';
-import type { GitHubReadCapability } from './github-read.js';
+import { createProbotRepositoryReadCapability, type GitHubReadCapability } from './github-read.js';
 import { emitDeliveryEvent, type DeliveryLogSink } from './logging.js';
 import { acquireComparisonRoots } from './snapshot.js';
 import { normalizeVerifiedTrigger, REGISTERED_EVENTS, resolveTriggerWork, type AuthenticatedComparisonIdentity, type TriggerResolution, type VerifiedTrigger } from './trigger.js';
@@ -19,12 +19,12 @@ const SILENT_PROBOT_LOGGER = {
 } as never;
 
 const DEFAULT_EVALUATOR_IDENTITY = 'boundaryci-evaluator-v1';
+const GITHUB_ROUTE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/u;
 
 export interface CreateBoundaryCiAppOptions {
   appId: number;
   privateKey: string;
   webhookSecret: string;
-  createReadCapability(identity: { installationId: number; repositoryId: number }): Promise<GitHubReadCapability>;
   evaluator?: LocalComparisonEvaluator;
   evaluatorIdentity?: string;
   coordinator?: DeliveryCoordinator;
@@ -43,6 +43,13 @@ function workIdentity(comparison: AuthenticatedComparisonIdentity, evaluatorIden
   });
 }
 
+function verifiedRepositoryRoute(context: { repo(): { owner: unknown; repo: unknown } }): { owner: string; repo: string } | null {
+  const route = context.repo();
+  if (typeof route.owner !== 'string' || typeof route.repo !== 'string' ||
+    !GITHUB_ROUTE_SEGMENT.test(route.owner) || !GITHUB_ROUTE_SEGMENT.test(route.repo)) return null;
+  return Object.freeze({ owner: route.owner, repo: route.repo });
+}
+
 async function scheduleComparison(
   comparison: AuthenticatedComparisonIdentity,
   deliveryId: string,
@@ -51,19 +58,24 @@ async function scheduleComparison(
   coordinator: DeliveryCoordinator,
 ): Promise<void> {
   const work = workIdentity(comparison, options.evaluatorIdentity ?? DEFAULT_EVALUATOR_IDENTITY);
-  const scheduled = await coordinator.submit(work, async (control) => evaluateCurrentComparison({
-    work,
-    baseRef: comparison.baseRef,
-    triggerDeliveryIds: [deliveryId],
-    acquire: async () => acquireComparisonRoots({
-      capability: read,
-      baseSha: comparison.baseSha,
-      headSha: comparison.headSha,
-      isCancelled: control.isCancelled,
-    }),
-    ...(options.evaluator === undefined ? {} : { evaluator: options.evaluator }),
-    getCurrentPull: (pullNumber) => read.getCurrentPull(pullNumber),
-  }));
+  const scheduled = await coordinator.submit(work, async (control) => {
+    // This session deliberately begins inside the coordinator run. Each comparison gets a
+    // fresh cancellation-bound budget, including its final freshness read.
+    const workRead = bindBoundedReadSession(read, createBoundedReadSession({ isCancelled: control.isCancelled }));
+    return evaluateCurrentComparison({
+      work,
+      baseRef: comparison.baseRef,
+      triggerDeliveryIds: [deliveryId],
+      acquire: async () => acquireComparisonRoots({
+        capability: workRead,
+        baseSha: comparison.baseSha,
+        headSha: comparison.headSha,
+        isCancelled: control.isCancelled,
+      }),
+      ...(options.evaluator === undefined ? {} : { evaluator: options.evaluator }),
+      getCurrentPull: (pullNumber) => workRead.getCurrentPull(pullNumber),
+    });
+  });
   if (scheduled.status === 'current') await options.onEnvelope?.(scheduled.value);
 }
 
@@ -71,6 +83,7 @@ async function scheduleResolution(
   result: TriggerResolution,
   trigger: VerifiedTrigger,
   deliveryId: string,
+  preWorkRead: GitHubReadCapability,
   read: GitHubReadCapability,
   options: CreateBoundaryCiAppOptions,
   coordinator: DeliveryCoordinator,
@@ -83,12 +96,24 @@ async function scheduleResolution(
     await Promise.all(result.work.map(async (comparison) => scheduleComparison(comparison, deliveryId, read, options, coordinator)));
     return;
   }
+  if (result.status === 'fanout-incomplete') {
+    const envelope = Object.freeze({
+      schemaVersion: 1 as const,
+      lifecycle: 'fanout-incomplete' as const,
+      handoff: 'none' as const,
+      work: null,
+      reason: `fanout-${result.cause}`,
+    });
+    validateDeliveryEnvelope(envelope);
+    await options.onEnvelope?.(envelope);
+    return;
+  }
   if (result.status !== 'diagnostic-only' || trigger.kind !== 'pull-request') return;
 
   // ResolveTriggerWork already established a fork from authenticated state. Re-read immediately
   // before the handoff so this source-free diagnostic has the same current-identity discipline
   // as semantic results, without ever acquiring target bytes.
-  const pull = await read.getCurrentPull(trigger.pullNumber);
+  const pull = await preWorkRead.getCurrentPull(trigger.pullNumber);
   if (pull.number !== trigger.pullNumber || pull.repositoryId !== trigger.repositoryId || pull.state !== 'open' || pull.merged ||
     pull.base.repositoryId !== trigger.repositoryId || pull.head.repositoryId === trigger.repositoryId ||
     typeof pull.base.ref !== 'string' || pull.base.ref.length === 0 || pull.base.ref.length > 256) return;
@@ -157,13 +182,21 @@ export function createBoundaryCiApp(options: CreateBoundaryCiAppOptions): Probot
       count: 1, durationMilliseconds: 0, attempt: 0, delayMilliseconds: 0,
     }, options.logSink);
   };
-  const handle = async (event: 'pull_request' | 'push', context: { payload: unknown; id: unknown }): Promise<void> => {
+  const handle = async (event: 'pull_request' | 'push', context: { payload: unknown; id: unknown; octokit: unknown; repo(): { owner: unknown; repo: unknown } }): Promise<void> => {
     const trigger = normalizeVerifiedTrigger(event, context.payload, context.id);
     if (trigger === null) return;
     log('accepted', 'verified-trigger', trigger);
     try {
-      const read = await options.createReadCapability({ installationId: trigger.installationId, repositoryId: trigger.repositoryId });
-      await scheduleResolution(await resolveTriggerWork(trigger, read), trigger, trigger.deliveryId, read, options, coordinator);
+      const route = verifiedRepositoryRoute(context);
+      if (route === null) throw new TypeError('invalid verified repository route');
+      const read = await createProbotRepositoryReadCapability(
+        { installationId: trigger.installationId, repositoryId: trigger.repositoryId },
+        context.octokit as Parameters<typeof createProbotRepositoryReadCapability>[1],
+        route,
+        options.logSink,
+      );
+      const preWorkRead = bindBoundedReadSession(read, createBoundedReadSession());
+      await scheduleResolution(await resolveTriggerWork(trigger, preWorkRead), trigger, trigger.deliveryId, preWorkRead, read, options, coordinator);
     } catch {
       log('rejected', 'trigger-read-failed', trigger);
     }

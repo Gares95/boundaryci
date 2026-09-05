@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { emitDeliveryEvent, type DeliveryLogEvent } from '../../src/delivery/logging.js';
 import { createRepositoryReadCapability, SanitizedGitHubReadError } from '../../src/delivery/github-read.js';
 import { cleanupComparisonRoots, cleanupSnapshotResidue } from '../../src/delivery/snapshot.js';
+import { validateDeliveryEnvelope } from '../../src/delivery/contract.js';
 import { createRuntimeSentinels } from './support.js';
 
 const temporaryParents: string[] = [];
@@ -86,6 +87,25 @@ describe('Phase 5 non-leakage boundaries', () => {
       'unsafe delivery log event',
     );
     expect(events).toEqual([]);
+  });
+
+  it('rejects every credential-bearing or structurally publishable fanout-incomplete envelope', () => {
+    const sentinels = createRuntimeSentinels();
+    const valid = {
+      schemaVersion: 1,
+      lifecycle: 'fanout-incomplete',
+      handoff: 'none',
+      work: null,
+      reason: 'fanout-page-read-failed',
+    };
+    expect(() => validateDeliveryEnvelope(valid)).not.toThrow();
+    for (const candidate of [
+      { ...valid, reason: sentinels.installationToken },
+      { ...valid, newestIdentity: { installationId: 42, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' } },
+      { ...valid, work: { installationId: 42, repositoryId: 7, pullNumber: 19, baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), evaluatorIdentity: 'boundaryci-evaluator-v1' } },
+      { ...valid, handoff: 'diagnostic-only' },
+      { ...valid, source: sentinels.source },
+    ]) expect(() => validateDeliveryEnvelope(candidate)).toThrow();
   });
 
   it('removes source/config bytes with a bounded retry but preserves cleanup failure as a non-handoff condition', async () => {
