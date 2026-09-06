@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { createServer } from 'node:http';
+import type { Socket } from 'node:net';
 import { lstat, mkdir, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -97,12 +98,20 @@ export async function createWebhookHarness(app: Probot): Promise<WebhookHarness>
       response.end();
     });
   });
+  const sockets = new Set<Socket>();
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.once('close', () => { sockets.delete(socket); });
+  });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (address === null || typeof address === 'string') throw new Error('delivery test server did not bind a TCP address');
   return Object.freeze({
     url: `http://127.0.0.1:${address.port}/api/github/webhooks`,
-    close: async () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: async () => {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    },
   });
 }
 
