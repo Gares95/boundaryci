@@ -1,19 +1,42 @@
 import { createHmac } from 'node:crypto';
 import { createServer } from 'node:http';
-import { lstat, readdir } from 'node:fs/promises';
+import { lstat, mkdir, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { Probot } from 'probot';
 
 import type { CurrentPull, GitBlob, GitCommit, GitHubReadCapability, GitTree } from '../../src/delivery/index.js';
 import { blob, commit, currentPull, tree } from './fixtures/index.js';
 
+const FETCH_SCOPE_LOCK = join(tmpdir(), 'boundaryci-delivery-fetch.lock');
+
+/**
+ * Serializes tests that intentionally replace Node's process-global fetch implementation.
+ * This is test support, not a runner policy: unrelated files keep normal worker scheduling.
+ */
+export async function acquireDeliveryFetchScope(): Promise<() => void> {
+  // Vitest can run delivery files in isolated module realms that still share the process-global
+  // fetch binding. A short-lived filesystem mutex is the smallest deterministic cross-realm lock.
+  for (let attempts = 0; attempts < 1_000; attempts += 1) {
+    try {
+      await mkdir(FETCH_SCOPE_LOCK);
+      return () => { void rm(FETCH_SCOPE_LOCK, { force: true, recursive: true }); };
+    } catch (error) {
+      if (typeof error !== 'object' || error === null || (error as { code?: unknown }).code !== 'EEXIST') throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    }
+  }
+  throw new Error('delivery fetch scope lock was not released');
+}
+
 export interface ReadFakeOptions {
-  currentPull?: (pullNumber: number, call: number) => Promise<CurrentPull> | CurrentPull;
-  list?: (baseRef: string, page: number) => Promise<{ pulls: readonly CurrentPull[]; nextPage: number | null; normalizedBytes: number }> | { pulls: readonly CurrentPull[]; nextPage: number | null; normalizedBytes: number };
-  commit?: (sha: string) => Promise<GitCommit> | GitCommit;
-  tree?: (sha: string) => Promise<GitTree> | GitTree;
-  blob?: (sha: string) => Promise<GitBlob> | GitBlob;
-  onCall?: (name: string) => void | Promise<void>;
+  currentPull?: (pullNumber: number, call: number, options?: { signal?: AbortSignal }) => Promise<CurrentPull> | CurrentPull;
+  list?: (baseRef: string, page: number, options?: { signal?: AbortSignal }) => Promise<{ pulls: readonly CurrentPull[]; nextPage: number | null; normalizedBytes: number }> | { pulls: readonly CurrentPull[]; nextPage: number | null; normalizedBytes: number };
+  commit?: (sha: string, options?: { signal?: AbortSignal }) => Promise<GitCommit> | GitCommit;
+  tree?: (sha: string, options?: { signal?: AbortSignal }) => Promise<GitTree> | GitTree;
+  blob?: (sha: string, options?: { signal?: AbortSignal }) => Promise<GitBlob> | GitBlob;
+  onCall?: (name: string, options?: { signal?: AbortSignal }) => void | Promise<void>;
 }
 
 export interface ProgrammableReadFake {
@@ -28,32 +51,33 @@ export interface ProgrammableReadFake {
 export function createGitHubReadFake(options: ReadFakeOptions = {}): ProgrammableReadFake {
   const calls: string[] = [];
   let pullReads = 0;
-  const record = async (name: string): Promise<void> => {
+  const record = async (name: string, readOptions?: { signal?: AbortSignal }): Promise<void> => {
     calls.push(name);
-    await options.onCall?.(name);
+    readOptions?.signal?.throwIfAborted();
+    await options.onCall?.(name, readOptions);
   };
   const capability: GitHubReadCapability = {
-    async getCurrentPull(pullNumber) {
-      await record(`pull:${pullNumber}`);
+    async getCurrentPull(pullNumber, readOptions) {
+      await record(`pull:${pullNumber}`, readOptions);
       pullReads += 1;
-      return options.currentPull?.(pullNumber, pullReads) ?? currentPull({ number: pullNumber });
+      return options.currentPull?.(pullNumber, pullReads, readOptions) ?? currentPull({ number: pullNumber });
     },
-    async listOpenPullsByBase(baseRef, page) {
-      await record(`list:${baseRef}:${page}`);
-      const value = await options.list?.(baseRef, page) ?? { pulls: Object.freeze([]), nextPage: null, normalizedBytes: 0 };
+    async listOpenPullsByBase(baseRef, page, readOptions) {
+      await record(`list:${baseRef}:${page}`, readOptions);
+      const value = await options.list?.(baseRef, page, readOptions) ?? { pulls: Object.freeze([]), nextPage: null, normalizedBytes: 0 };
       return Object.freeze(value);
     },
-    async getCommit(sha) {
-      await record(`commit:${sha}`);
-      return options.commit?.(sha) ?? commit(sha);
+    async getCommit(sha, readOptions) {
+      await record(`commit:${sha}`, readOptions);
+      return options.commit?.(sha, readOptions) ?? commit(sha);
     },
-    async getTree(sha) {
-      await record(`tree:${sha}`);
-      return options.tree?.(sha) ?? tree(sha);
+    async getTree(sha, readOptions) {
+      await record(`tree:${sha}`, readOptions);
+      return options.tree?.(sha, readOptions) ?? tree(sha);
     },
-    async getBlob(sha) {
-      await record(`blob:${sha}`);
-      return options.blob?.(sha) ?? blob(sha);
+    async getBlob(sha, readOptions) {
+      await record(`blob:${sha}`, readOptions);
+      return options.blob?.(sha, readOptions) ?? blob(sha);
     },
   };
   return Object.freeze({ capability, calls });

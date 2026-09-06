@@ -2,14 +2,14 @@ import { generateKeyPairSync } from 'node:crypto';
 import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createBoundaryCiApp,
   type DeliveryEnvelopeV1,
 } from '../../src/delivery/index.js';
 import { DELIVERY_FIXTURES } from './fixtures/index.js';
-import { AllowlistedSink, createDeliveryCaseSentinels, createGitHubReadFake, createWebhookHarness, inspectTemporaryParent, signOriginalWebhookBody } from './support.js';
+import { acquireDeliveryFetchScope, AllowlistedSink, createDeliveryCaseSentinels, createGitHubReadFake, createWebhookHarness, inspectTemporaryParent, signOriginalWebhookBody } from './support.js';
 
 const WEBHOOK_SECRET = createDeliveryCaseSentinels('tracer').webhookSecret!;
 const {
@@ -22,11 +22,15 @@ const {
 } = DELIVERY_FIXTURES;
 
 const harnesses: Array<Awaited<ReturnType<typeof createWebhookHarness>>> = [];
+let releaseFetchScope: (() => void) | undefined;
 
+beforeEach(async () => { releaseFetchScope = await acquireDeliveryFetchScope(); });
 afterEach(async () => {
   await Promise.all(harnesses.splice(0).map((harness) => harness.close()));
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  releaseFetchScope?.();
+  releaseFetchScope = undefined;
 });
 
 function composeVerifiedContext(app: ReturnType<typeof createBoundaryCiApp>, read: ReturnType<typeof createGitHubReadFake>): void {
@@ -141,6 +145,7 @@ describe('verified delivery tracer', () => {
 
     expect(response.status).toBe(200);
     await expect.poll(() => envelopes).toHaveLength(1);
+    await expect.poll(() => read.calls.length).toBe(8);
     expect(read.calls).toEqual([
       'pull:19', `commit:${BASE_SHA}`, `tree:${BASE_TREE}`, `commit:${HEAD_SHA}`, `tree:${HEAD_TREE}`, `blob:${BASE_BLOB}`, `blob:${HEAD_BLOB}`, 'pull:19',
     ]);
