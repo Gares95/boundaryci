@@ -1,4 +1,4 @@
-import { createHmac, generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync } from 'node:crypto';
 import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,9 +9,9 @@ import {
   type DeliveryEnvelopeV1,
 } from '../../src/delivery/index.js';
 import { DELIVERY_FIXTURES } from './fixtures/index.js';
-import { AllowlistedSink, createGitHubReadFake, createWebhookHarness, inspectTemporaryParent } from './support.js';
+import { AllowlistedSink, createDeliveryCaseSentinels, createGitHubReadFake, createWebhookHarness, inspectTemporaryParent, signOriginalWebhookBody } from './support.js';
 
-const WEBHOOK_SECRET = 'delivery-webhook-secret-sentinel';
+const WEBHOOK_SECRET = createDeliveryCaseSentinels('tracer').webhookSecret!;
 const {
   baseSha: BASE_SHA,
   headSha: HEAD_SHA,
@@ -84,7 +84,7 @@ function signedBody(): string {
 }
 
 function signature(body: string): string {
-  return `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')}`;
+  return signOriginalWebhookBody(WEBHOOK_SECRET, body);
 }
 
 function forkSignedBody(): string {

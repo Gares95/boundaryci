@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { createServer } from 'node:http';
 import { lstat, readdir } from 'node:fs/promises';
 
@@ -143,4 +144,34 @@ export function createRuntimeSentinels(): Readonly<Record<string, string>> {
     config: `runtime-config-${seed}`,
     externalError: `runtime-external-error-${seed}`,
   });
+}
+
+/**
+ * Produces case-labelled test-only values.  Callers deliberately keep these inputs separate
+ * from the public observations they later scan, preventing a test from accidentally proving
+ * only that its own injection fixture contains the expected value.
+ */
+export function createDeliveryCaseSentinels(caseId: string): Readonly<Record<string, string>> {
+  if (!/^[a-z0-9-]+$/u.test(caseId)) throw new TypeError('unsafe lifecycle case identifier');
+  const suffix = `${caseId}-${Date.now()}-${process.pid}`;
+  return Object.freeze({
+    webhookSecret: `lifecycle-webhook-${suffix}`,
+    appAuthentication: `lifecycle-app-auth-${suffix}`,
+    installationToken: `lifecycle-installation-${suffix}`,
+    authorizationHeader: `lifecycle-header-${suffix}`,
+    rawPayload: `lifecycle-payload-${suffix}`,
+    source: `lifecycle-source-${suffix}`,
+    config: `lifecycle-config-${suffix}`,
+    externalError: `lifecycle-external-error-${suffix}`,
+  });
+}
+
+/** Serializes only finite test observations; never pass injection fixtures to this helper. */
+export function serializePublicDeliveryObservations(value: unknown): string {
+  return JSON.stringify(value);
+}
+
+/** Signs the exact original JSON bytes supplied to Probot's real middleware. */
+export function signOriginalWebhookBody(webhookSecret: string, body: string): string {
+  return `sha256=${createHmac('sha256', webhookSecret).update(body).digest('hex')}`;
 }
