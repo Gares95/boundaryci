@@ -2,9 +2,10 @@ import { generateKeyPairSync } from 'node:crypto';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createBoundaryCiApp } from '../../src/delivery/index.js';
-import { createCheckCoordinator, type CheckPublisher, type CurrentPullFreshnessReader } from '../../src/delivery/check-coordinator.js';
-import type { CompletedCheckPayloadV1 } from '../../src/delivery/check-contract.js';
+import { createBoundaryCiApp, type DeliveryEnvelopeV1 } from '../../src/delivery/index.js';
+import { createCheckCoordinator, type CurrentPullFreshnessReader } from '../../src/delivery/check-coordinator.js';
+import type { CheckPublisher } from '../../src/delivery/check-publish.js';
+import { deriveCheckCorrelationId, type CompletedCheckPayloadV1 } from '../../src/delivery/check-contract.js';
 import { evaluateLocalComparison } from '../../src/runtime/evaluate.js';
 import { DELIVERY_FIXTURES } from './fixtures/index.js';
 import { acquireDeliveryFetchScope, createDeliveryCaseSentinels, createGitHubReadFake, createWebhookHarness, signOriginalWebhookBody } from './support.js';
@@ -52,7 +53,7 @@ function installPhase5Http(read: ReturnType<typeof createGitHubReadFake>, baseSo
     const commit = /^\/repos\/owner\/target\/git\/commits\/([a-f0-9]{40})$/u.exec(url.pathname);
     if (commit !== null) return new Response(JSON.stringify({ sha: commit[1], tree: { sha: commit[1] === DELIVERY_FIXTURES.baseSha ? DELIVERY_FIXTURES.baseTreeSha : DELIVERY_FIXTURES.headTreeSha } }), { status: 200, headers: { 'content-type': 'application/json' } });
     const tree = /^\/repos\/owner\/target\/git\/trees\/([a-f0-9]{40})$/u.exec(url.pathname);
-    if (tree !== null) return new Response(JSON.stringify({ sha: tree[1], tree: [{ path: 'src/app.ts', mode: '100644', type: 'blob', sha: tree[1] === DELIVERY_FIXTURES.baseTreeSha ? DELIVERY_FIXTURES.baseBlobSha : DELIVERY_FIXTURES.headBlobSha, size: Buffer.byteLength(WRITE_SOURCE) }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    if (tree !== null) return new Response(JSON.stringify({ sha: tree[1], tree: [{ path: 'src/app.ts', mode: '100644', type: 'blob', sha: tree[1] === DELIVERY_FIXTURES.baseTreeSha ? DELIVERY_FIXTURES.baseBlobSha : DELIVERY_FIXTURES.headBlobSha, size: Buffer.byteLength(tree[1] === DELIVERY_FIXTURES.baseTreeSha ? baseSource : headSource) }] }), { status: 200, headers: { 'content-type': 'application/json' } });
     const blob = /^\/repos\/owner\/target\/git\/blobs\/([a-f0-9]{40})$/u.exec(url.pathname);
     if (blob !== null) {
       const source = blob[1] === DELIVERY_FIXTURES.baseBlobSha ? baseSource : headSource;
@@ -68,12 +69,12 @@ function checkStore(current: { readonly headSha: string }): CheckPublisher & Cur
   return Object.freeze({
     calls,
     created,
-    async getCurrentPull(pullNumber) {
+    async getCurrentPull(pullNumber: number) {
       calls.push(`fresh:${pullNumber}`);
       return Object.freeze({ number: pullNumber, repositoryId: 7, state: 'open' as const, draft: false, merged: false, base: { repositoryId: 7, ref: 'main', sha: DELIVERY_FIXTURES.baseSha }, head: { repositoryId: 7, sha: current.headSha } });
     },
-    async lookupExact(identity) { calls.push(`lookup:${identity.correlationId}`); return Object.freeze([]); },
-    async create(payload) { calls.push(`create:${payload.headSha}`); created.push(payload); return Object.freeze({ id: 101 }); },
+    async lookupExact(identity: Parameters<CheckPublisher['lookupExact']>[0]) { calls.push(`lookup:${identity.correlationId}`); return Object.freeze([]); },
+    async create(payload: CompletedCheckPayloadV1) { calls.push(`create:${payload.headSha}`); created.push(payload); return Object.freeze({ id: 101 }); },
     async update() { throw new Error('unexpected Check update'); },
   });
 }
@@ -84,10 +85,11 @@ describe('signed BoundaryCI Check tracer', () => {
     const read = createGitHubReadFake();
     const store = checkStore({ headSha: DELIVERY_FIXTURES.headSha });
     const coordinator = createCheckCoordinator({ appId: 1, freshness: store, publisher: store });
+    let received: DeliveryEnvelopeV1 | undefined;
     const app = createBoundaryCiApp({
       appId: 1, privateKey: privateKey(), webhookSecret: sentinels.webhookSecret!,
       evaluator: evaluateLocalComparison,
-      onEnvelope: async (envelope) => { await coordinator.receive(envelope); },
+      onEnvelope: async (envelope) => { received = envelope; await coordinator.receive(envelope); },
     });
     installPhase5Http(read, READ_SOURCE, WRITE_SOURCE, sentinels.installationToken!);
     const harness = await createWebhookHarness(app);
@@ -100,7 +102,9 @@ describe('signed BoundaryCI Check tracer', () => {
     }, body });
 
     expect(response.status).toBe(200);
-    await expect.poll(() => store.created).toHaveLength(1);
+    await expect.poll(() => coordinator.results).toHaveLength(1);
+    expect(coordinator.results).toEqual([expect.objectContaining({ status: 'created' })]);
+    expect(store.created).toHaveLength(1);
     expect(store.calls).toHaveLength(3);
     expect(store.calls[0]).toBe('fresh:19');
     expect(store.calls[1]).toMatch(/^lookup:boundaryci:v1:[a-f0-9]{64}$/u);
@@ -110,7 +114,30 @@ describe('signed BoundaryCI Check tracer', () => {
       conclusion: 'failure', title: 'Permission expansion requires review',
       annotations: [expect.objectContaining({ level: 'failure', title: 'Permission policy failure', path: 'src/app.ts', operationId: 'issues/create' })],
     });
+    expect(received).toMatchObject({ lifecycle: 'current', handoff: 'publishable-semantic' });
+    if (received?.handoff !== 'publishable-semantic') throw new Error('signed tracer did not produce a semantic handoff');
+    const identity = deriveCheckCorrelationId(received);
+    expect(identity).toMatchObject({ version: 1, installationId: 42, repositoryId: 7, pullNumber: 19, baseSha: DELIVERY_FIXTURES.baseSha, headSha: DELIVERY_FIXTURES.headSha, topology: 'same-repository' });
+    expect(identity.correlationId).toMatch(/^boundaryci:v1:[a-f0-9]{64}$/u);
+    const redelivered = structuredClone(received);
+    redelivered.trigger = { deliveryIds: ['check-tracer-redelivery'] };
+    expect(deriveCheckCorrelationId(redelivered)).toEqual(identity);
+    expect(JSON.stringify(identity)).not.toContain('deliveryIds');
+    const staleStore = checkStore({ headSha: 'c'.repeat(40) });
+    const staleCoordinator = createCheckCoordinator({ appId: 1, freshness: staleStore, publisher: staleStore });
+    await expect(staleCoordinator.receive(received)).resolves.toEqual({ status: 'not-published', reason: 'stale-comparison' });
+    expect(staleStore.calls).toEqual(['fresh:19']);
+    expect(staleStore.created).toEqual([]);
     const observed = JSON.stringify({ calls: store.calls, created: store.created, result: coordinator.results });
     for (const sentinel of Object.values(sentinels)) expect(observed).not.toContain(sentinel);
+  });
+
+  it('rejects stale, no-handoff, and malformed envelopes before Check lookup or mutation', async () => {
+    const none = Object.freeze({ schemaVersion: 1 as const, lifecycle: 'stale' as const, handoff: 'none' as const, work: { installationId: 42, repositoryId: 7, pullNumber: 19, baseSha: DELIVERY_FIXTURES.baseSha, headSha: DELIVERY_FIXTURES.headSha, evaluatorIdentity: 'boundaryci-evaluator-v1' }, reason: 'authenticated-comparison-drift' as const });
+    const store = checkStore({ headSha: DELIVERY_FIXTURES.headSha });
+    const coordinator = createCheckCoordinator({ appId: 1, freshness: store, publisher: store });
+    await expect(coordinator.receive(none)).resolves.toEqual({ status: 'not-published', reason: 'no-handoff' });
+    await expect(coordinator.receive({ schemaVersion: 1, lifecycle: 'current', handoff: 'publishable-semantic', unexpected: 'injected' })).resolves.toEqual({ status: 'not-published', reason: 'invalid-envelope' });
+    expect(store.calls).toEqual([]);
   });
 });

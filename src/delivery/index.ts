@@ -6,6 +6,10 @@
  * an alternate transport, a credential-bearing client, or GitHub Check presentation.
  */
 export * from './app.js';
+export * from './check-contract.js';
+export * from './check-coordinator.js';
+export * from './check-publish.js';
+export * from './check-render.js';
 export * from './contract.js';
 export * from './coordinator.js';
 export * from './evaluate.js';
