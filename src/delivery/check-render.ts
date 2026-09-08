@@ -122,21 +122,23 @@ function evidenceRecords(evaluation: SelectedEvaluation, failing: boolean): { re
   const changes = comparison.status === 'complete' ? comparison.changes : comparison.status === 'incomplete' ? comparison.qualifiedChanges : [];
   const records: Array<{ line: string; annotation: CheckAnnotationV1 | null }> = [];
   const seen = new Set<string>();
-  const add = (contributor: { status: string; operation: { operationId: string } | null; source: { path: string; span: { start: { line: number }; end: { line: number } } } | null }, change?: { permission: string; base: string; head: string; change: string }): void => {
+  const add = (contributor: { status: string; operation: { operationId: string } | null; source: { path: string; span: { start: { line: number }; end: { line: number } } } | null }, change?: { permission: string; base: string; head: string; change: string }, currentHead = true): void => {
     if (contributor.source === null || contributor.operation === null || !safeOperationId(contributor.operation.operationId)) return;
     const operationId = contributor.operation.operationId;
     const key = `${contributor.status}\0${operationId}\0${contributor.source.path}\0${contributor.source.span.start.line}\0${contributor.source.span.end.line}`;
     if (seen.has(key)) return;
     seen.add(key);
     const unresolved = contributor.status !== 'resolved';
-    const eligible = unresolved || change?.change === 'expansion';
+    const eligible = currentHead && (unresolved || change?.change === 'expansion');
     const level: CheckAnnotationV1['level'] = unresolved ? (failing ? 'failure' : 'warning') : (failing ? 'failure' : 'notice');
-    const title: CheckAnnotationV1['title'] = unresolved
-      ? 'Incomplete analysis evidence'
-      : failing ? 'Permission policy failure' : 'Permitted permission expansion';
+    const title: CheckAnnotationV1['title'] = failing
+      ? 'Permission policy failure'
+      : unresolved ? 'Incomplete analysis evidence' : 'Permitted permission expansion';
     const statement = change === undefined
-      ? `${operationId} could not be fully resolved: ${contributor.status}.`
-      : `${operationId} contributes to ${change.permission}: ${change.base} → ${change.head}${failing ? ', which repository policy rejects.' : '; repository policy permits this expansion.'}`;
+      ? `${operationId} could not be fully resolved: ${contributor.status}${failing ? ', which repository policy rejects.' : '.'}`
+      : currentHead
+        ? `${operationId} contributes to ${change.permission}: ${change.base} → ${change.head}${change.change === 'expansion' ? (failing ? ', which repository policy rejects.' : '; repository policy permits this expansion.') : '.'}`
+        : `${operationId} is base-only evidence for ${change.permission}: ${change.base} → ${change.head}; no truthful current-head navigation location exists.`;
     records.push({
       line: `- ${statement} current-head evidence at ${inlineCode(contributor.source.path)}.`,
       annotation: eligible ? sourceAnnotation(contributor, level, title, statement) : null,
@@ -144,6 +146,7 @@ function evidenceRecords(evaluation: SelectedEvaluation, failing: boolean): { re
   };
   for (const change of changes) {
     for (const contributor of change.headContributors) add(contributor, change);
+    for (const contributor of change.baseContributors) add(contributor, change, false);
   }
   if (comparison.status === 'incomplete' && comparison.boundary.status === 'incomplete' && comparison.boundary.head.status === 'incomplete') {
     for (const contributor of comparison.boundary.head.findings) add(contributor);
@@ -186,11 +189,14 @@ export function renderCompletedCheck(envelope: SemanticEnvelope, identity: Check
   const omitted = evidence.annotations.length - annotations.length;
   const aggregate = [...changes].sort((left, right) => compare(left.permission, right.permission) || compare(left.change, right.change)).map(changeLine);
   const { policy } = evaluation;
+  const decision = policy.check === 'fail'
+    ? policy.reasons.includes('expansion-not-permitted') ? 'fail-expansion' : 'fail-incomplete'
+    : policy.outcome === 'incomplete' ? 'permit-incomplete' : 'pass';
   const summary = [
     '## BoundaryCI result', outcome.result, '',
-    '## Policy', `- failOnExpansion: ${String(policy.policy.failOnExpansion)}`, `- failOnIncomplete: ${String(policy.policy.failOnIncomplete)}`, `- decision: ${policy.check === 'fail' ? 'fail' : policy.outcome}`, '',
+    '## Policy', `- failOnExpansion: ${String(policy.policy.failOnExpansion)}`, `- failOnIncomplete: ${String(policy.policy.failOnIncomplete)}`, `- decision: ${decision}`, '',
     '## Aggregate permission changes', ...(aggregate.length === 0 ? ['- Known permission changes: none.'] : aggregate), `- Unresolved/incomplete operations: ${comparison.status === 'incomplete' ? comparison.reasons.length : 0}.`, '',
-    '## Annotation coverage', `- Annotations: eligible ${evidence.annotations.length}; selected for an initial create ${annotations.length}; omitted ${omitted}.`, `- Selected: failure ${annotations.filter((item) => item.level === 'failure').length}; warning ${annotations.filter((item) => item.level === 'warning').length}; notice ${annotations.filter((item) => item.level === 'notice').length}.`, '',
+    '## Annotation coverage', `- Annotations: eligible ${evidence.annotations.length}; selected for an initial create ${annotations.length}; omitted ${omitted}.`, `- Selected: failure ${annotations.filter((item) => item.level === 'failure').length}; warning ${annotations.filter((item) => item.level === 'warning').length}; notice ${annotations.filter((item) => item.level === 'notice').length}.`, `- Classes: permitted expansion ${annotations.filter((item) => item.title === 'Permitted permission expansion').length}; policy failure ${annotations.filter((item) => item.title === 'Permission policy failure').length}; incomplete analysis ${annotations.filter((item) => item.title === 'Incomplete analysis evidence').length}; diagnostic 0.`, '',
     '## Comparison', `- base/head: ${envelope.phase6Match.baseSha} / ${envelope.phase6Match.headSha}`, `- correlation: ${identity.correlationId}`, '',
     '## Publication status', '- status: pending-upsert',
   ].join('\n');
