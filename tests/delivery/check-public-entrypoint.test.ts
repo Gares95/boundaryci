@@ -63,19 +63,34 @@ function installPhase5Http(read: ReturnType<typeof createGitHubReadFake>, baseSo
   });
 }
 
-function checkStore(current: { readonly headSha: string }): CheckPublisher & CurrentPullFreshnessReader & { readonly calls: string[]; readonly created: CompletedCheckPayloadV1[] } {
+type CheckStore = CheckPublisher & CurrentPullFreshnessReader & {
+  readonly calls: string[];
+  readonly created: CompletedCheckPayloadV1[];
+  readonly updates: Array<Omit<CompletedCheckPayloadV1, 'annotations'>>;
+};
+
+function checkStore(current: { readonly headSha: string }): CheckStore {
   const calls: string[] = [];
   const created: CompletedCheckPayloadV1[] = [];
+  const updates: Array<Omit<CompletedCheckPayloadV1, 'annotations'>> = [];
   return Object.freeze({
     calls,
     created,
+    updates,
     async getCurrentPull(pullNumber: number) {
       calls.push(`fresh:${pullNumber}`);
       return Object.freeze({ number: pullNumber, repositoryId: 7, state: 'open' as const, draft: false, merged: false, base: { repositoryId: 7, ref: 'main', sha: DELIVERY_FIXTURES.baseSha }, head: { repositoryId: 7, sha: current.headSha } });
     },
-    async lookupExact(identity: Parameters<CheckPublisher['lookupExact']>[0]) { calls.push(`lookup:${identity.correlationId}`); return Object.freeze([]); },
+    async lookupExact(identity: Parameters<CheckPublisher['lookupExact']>[0]) {
+      calls.push(`lookup:${identity.correlationId}`);
+      return Object.freeze(created.length === 0 ? [] : [{ id: 101 }]);
+    },
     async create(payload: CompletedCheckPayloadV1) { calls.push(`create:${payload.headSha}`); created.push(payload); return Object.freeze({ id: 101 }); },
-    async update() { throw new Error('unexpected Check update'); },
+    async update(checkId: number, payload: Omit<CompletedCheckPayloadV1, 'annotations'>) {
+      calls.push(`update:${checkId}:${payload.headSha}`);
+      updates.push(payload);
+      return Object.freeze({ id: checkId });
+    },
   });
 }
 
@@ -114,6 +129,16 @@ describe('signed BoundaryCI Check tracer', () => {
       conclusion: 'failure', title: 'Permission expansion requires review',
       annotations: [expect.objectContaining({ level: 'failure', title: 'Permission policy failure', path: 'src/app.ts', operationId: 'issues/create' })],
     });
+    const redeliveryResponse = await fetch(harness.url, { method: 'POST', headers: {
+      'content-type': 'application/json', 'x-github-event': 'pull_request', 'x-github-delivery': 'check-tracer-redelivery',
+      'x-hub-signature-256': signOriginalWebhookBody(sentinels.webhookSecret!, body),
+    }, body });
+    expect(redeliveryResponse.status).toBe(200);
+    await expect.poll(() => coordinator.results).toHaveLength(2);
+    expect(coordinator.results[1]).toMatchObject({ status: 'updated', checkId: 101 });
+    expect(store.created).toHaveLength(1);
+    expect(store.updates).toEqual([expect.objectContaining({ headSha: DELIVERY_FIXTURES.headSha, status: 'completed' })]);
+    expect(Object.hasOwn(store.updates[0]!, 'annotations')).toBe(false);
     expect(received).toMatchObject({ lifecycle: 'current', handoff: 'publishable-semantic' });
     if (received?.handoff !== 'publishable-semantic') throw new Error('signed tracer did not produce a semantic handoff');
     const identity = deriveCheckCorrelationId(received);
@@ -124,10 +149,24 @@ describe('signed BoundaryCI Check tracer', () => {
     expect(deriveCheckCorrelationId(redelivered)).toEqual(identity);
     expect(JSON.stringify(identity)).not.toContain('deliveryIds');
     const staleStore = checkStore({ headSha: 'c'.repeat(40) });
-    const staleCoordinator = createCheckCoordinator({ appId: 1, freshness: staleStore, publisher: staleStore });
-    await expect(staleCoordinator.receive(received)).resolves.toEqual({ status: 'not-published', reason: 'stale-comparison' });
-    expect(staleStore.calls).toEqual(['fresh:19']);
+    let releaseFreshness!: () => void;
+    const freshnessBarrier = new Promise<void>((resolve) => { releaseFreshness = resolve; });
+    const delayedFreshness: CurrentPullFreshnessReader = {
+      async getCurrentPull(pullNumber) {
+        await freshnessBarrier;
+        return staleStore.getCurrentPull(pullNumber);
+      },
+    };
+    const staleCoordinator = createCheckCoordinator({ appId: 1, freshness: delayedFreshness, publisher: staleStore });
+    const obsolete = Promise.all([staleCoordinator.receive(received), staleCoordinator.receive(received)]);
+    releaseFreshness();
+    await expect(obsolete).resolves.toEqual([
+      { status: 'not-published', reason: 'stale-comparison' },
+      { status: 'not-published', reason: 'stale-comparison' },
+    ]);
+    expect(staleStore.calls).toEqual(['fresh:19', 'fresh:19']);
     expect(staleStore.created).toEqual([]);
+    expect(staleStore.updates).toEqual([]);
     const observed = JSON.stringify({ calls: store.calls, created: store.created, result: coordinator.results });
     for (const sentinel of Object.values(sentinels)) expect(observed).not.toContain(sentinel);
   });
