@@ -10,6 +10,7 @@ const SHA_PATTERN = /^[a-f0-9]{40}$/u;
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/u;
 const ISO_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 128 * 1024 * 1024;
 const MAX_PROOF_BYTES = 128 * 1024;
 const APACHE_2_SHA256 = 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30';
@@ -107,11 +108,11 @@ function safeText(value, pattern = SAFE_TEXT) {
   return typeof value === 'string' && pattern.test(value);
 }
 
-function readBounded(root, path, budget) {
+function readBounded(root, path, budget, maximumFileBytes = MAX_FILE_BYTES) {
   const absolutePath = resolve(root, path);
   if (relative(root, absolutePath).startsWith(`..${sep}`) || absolutePath === root) throw new Error('repository/path');
   const details = statSync(absolutePath, { throwIfNoEntry: false });
-  if (details === undefined || !details.isFile() || details.size > MAX_FILE_BYTES) throw new Error('repository/file');
+  if (details === undefined || !details.isFile() || details.size > maximumFileBytes) throw new Error('repository/file');
   budget.total += details.size;
   if (budget.total > MAX_TOTAL_BYTES) throw new Error('repository/total-size');
   return readFileSync(absolutePath);
@@ -442,7 +443,7 @@ function verifyDocker(root, sha) {
     if (applicationFiles.some((path) => unsafeImageApplicationPath(path))) throw new Error('docker/filesystem-path');
     const budget = { total: 0 };
     for (const path of applicationFiles) {
-      const bytes = readBounded(extracted, path, budget);
+      const bytes = readBounded(extracted, path, budget, MAX_IMAGE_FILE_BYTES);
       if (bytes.includes(0)) continue;
       const text = bytes.toString('utf8');
       if (SECRET_CONTENT.test(text) || ASSISTANT_ATTRIBUTION.test(text)) throw new Error('docker/filesystem-material');
