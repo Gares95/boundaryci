@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -14,7 +14,6 @@ import {
 import type { CheckAnnotationV1 } from '../../src/delivery/check-contract.js';
 import type { CheckIdentityV1 } from '../../src/delivery/check-contract.js';
 import { deriveCheckCorrelationId } from '../../src/delivery/check-contract.js';
-import { evaluateCurrentComparison } from '../../src/delivery/evaluate.js';
 import { BUILTIN_CONFIG, effectiveConfigIdentity } from '../../src/config/model.js';
 import { evaluateLocalComparison } from '../../src/runtime/evaluate.js';
 
@@ -69,7 +68,7 @@ function selectedConfig() {
 }
 
 async function roots(): Promise<{ base: string; head: string }> {
-  const parent = join(tmpdir(), 'boundaryci-snapshot-v1');
+  const parent = join(tmpdir(), 'boundaryci-check-render-v1');
   await mkdir(parent, { recursive: true, mode: 0o700 });
   await chmod(parent, 0o700);
   const [base, head] = await Promise.all([mkdtemp(join(parent, 'boundaryci-snapshot-')), mkdtemp(join(parent, 'boundaryci-snapshot-'))]);
@@ -79,26 +78,32 @@ async function roots(): Promise<{ base: string; head: string }> {
 
 async function rendered(baseSource: string, headSource: string, policy = '', sourcePath = 'app.ts') {
   const sourceRoots = await roots();
-  await Promise.all([mkdir(join(sourceRoots.base, dirname(sourcePath)), { recursive: true }), mkdir(join(sourceRoots.head, dirname(sourcePath)), { recursive: true })]);
-  await Promise.all([
-    writeFile(join(sourceRoots.base, '.boundaryci.yml'), `version: 1\n${policy}`),
-    writeFile(join(sourceRoots.head, '.boundaryci.yml'), 'version: 1\n'),
-    writeFile(join(sourceRoots.base, sourcePath), baseSource),
-    writeFile(join(sourceRoots.head, sourcePath), headSource),
-  ]);
-  const envelope = await evaluateCurrentComparison({
-    work: { installationId: 1, repositoryId: 2, pullNumber: 3, baseSha: BASE_SHA, headSha: HEAD_SHA, evaluatorIdentity: 'boundaryci-evaluator-v1' },
-    baseRef: 'main',
-    triggerDeliveryIds: [],
-    acquire: async () => ({
-      roots: sourceRoots,
-      result: { status: 'complete', config: selectedConfig(), snapshots: { base: { commitSha: BASE_SHA, treeSha: 'c'.repeat(40), sourceFileCount: 2, sourceBytes: 1 }, head: { commitSha: HEAD_SHA, treeSha: 'd'.repeat(40), sourceFileCount: 2, sourceBytes: 1 } }, causes: [], semanticUsability: 'complete' },
-    }) as never,
-    evaluator: evaluateLocalComparison,
-    getCurrentPull: async () => ({ number: 3, repositoryId: 2, state: 'open', draft: false, merged: false, base: { repositoryId: 2, ref: 'main', sha: BASE_SHA }, head: { repositoryId: 2, sha: HEAD_SHA } }),
-  });
-  if (envelope.handoff !== 'publishable-semantic') throw new Error('renderer fixture did not produce a semantic handoff');
-  return { envelope, payload: renderCompletedCheck(envelope, deriveCheckCorrelationId(envelope)) };
+  try {
+    await Promise.all([mkdir(join(sourceRoots.base, dirname(sourcePath)), { recursive: true }), mkdir(join(sourceRoots.head, dirname(sourcePath)), { recursive: true })]);
+    await Promise.all([
+      writeFile(join(sourceRoots.base, '.boundaryci.yml'), `version: 1\n${policy}`),
+      writeFile(join(sourceRoots.head, '.boundaryci.yml'), 'version: 1\n'),
+      writeFile(join(sourceRoots.base, sourcePath), baseSource),
+      writeFile(join(sourceRoots.head, sourcePath), headSource),
+    ]);
+    const evaluation = await evaluateLocalComparison(sourceRoots.base, sourceRoots.head);
+    if (evaluation.status !== 'selected') throw new Error('renderer fixture evaluation was not selected');
+    const incomplete = evaluation.comparison.status === 'incomplete';
+    const acquisition = incomplete
+      ? { status: 'incomplete' as const, config: selectedConfig(), snapshots: { base: { commitSha: BASE_SHA, treeSha: 'c'.repeat(40), sourceFileCount: 2, sourceBytes: 1 }, head: { commitSha: HEAD_SHA, treeSha: 'd'.repeat(40), sourceFileCount: 2, sourceBytes: 1 } }, causes: [], semanticUsability: 'positive-evidence-only' as const, allowedClaims: ['present-observations', 'present-requirements'] as const }
+      : { status: 'complete' as const, config: selectedConfig(), snapshots: { base: { commitSha: BASE_SHA, treeSha: 'c'.repeat(40), sourceFileCount: 2, sourceBytes: 1 }, head: { commitSha: HEAD_SHA, treeSha: 'd'.repeat(40), sourceFileCount: 2, sourceBytes: 1 } }, causes: [], semanticUsability: 'complete' as const };
+    const envelope = {
+      schemaVersion: 1 as const, lifecycle: 'current' as const, handoff: 'publishable-semantic' as const,
+      work: { installationId: 1, repositoryId: 2, pullNumber: 3, baseSha: BASE_SHA, headSha: HEAD_SHA, evaluatorIdentity: 'boundaryci-evaluator-v1' },
+      trigger: { deliveryIds: [] }, acquisition,
+      semantic: { status: incomplete ? 'incomplete' as const : 'complete' as const, semanticUsability: incomplete ? 'positive-evidence-only' as const : 'complete' as const, evaluation },
+      phase6FreshnessRequired: true as const,
+      phase6Match: { repositoryId: 2, pullNumber: 3, baseRepositoryId: 2, baseRef: 'main', baseSha: BASE_SHA, headRepositoryId: 2, headSha: HEAD_SHA, topology: 'same-repository' as const, eligibility: 'open' as const },
+    };
+    return { envelope, payload: renderCompletedCheck(envelope, deriveCheckCorrelationId(envelope)) };
+  } finally {
+    await Promise.all([rm(sourceRoots.base, { recursive: true, force: true }), rm(sourceRoots.head, { recursive: true, force: true })]);
+  }
 }
 
 describe('Phase 6 renderer matrix', () => {
@@ -150,23 +155,32 @@ describe('Phase 6 renderer matrix', () => {
     expect(() => selectCheckAnnotations([{ ...annotation(1), path: '/absolute.ts' }])).toThrow(TypeError);
   });
 
-  it('A07 renders a validated current diagnostic with closed action-required copy and no fabricated location', () => {
+  it.each([
+    ['A07', 'input-configuration-failure'],
+    ['A08', 'unsupported-topology'],
+    ['A09 acquisition', 'acquisition-runtime-failure'],
+    ['A09 evaluator', 'evaluator-runtime-failure'],
+  ] as const)('%s renders diagnostic code %s with closed action-required copy and no fabricated location', (_case, code) => {
     const diagnostic = {
       schemaVersion: 1,
       lifecycle: 'current',
       handoff: 'diagnostic-only',
       work: { installationId: 1, repositoryId: 2, pullNumber: 3, baseSha: BASE_SHA, headSha: HEAD_SHA, evaluatorIdentity: 'boundaryci-evaluator-v1' },
       trigger: { deliveryIds: [] },
-      diagnostic: { code: 'input-configuration-failure' },
+      diagnostic: { code },
       phase6FreshnessRequired: true,
-      phase6Match: { repositoryId: 2, pullNumber: 3, baseRepositoryId: 2, baseRef: 'main', baseSha: BASE_SHA, headRepositoryId: 2, headSha: HEAD_SHA, topology: 'same-repository', eligibility: 'open' },
+      phase6Match: { repositoryId: 2, pullNumber: 3, baseRepositoryId: 2, baseRef: 'main', baseSha: BASE_SHA, headRepositoryId: code === 'unsupported-topology' ? 4 : 2, headSha: HEAD_SHA, topology: code === 'unsupported-topology' ? 'unsupported-topology' : 'same-repository', eligibility: 'open' },
     } as const;
 
-    expect(renderCompletedCheck(diagnostic as never, identity)).toMatchObject({
+    const diagnosticIdentity = code === 'unsupported-topology'
+      ? { ...identity, headRepositoryId: 4, topology: 'unsupported-topology' as const }
+      : identity;
+    expect(renderCompletedCheck(diagnostic as never, diagnosticIdentity)).toMatchObject({
       conclusion: 'action_required',
       title: 'BoundaryCI could not evaluate this change',
       annotations: [],
     });
+    expect(renderCompletedCheck(diagnostic as never, diagnosticIdentity).text).toContain(`- ${code}:`);
   });
 
   it.each([
@@ -209,13 +223,25 @@ describe('Phase 6 renderer matrix', () => {
     expect(first).toEqual(second);
     expect(payload.annotations).toEqual([]);
     expect(payload.text).toContain('### Evidence not annotated');
+    expect(payload.text).toContain('no truthful current-head navigation location exists');
     expect(payload.text).not.toContain('base-only evidence for issues: write → read; no truthful current-head navigation location exists. current-head');
     expect(envelope).toEqual(before);
   });
 
-  it('rejects control-character path injection before Markdown can be emitted', () => {
+  it('A36/A38 reject control-character path injection before selector or renderer Markdown can be emitted', async () => {
     expect(() => selectCheckAnnotations([{ ...annotation(1), path: 'src/ok.ts\n## injected' }])).toThrow(TypeError);
     expect(() => selectCheckAnnotations([{ ...annotation(1), path: 'src/ok.ts\u0000token' }])).toThrow(TypeError);
+    await expect(rendered(EMPTY_SOURCE, WRITE_SOURCE, '', 'src/ok\u007f.ts')).rejects.toThrow(TypeError);
+  });
+
+  it('A03-A06 report exact aggregate contributor, unresolved-operation, and annotation-class counts', async () => {
+    const permitted = await rendered(READ_SOURCE, WRITE_SOURCE, 'policy:\n  failOnExpansion: false\n');
+    const incomplete = await rendered(READ_SOURCE, INCOMPLETE_SOURCE, 'policy:\n  failOnIncomplete: false\n');
+
+    expect(permitted.payload.summary).toContain('1 contributing head-side operation');
+    expect(permitted.payload.summary).toContain('Selected classes: permitted expansion 1; policy failure 0; incomplete analysis 0; diagnostic 0.');
+    expect(incomplete.payload.summary).toContain('Unresolved/incomplete operations: 1.');
+    expect(incomplete.payload.text).toContain('incomplete evidence');
   });
 
   it('A32-A35 retain exactly 500 whole detail records and append one bounded truncation record for the next record', async () => {
@@ -227,6 +253,7 @@ describe('Phase 6 renderer matrix', () => {
     expect(over.payload.text).toMatch(/Details truncated: 1 complete record\(s\) omitted by the item bound\./u);
     expect(over.payload.summary).toContain('Annotations: eligible 501; selected for an initial create 50; omitted 451.');
     expect(over.payload.summary).toContain('Omitted: failure 451; warning 0; notice 0.');
+    expect(over.payload.text).toContain('annotation selection limit');
     expect(Buffer.byteLength(over.payload.text, 'utf8')).toBeLessThanOrEqual(CHECK_DETAILS_UTF8_LIMIT);
   });
 
