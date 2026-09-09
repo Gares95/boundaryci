@@ -407,6 +407,12 @@ function listFiles(root, directory = root) {
   return result;
 }
 
+export function unsafeImageApplicationPath(path) {
+  if (!path.startsWith('app/')) return true;
+  if (FORBIDDEN_PATH.test(path) || /(?:^|\/)(?:\.github|tests?|fixtures?|coverage)(?:\/|$)/iu.test(path)) return true;
+  return !path.startsWith('app/node_modules/') && SECRET_PATH.test(path);
+}
+
 function verifyDocker(root, sha) {
   for (const key of ['APP_ID', 'PRIVATE_KEY_PATH', 'WEBHOOK_SECRET']) if (process.env[key] !== undefined) throw new Error('docker/runtime-credential-present');
   runChecked('docker', ['version', '--format', '{{.Server.Version}}'], root, 'docker/unavailable');
@@ -433,7 +439,7 @@ function verifyDocker(root, sha) {
     runChecked('mkdir', ['-p', extracted], root, 'docker/extract-directory');
     runChecked('tar', ['-xf', archive, '-C', extracted], root, 'docker/extract');
     const applicationFiles = listFiles(extracted).filter((path) => path.startsWith('app/'));
-    if (applicationFiles.some((path) => FORBIDDEN_PATH.test(path) || SECRET_PATH.test(path) || /(?:^|\/)(?:tests?|fixtures?|coverage)(?:\/|$)/iu.test(path))) throw new Error('docker/filesystem-path');
+    if (applicationFiles.some((path) => unsafeImageApplicationPath(path))) throw new Error('docker/filesystem-path');
     const budget = { total: 0 };
     for (const path of applicationFiles) {
       const bytes = readBounded(extracted, path, budget);

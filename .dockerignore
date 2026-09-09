@@ -8,6 +8,9 @@
 !tsconfig.build.json
 !src/
 !src/**
+!tools/
+!tools/release/
+!tools/release/prune-runtime.mjs
 
 # Never admit credentials, environment overrides, certificates, or token material.
 **/.env

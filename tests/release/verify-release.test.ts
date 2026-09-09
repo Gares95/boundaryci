@@ -1,13 +1,15 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { pruneRuntimeDependencyTree } from '../../tools/release/prune-runtime.mjs';
 import {
   PROOF_KINDS,
   runCli,
+  unsafeImageApplicationPath,
   validateProofFile,
   validateProofRecord,
   verifyRepositorySnapshot,
@@ -184,5 +186,36 @@ describe('retained proof validators', () => {
     const invalid = join(directory, 'invalid.md');
     await writeFile(invalid, `# Phase 6 integrated review\n\nRelease-SHA: ${SHA}\nReview-Kind: integrated\nStatus: pass\nHighest-Severity: high\n\n## Scope\n\nScope.\n\n## Findings\n\nFinding.\n\n## Security disposition\n\nPass.\n`);
     expect(validateProofFile('review', invalid, SHA)).toEqual([{ code: 'proof/review-format' }]);
+  });
+});
+
+describe('runtime image path boundary', () => {
+  it('allows a pinned dependency module name but rejects non-runtime directories and app-owned secret filenames', () => {
+    expect(unsafeImageApplicationPath('app/node_modules/.pnpm/auth-module/dist/get-oauth-access-token.js')).toBe(false);
+    expect(unsafeImageApplicationPath('app/node_modules/package/test/example.js')).toBe(true);
+    expect(unsafeImageApplicationPath('app/node_modules/package/.claude/settings.json')).toBe(true);
+    expect(unsafeImageApplicationPath('app/node_modules/package/.github/workflows/ci.yml')).toBe(true);
+    expect(unsafeImageApplicationPath('app/private-key-backup.txt')).toBe(true);
+  });
+
+  it('removes fixed non-runtime directories and unlinks them without traversing outside the dependency root', async () => {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'boundaryci-runtime-prune-'));
+    temporaryDirectories.push(temporaryRoot);
+    const dependencyRoot = join(temporaryRoot, 'node_modules');
+    const packageRoot = join(dependencyRoot, 'package');
+    const outside = join(temporaryRoot, 'outside');
+    await mkdir(join(packageRoot, 'tests'), { recursive: true });
+    await mkdir(join(packageRoot, 'dist'), { recursive: true });
+    await mkdir(outside);
+    await writeFile(join(packageRoot, 'tests', 'example.js'), 'test\n');
+    await writeFile(join(packageRoot, 'dist', 'index.js'), 'runtime\n');
+    await writeFile(join(outside, 'retained.txt'), 'outside\n');
+    await symlink(outside, join(packageRoot, '.claude'), 'dir');
+
+    expect(await pruneRuntimeDependencyTree(dependencyRoot)).toBe(2);
+    await expect(access(join(packageRoot, 'tests'))).rejects.toThrow();
+    await expect(access(join(packageRoot, '.claude'))).rejects.toThrow();
+    await expect(readFile(join(packageRoot, 'dist', 'index.js'), 'utf8')).resolves.toBe('runtime\n');
+    await expect(readFile(join(outside, 'retained.txt'), 'utf8')).resolves.toBe('outside\n');
   });
 });

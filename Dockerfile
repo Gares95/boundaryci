@@ -8,8 +8,10 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
+COPY tools/release/prune-runtime.mjs ./tools/release/prune-runtime.mjs
 RUN pnpm run build
 RUN pnpm prune --prod --ignore-scripts
+RUN node tools/release/prune-runtime.mjs node_modules
 
 FROM node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS runtime
 
