@@ -7,6 +7,7 @@ import { createProbotRepositoryReadCapability, type GitHubReadCapability } from 
 import { emitDeliveryEvent, type DeliveryLogSink } from './logging.js';
 import { acquireComparisonRoots } from './snapshot.js';
 import { normalizeVerifiedTrigger, REGISTERED_EVENTS, resolveTriggerWork, type AuthenticatedComparisonIdentity, type TriggerResolution, type VerifiedTrigger } from './trigger.js';
+import type { CheckCoordinator } from './check-coordinator.js';
 
 const SILENT_PROBOT_LOGGER = {
   child: () => SILENT_PROBOT_LOGGER,
@@ -28,6 +29,8 @@ export interface CreateBoundaryCiAppOptions {
   evaluator?: LocalComparisonEvaluator;
   evaluatorIdentity?: string;
   coordinator?: DeliveryCoordinator;
+  /** Optional source-free Phase 6 seam. Production composition supplies a coordinator built from two narrowed roles. */
+  checkCoordinator?: CheckCoordinator;
   onEnvelope?(envelope: DeliveryEnvelopeV1): void | Promise<void>;
   logSink?: DeliveryLogSink;
 }
@@ -103,7 +106,7 @@ async function scheduleComparison(
   });
   const scheduled = await submission.result;
   if (submission.owner && scheduled.status === 'current') {
-    await options.onEnvelope?.(submission.overflowed()
+    await handoff(options, submission.overflowed()
       ? coalescedDeliveryOverflow(work)
       : withCoalescedDeliveries(scheduled.value, submission.deliveryIds()));
   }
@@ -135,7 +138,7 @@ async function scheduleResolution(
       reason: `fanout-${result.cause}`,
     });
     validateDeliveryEnvelope(envelope);
-    await options.onEnvelope?.(envelope);
+    await handoff(options, envelope);
     return;
   }
   if (result.status !== 'diagnostic-only' || trigger.kind !== 'pull-request') return;
@@ -177,7 +180,12 @@ async function scheduleResolution(
     }),
   });
   validateDeliveryEnvelope(envelope);
-  await options.onEnvelope?.(envelope);
+  await handoff(options, envelope);
+}
+
+async function handoff(options: CreateBoundaryCiAppOptions, envelope: DeliveryEnvelopeV1): Promise<void> {
+  if (options.onEnvelope !== undefined) { await options.onEnvelope(envelope); return; }
+  await options.checkCoordinator?.receive(envelope);
 }
 
 /**

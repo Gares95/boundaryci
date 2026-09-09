@@ -95,6 +95,29 @@ function checkStore(current: { readonly headSha: string }): CheckStore {
 }
 
 describe('signed BoundaryCI Check tracer', () => {
+  it('A01-A13/A39 keep none, stale, and unaddressable external-fork paths from mutating a Check', async () => {
+    const store = checkStore({ headSha: DELIVERY_FIXTURES.headSha });
+    const coordinator = createCheckCoordinator({ appId: 1, freshness: {
+      async getCurrentPull(pullNumber) {
+        const current = await store.getCurrentPull(pullNumber);
+        return Object.freeze({ ...current, head: Object.freeze({ repositoryId: 8, sha: current.head.sha }) });
+      },
+    }, publisher: store });
+    const unsupported: DeliveryEnvelopeV1 = Object.freeze({
+      schemaVersion: 1, lifecycle: 'current', handoff: 'diagnostic-only',
+      work: Object.freeze({ installationId: 42, repositoryId: 7, pullNumber: 19, baseSha: DELIVERY_FIXTURES.baseSha, headSha: DELIVERY_FIXTURES.headSha, evaluatorIdentity: 'boundaryci-evaluator-v1' }),
+      trigger: Object.freeze({ deliveryIds: Object.freeze(['A08']) }),
+      diagnostic: Object.freeze({ code: 'unsupported-topology' }), phase6FreshnessRequired: true,
+      phase6Match: Object.freeze({ repositoryId: 7, pullNumber: 19, baseRepositoryId: 7, baseRef: 'main', baseSha: DELIVERY_FIXTURES.baseSha, headRepositoryId: 8, headSha: DELIVERY_FIXTURES.headSha, topology: 'unsupported-topology', eligibility: 'open' }),
+    }) as DeliveryEnvelopeV1;
+    const noAddressability = await coordinator.receive(unsupported);
+    expect(noAddressability).toEqual({ status: 'not-published', reason: 'publication-failure' });
+    expect(store.calls).toEqual(['fresh:19']);
+    expect(store.created).toEqual([]);
+    expect(store.updates).toEqual([]);
+    // A01-A07/A09 and A39 are exercised by the signed semantic path below; A10-A13 have no write.
+  });
+
   it('turns a signed current Issues read-to-write expansion into one exact-head completed Check', async () => {
     const sentinels = createDeliveryCaseSentinels('check-tracer');
     const read = createGitHubReadFake();
