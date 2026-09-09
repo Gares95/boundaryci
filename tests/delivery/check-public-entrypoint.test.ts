@@ -37,13 +37,21 @@ function signedBody(rawPayload: string): string {
   });
 }
 
-function installPhase5Http(read: ReturnType<typeof createGitHubReadFake>, baseSource: string, headSource: string, installationToken: string): void {
+function installPhase5Http(read: ReturnType<typeof createGitHubReadFake>, baseSource: string, headSource: string, installationToken: string, checkRequests?: string[]): void {
   const nativeFetch = globalThis.fetch;
   vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : input.toString());
     if (url.hostname === '127.0.0.1') return nativeFetch(input, init);
     if (url.pathname === '/app/installations/42/access_tokens') {
       return new Response(JSON.stringify({ token: installationToken, expires_at: '2099-01-01T00:00:00Z', permissions: {} }), { status: 201, headers: { 'content-type': 'application/json' } });
+    }
+    if (/^\/repos\/owner\/target\/commits\/[a-f0-9]{40}\/check-runs$/u.test(url.pathname)) {
+      checkRequests?.push(`list:${url.searchParams.get('filter')}:${url.searchParams.get('per_page')}`);
+      return new Response(JSON.stringify({ total_count: 0, check_runs: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (url.pathname === '/repos/owner/target/check-runs') {
+      checkRequests?.push('create');
+      return new Response(JSON.stringify({ id: 101 }), { status: 201, headers: { 'content-type': 'application/json' } });
     }
     const pull = /^\/repos\/owner\/target\/pulls\/(\d+)$/u.exec(url.pathname);
     if (pull !== null) {
@@ -95,6 +103,19 @@ function checkStore(current: { readonly headSha: string }): CheckStore {
 }
 
 describe('signed BoundaryCI Check tracer', () => {
+  it('A39 composes the closed production Check path with separate private read and publication capabilities', async () => {
+    const sentinels = createDeliveryCaseSentinels('a39'); const read = createGitHubReadFake(); const checks: string[] = [];
+    const app = createBoundaryCiApp({ appId: 1, privateKey: privateKey(), webhookSecret: sentinels.webhookSecret!, evaluator: evaluateLocalComparison, enableCheckPublication: true });
+    installPhase5Http(read, READ_SOURCE, WRITE_SOURCE, sentinels.installationToken!, checks);
+    const harness = await createWebhookHarness(app); harnesses.push(harness); const body = signedBody(sentinels.rawPayload!);
+    const response = await fetch(harness.url, { method: 'POST', headers: {
+      'content-type': 'application/json', 'x-github-event': 'pull_request', 'x-github-delivery': 'A39', 'x-hub-signature-256': signOriginalWebhookBody(sentinels.webhookSecret!, body),
+    }, body });
+    expect(response.status).toBe(200);
+    await expect.poll(() => checks).toEqual(['list:all:100']);
+    expect(JSON.stringify(checks)).not.toContain(sentinels.installationToken!);
+  });
+
   it('A01-A13/A39 keep none, stale, and unaddressable external-fork paths from mutating a Check', async () => {
     const store = checkStore({ headSha: DELIVERY_FIXTURES.headSha });
     const coordinator = createCheckCoordinator({ appId: 1, freshness: {

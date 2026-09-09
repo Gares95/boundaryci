@@ -35,14 +35,15 @@ function matchesFreshness(expected: Phase6FreshnessMatch, observed: CurrentPull)
 }
 
 function diagnosticIdentity(envelope: Extract<DeliveryEnvelopeV1, { handoff: 'diagnostic-only' }>): CheckIdentityV1 {
-  const digest = createHash('sha256').update(JSON.stringify({
-    version: 1, installationId: envelope.work.installationId, repositoryId: envelope.phase6Match.repositoryId,
-    pullNumber: envelope.phase6Match.pullNumber, baseRepositoryId: envelope.phase6Match.baseRepositoryId,
-    baseRef: envelope.phase6Match.baseRef, baseSha: envelope.phase6Match.baseSha,
-    headRepositoryId: envelope.phase6Match.headRepositoryId, headSha: envelope.phase6Match.headSha,
-    topology: envelope.phase6Match.topology, evaluatorIdentity: envelope.work.evaluatorIdentity,
-    diagnostic: envelope.diagnostic.code,
-  }), 'utf8').digest('hex');
+  // D-02 identity intentionally excludes delivery trace and diagnostic outcome. The fixed
+  // field order is part of the bounded diagnostic logical-work identity.
+  const material = [
+    'boundaryci-diagnostic-v1', envelope.work.installationId, envelope.phase6Match.repositoryId,
+    envelope.phase6Match.pullNumber, envelope.phase6Match.baseRepositoryId, envelope.phase6Match.baseRef,
+    envelope.phase6Match.baseSha, envelope.phase6Match.headRepositoryId, envelope.phase6Match.headSha,
+    envelope.phase6Match.topology, envelope.work.evaluatorIdentity,
+  ].map((part) => JSON.stringify(part)).join('\n');
+  const digest = createHash('sha256').update(material, 'utf8').digest('hex');
   return Object.freeze({
     version: 1, installationId: envelope.work.installationId, repositoryId: envelope.phase6Match.repositoryId,
     pullNumber: envelope.phase6Match.pullNumber, baseRepositoryId: envelope.phase6Match.baseRepositoryId,

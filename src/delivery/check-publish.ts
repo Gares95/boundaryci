@@ -24,6 +24,16 @@ export interface CheckPublisher {
   update(checkId: number, payload: Omit<CompletedCheckPayloadV1, 'annotations'>): Promise<ExistingBoundaryCiCheck>;
 }
 
+interface PublicProbotChecksOctokit {
+  rest: { checks: {
+    listForRef(parameters: Readonly<Record<string, unknown>>): Promise<unknown>;
+    create(parameters: Readonly<Record<string, unknown>>): Promise<unknown>;
+    update(parameters: Readonly<Record<string, unknown>>): Promise<unknown>;
+  } };
+}
+
+export interface CheckPublicationRoute { owner: string; repo: string; }
+
 export interface PublishClock { now(): number; }
 const SYSTEM_CLOCK: PublishClock = Object.freeze({ now: () => Date.now() });
 const PUBLICATION_PERMISSIONS = Object.freeze({ checks: 'write' as const });
@@ -98,6 +108,59 @@ export async function createCheckPublicationCapability(identity: CheckPublicatio
     async update(id: number, value: Omit<CompletedCheckPayloadV1, 'annotations'>) { const result = validCheck(await issued.transport.update(id, value), id); if (result === null) throw new SanitizedGitHubReadError('contract-invalid', false); return result; },
   };
   return Object.freeze(capability);
+}
+
+function responseData(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || !exactKeys(value as Record<string, unknown>, ['data'])) throw new SanitizedGitHubReadError('contract-invalid', false);
+  const data = (value as { data: unknown }).data;
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new SanitizedGitHubReadError('contract-invalid', false);
+  return data as Record<string, unknown>;
+}
+function checkResponse(value: unknown): unknown {
+  const data = responseData(value);
+  return { id: data.id };
+}
+function listResponse(value: unknown, page: number): unknown {
+  const data = responseData(value);
+  if (!exactKeys(data, ['check_runs', 'total_count']) || !Array.isArray(data.check_runs) || !Number.isSafeInteger(data.total_count) || (data.total_count as number) < 0) throw new SanitizedGitHubReadError('contract-invalid', false);
+  const records = data.check_runs.map((entry) => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) throw new SanitizedGitHubReadError('contract-invalid', false);
+    const item = entry as Record<string, unknown>; const app = item.app;
+    if (typeof app !== 'object' || app === null || Array.isArray(app)) throw new SanitizedGitHubReadError('contract-invalid', false);
+    return { id: item.id, name: item.name, headSha: item.head_sha, externalId: item.external_id, appId: (app as Record<string, unknown>).id };
+  });
+  return { records, nextPage: records.length === 100 ? page + 1 : null };
+}
+
+/**
+ * Keeps Probot's installation client in a closure and projects only the three fixed Checks
+ * operations. The platform-implied metadata declaration is checked before the capability leaves.
+ */
+export async function createProbotCheckPublicationCapability(
+  identity: CheckPublicationIdentity,
+  octokit: PublicProbotChecksOctokit,
+  route: CheckPublicationRoute,
+): Promise<CheckPublisher> {
+  const checks = octokit.rest.checks;
+  // Bind the exact allowlisted endpoints once; the credential-bearing client remains private.
+  const listForRef = checks.listForRef.bind(checks);
+  const createCheck = checks.create.bind(checks);
+  const updateCheck = checks.update.bind(checks);
+  const provider: CheckPublicationProvider = Object.freeze({
+    async issue(request: CheckPublicationIssueRequest) {
+      if (request.installationId !== identity.installationId || request.repositoryIds[0] !== identity.repositoryId || !exactKeys(request.permissions, ['checks']) || request.permissions.checks !== 'write') throw new SanitizedGitHubReadError('credential-scope-mismatch', false);
+      return Object.freeze({
+        credentialScope: 'minimum-registration-equivalent' as const,
+        repositoryIds: Object.freeze([identity.repositoryId]), permissions: MINIMUM_PUBLICATION_REGISTRATION_EQUIVALENT,
+        transport: Object.freeze({
+          listForRef: async (query: CheckPublicationListRequest) => listResponse(await listForRef({ owner: route.owner, repo: route.repo, ref: query.headSha, check_name: query.name, app_id: query.appId, filter: query.filter, per_page: query.perPage, page: query.page }), query.page),
+          create: async (payload: CompletedCheckPayloadV1) => checkResponse(await createCheck({ owner: route.owner, repo: route.repo, name: payload.name, head_sha: payload.headSha, status: payload.status, conclusion: payload.conclusion, output: { title: payload.title, summary: payload.summary, text: payload.text }, external_id: payload.externalId, annotations: payload.annotations })),
+          update: async (checkId: number, payload: Omit<CompletedCheckPayloadV1, 'annotations'>) => checkResponse(await updateCheck({ owner: route.owner, repo: route.repo, check_run_id: checkId, status: payload.status, conclusion: payload.conclusion, output: { title: payload.title, summary: payload.summary, text: payload.text }, external_id: payload.externalId })),
+        }),
+      });
+    },
+  });
+  return createCheckPublicationCapability(identity, provider);
 }
 
 /** D-02/D-05 completed-state upsert with one bounded reconciliation and no annotation replay. */

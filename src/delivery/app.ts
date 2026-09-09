@@ -7,7 +7,8 @@ import { createProbotRepositoryReadCapability, type GitHubReadCapability } from 
 import { emitDeliveryEvent, type DeliveryLogSink } from './logging.js';
 import { acquireComparisonRoots } from './snapshot.js';
 import { normalizeVerifiedTrigger, REGISTERED_EVENTS, resolveTriggerWork, type AuthenticatedComparisonIdentity, type TriggerResolution, type VerifiedTrigger } from './trigger.js';
-import type { CheckCoordinator } from './check-coordinator.js';
+import { createCheckCoordinator, type CheckCoordinator } from './check-coordinator.js';
+import { createProbotCheckPublicationCapability } from './check-publish.js';
 
 const SILENT_PROBOT_LOGGER = {
   child: () => SILENT_PROBOT_LOGGER,
@@ -31,6 +32,8 @@ export interface CreateBoundaryCiAppOptions {
   coordinator?: DeliveryCoordinator;
   /** Optional source-free Phase 6 seam. Production composition supplies a coordinator built from two narrowed roles. */
   checkCoordinator?: CheckCoordinator;
+  /** Closed by default so existing Phase 5-only callers cannot accidentally enable publication. */
+  enableCheckPublication?: boolean;
   onEnvelope?(envelope: DeliveryEnvelopeV1): void | Promise<void>;
   logSink?: DeliveryLogSink;
 }
@@ -233,10 +236,21 @@ export function createBoundaryCiApp(options: CreateBoundaryCiAppOptions): Probot
         route,
         options.logSink,
       );
+      const phase6Coordinator = options.checkCoordinator ?? (options.enableCheckPublication === true
+        ? createCheckCoordinator({
+          appId: options.appId,
+          freshness: read,
+          publisher: await createProbotCheckPublicationCapability(
+            { installationId: trigger.installationId, repositoryId: trigger.repositoryId },
+            context.octokit as Parameters<typeof createProbotCheckPublicationCapability>[1], route,
+          ),
+        })
+        : undefined);
+      const deliveryOptions = phase6Coordinator === undefined ? options : { ...options, checkCoordinator: phase6Coordinator };
       const session = createBoundedReadSession();
       const preWorkRead = bindBoundedReadSession(read, session);
       try {
-        await scheduleResolution(await resolveTriggerWork(trigger, preWorkRead), trigger, trigger.deliveryId, preWorkRead, read, options, coordinator);
+        await scheduleResolution(await resolveTriggerWork(trigger, preWorkRead), trigger, trigger.deliveryId, preWorkRead, read, deliveryOptions, coordinator);
       } finally {
         session.close();
       }
