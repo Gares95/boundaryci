@@ -2,6 +2,10 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Delivery fixtures intentionally exercise the production snapshot parent. Serial files keep
+    // one worker's startup-residue cleanup from deleting another worker's active private roots;
+    // concurrency within each lifecycle test remains explicit and unchanged.
+    fileParallelism: false,
     include: [
       'tools/permission-data-feasibility/tests/**/*.test.ts',
       'tests/analyzer/**/*.test.ts',
