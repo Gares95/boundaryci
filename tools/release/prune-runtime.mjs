@@ -13,13 +13,12 @@ const REMOVED_DIRECTORIES = new Set([
   '.opencode',
   '.planning',
   'coverage',
-  'doc',
-  'docs',
   'fixture',
   'fixtures',
   'test',
   'tests',
 ]);
+const REMOVED_PACKAGE_DOCUMENTATION_DIRECTORIES = new Set(['doc', 'docs']);
 const REMOVED_DOCUMENT = /^(?:CHANGELOG|CONTRIBUTING|HISTORY|README|SECURITY)(?:\.[^/]*)?$/iu;
 
 function contained(root, path) {
@@ -34,10 +33,15 @@ export async function pruneRuntimeDependencyTree(rootPath) {
   if (!rootDetails.isDirectory() || rootDetails.isSymbolicLink()) throw new TypeError('runtime-prune/root');
   let removed = 0;
   const visit = async (directory) => {
-    for (const entry of (await readdir(directory, { withFileTypes: true })).sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)))) {
+    const entries = (await readdir(directory, { withFileTypes: true })).sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)));
+    const packageRoot = entries.some((entry) => entry.isFile() && entry.name === 'package.json');
+    for (const entry of entries) {
       const path = resolve(directory, entry.name);
       if (!contained(root, path)) throw new TypeError('runtime-prune/path');
-      if (REMOVED_DIRECTORIES.has(basename(path)) || (!entry.isDirectory() && REMOVED_DOCUMENT.test(basename(path)))) {
+      const name = basename(path);
+      const removableDirectory = REMOVED_DIRECTORIES.has(name) ||
+        (packageRoot && REMOVED_PACKAGE_DOCUMENTATION_DIRECTORIES.has(name));
+      if (removableDirectory || (!entry.isDirectory() && REMOVED_DOCUMENT.test(name))) {
         await rm(path, { force: true, recursive: true, maxRetries: 0 });
         removed += 1;
         continue;

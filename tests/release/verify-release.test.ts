@@ -207,19 +207,25 @@ describe('runtime image path boundary', () => {
     const packageRoot = join(dependencyRoot, 'package');
     const outside = join(temporaryRoot, 'outside');
     await mkdir(join(packageRoot, 'tests'), { recursive: true });
-    await mkdir(join(packageRoot, 'dist'), { recursive: true });
+    await mkdir(join(packageRoot, 'docs'), { recursive: true });
+    await mkdir(join(packageRoot, 'dist', 'doc'), { recursive: true });
     await mkdir(outside);
+    await writeFile(join(packageRoot, 'package.json'), '{}\n');
     await writeFile(join(packageRoot, 'tests', 'example.js'), 'test\n');
+    await writeFile(join(packageRoot, 'docs', 'example.md'), 'documentation\n');
+    await writeFile(join(packageRoot, 'dist', 'doc', 'directives.js'), 'runtime directive\n');
     await writeFile(join(packageRoot, 'dist', 'index.js'), 'runtime\n');
     await writeFile(join(packageRoot, 'README.md'), 'example credential\n');
     await writeFile(join(packageRoot, 'LICENSE'), 'retained license\n');
     await writeFile(join(outside, 'retained.txt'), 'outside\n');
     await symlink(outside, join(packageRoot, '.claude'), 'dir');
 
-    expect(await pruneRuntimeDependencyTree(dependencyRoot)).toBe(3);
+    expect(await pruneRuntimeDependencyTree(dependencyRoot)).toBe(4);
     await expect(access(join(packageRoot, 'tests'))).rejects.toThrow();
+    await expect(access(join(packageRoot, 'docs'))).rejects.toThrow();
     await expect(access(join(packageRoot, '.claude'))).rejects.toThrow();
     await expect(access(join(packageRoot, 'README.md'))).rejects.toThrow();
+    await expect(readFile(join(packageRoot, 'dist', 'doc', 'directives.js'), 'utf8')).resolves.toBe('runtime directive\n');
     await expect(readFile(join(packageRoot, 'dist', 'index.js'), 'utf8')).resolves.toBe('runtime\n');
     await expect(readFile(join(packageRoot, 'LICENSE'), 'utf8')).resolves.toBe('retained license\n');
     await expect(readFile(join(outside, 'retained.txt'), 'utf8')).resolves.toBe('outside\n');

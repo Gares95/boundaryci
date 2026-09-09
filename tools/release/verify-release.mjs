@@ -431,6 +431,7 @@ function verifyDocker(root, sha) {
     const configText = runChecked('docker', ['image', 'inspect', '--format', '{{json .Config}}', tag], root, 'docker/inspect');
     const imageConfig = JSON.parse(configText);
     if (imageConfig.User !== 'node' || JSON.stringify(imageConfig.Cmd) !== JSON.stringify(['node', 'dist/delivery/server.js'])) throw new Error('docker/runtime-contract');
+    runChecked('docker', ['run', '--rm', '--entrypoint', 'node', tag, '--input-type=module', '--eval', "await import('./dist/delivery/server.js')"], root, 'docker/runtime-load');
     const history = runChecked('docker', ['history', '--no-trunc', '--format', '{{.CreatedBy}}', tag], root, 'docker/history');
     if (SECRET_CONTENT.test(history) || /\b(?:APP_ID|PRIVATE_KEY_PATH|WEBHOOK_SECRET)\b/u.test(history)) throw new Error('docker/history-material');
     runChecked('docker', ['create', '--name', container, tag], root, 'docker/create');
