@@ -1,175 +1,82 @@
-# GitHub App delivery boundary
+# GitHub App delivery
 
-BoundaryCI can receive selected GitHub App events and evaluate the current base-versus-head
-permission boundary for an open pull request in the same repository. This delivery layer is a
-bounded source-acquisition and lifecycle service around the local analyzer. It does not publish a
-GitHub Check or render a pull-request result; those actions require the separate Phase 6
-publication boundary and its own final freshness validation.
+BoundaryCI's optional delivery layer acquires exact same-repository pull-request snapshots, invokes the same deterministic analyzer used by the CLI, and publishes a finite completed GitHub Check. Analysis remains independently usable without Probot or a running service.
 
 ## App registration and events
 
-Use a GitHub App installation credential for the repository being evaluated. Phase 5 requests
-only these read capabilities:
+Create a GitHub App for the BoundaryCI service and install it only on the intended repositories. The registration needs these repository permissions:
 
-- Contents: read, for immutable Git commit, tree, and blob reads.
-- Pull requests: read, for current pull-request identity and base-branch fan-out.
-- Metadata: read only when the platform makes it unavoidable as part of the minimum registration
-  or issuance surface.
+- Contents: read
+- Pull requests: read
+- Checks: write
+- Metadata: read when GitHub includes it as an unavoidable platform permission
 
-The acquisition role and a future publication role are separate. This layer does not accept a
-personal access token, OAuth token, workflow token, operator bearer token, or an environment
-fallback. Installation credentials, authenticated clients, authorization headers, webhook
-secrets, App private keys, and App JWTs stay inside their transport or adapter owner and are not
-passed to the analyzer, evaluator, snapshot writer, envelope, or diagnostic contracts.
+Subscribe only to `pull_request` and `push`. BoundaryCI handles pull-request `opened`, `synchronize`, `reopened`, and comparison-relevant `edited` actions. A push triggers bounded discovery only for open same-repository pull requests using the pushed branch as base.
 
-The public receiver is Probot's original-byte verified webhook path. Its only supported
-installation-authenticated read surface is the verified handler's public `context.octokit`.
-BoundaryCI confines that client inside a private adapter that declares the fixed
-minimum-registration-equivalent requirement `{ contents: read, pull_requests: read, metadata:
-read }` and then exposes only five validated operations: current pull, bounded open-pull listing,
-commit, non-recursive tree, and blob reads. This declaration is implementation evidence, not
-evidence that any installed App or issued token has that scope. Deterministic tests prove the
-public composition and five-operation confinement; the live UAT below is the only proof of actual
-App registration and installation scope.
+Configure the webhook URL as the temporary or deployed HTTPS origin plus `/api/github/webhooks`. GitHub must deliver `application/json`. Probot verifies the signature against the original bytes before normalization. Payload identities trigger fresh authenticated reads; they are not used as comparison authority.
 
-The verified Probot receiver subscribes only to:
+BoundaryCI does not accept a personal access token, OAuth token, workflow token, operator bearer token, or alternate webhook-verification route.
 
-- `pull_request.opened`
-- `pull_request.synchronize`
-- `pull_request.reopened`
-- `pull_request.edited`, when the freshly authenticated state establishes a comparison-relevant
-  base-target change
-- `push`, for bounded discovery of open same-repository pull requests that use that branch as a
-  base
+## Scoped roles
 
-Webhook payloads are authenticated triggers, not comparison authority. Before work begins, the
-adapter reads the current pull request and binds the installation, numeric repository and pull
-request identities, base target, base SHA, head repository, head SHA, topology, and eligibility.
-Draft pull requests are eligible. Closed, merged, deleted, or obsolete pull requests are no-op
-lifecycle outcomes. Positively identified external forks produce a current diagnostic-only
-unsupported-topology outcome without source acquisition. Ambiguous repository or topology
-identity fails closed.
+For each accepted event, the App-authenticated Probot context is used only to issue two separate repository-scoped installation roles:
 
-## Immutable acquisition and configuration
+1. The read role requests Contents read and Pull requests read for the exact repository. After validating the effective scope, it exposes only current-pull lookup, bounded open-pull listing, commit read, non-recursive tree read, and blob read.
+2. The publication role requests Checks write for the exact repository. After validating the effective scope, it exposes only exact-head Check listing, completed Check create, and annotation-free completed Check update.
 
-BoundaryCI reads only exact Git objects:
+Platform-implied Metadata read may appear in either effective token response. Any other repository, permission, response shape, or inability to issue a narrowed token fails closed. Credentials and token-authenticated clients remain private to the authentication adapter and are not exported by the delivery package.
 
-1. Resolve each authenticated base and head commit SHA.
-2. Census the corresponding non-recursive Git trees under finite limits.
-3. Fetch selected regular blobs by their exact immutable object SHA.
+The acquisition role validates paths, identities, object shapes, pages, bytes, work, retries, and elapsed time. It never uses archives, clone, checkout, merge refs, the Contents API, GraphQL, or target execution. Temporary source roots are removed and their absence is verified before any Check handoff.
 
-It does not use the Contents API, archives, codeload, clone, checkout, merge refs, GraphQL, or
-target-code execution. Every selected path, tree relationship, blob identity, decoded byte count,
-and materialized destination is validated before use. Symlinks and gitlinks are never followed.
-An unsupported object relevant to source or configuration scope is incomplete; an unsafe path or
-object relationship is an acquisition-security failure regardless of exclusion scope.
+## Check identity and outcomes
 
-Configuration bootstrap occurs before general source acquisition. For each revision, the exact
-`.boundaryci.yml` entry must be proved absent or must be a validated regular blob. The built-in
-default applies only after absence is proved. A configuration symlink, unsupported object,
-ambiguity, unreadable object, or census uncertainty stops semantic evaluation as an input or
-acquisition failure. Once bootstrap succeeds, the base configuration is authoritative for both
-source selections; a head configuration remains prospective evidence under the local comparison
-contract.
+The fixed Check name is `BoundaryCI`. Logical identity binds installation, repository, pull request, base repository/ref/SHA, head repository/SHA, topology, evaluator, engine, catalog digest, and effective base configuration into a deterministic correlation ID. Exact lookup also filters by BoundaryCI's App ID, head SHA, name, and correlation ID.
 
-The version-one transport ceilings are:
+Finite outcomes map to these completed conclusions and titles:
 
-| Boundary | Limit |
-| --- | ---: |
-| Tree entries | 50,000 |
-| Tree requests | 2,000 |
-| Blob requests | 5,002 |
-| Source files | 5,000 |
-| Bytes per source file | 2,000,000 |
-| Aggregate source bytes | 64,000,000 |
-| Acquisition work units | 70,000 |
-| Acquisition elapsed time | 60,000 ms |
-| Fan-out pages and requests | 10 each |
-| Fan-out pull requests | 500 |
-| Fan-out normalized response bytes | 4,000,000 |
-| Fan-out elapsed time | 10,000 ms |
-| Idempotent read attempts | 3 |
-| Read retry elapsed time | 60,000 ms |
+| Evaluation | Conclusion | Title |
+| --- | --- | --- |
+| Complete and unchanged | `success` | `Permission boundary unchanged` |
+| Complete reductions only | `success` | `Permission boundary reduced` |
+| Policy-permitted expansion | `success` | `Permission expansion permitted` |
+| Policy-rejected expansion | `failure` | `Permission expansion requires review` |
+| Incomplete, allowed by policy | `neutral` | `Analysis incomplete` |
+| Incomplete, rejected by policy | `failure` | `Repository policy failed` |
+| Current input or runtime diagnostic | `action_required` | `BoundaryCI could not evaluate this change` |
 
-After configuration bootstrap, a safe source-census bound may retain only fully validated blobs
-and mark acquisition incomplete. Such a result preserves known positive findings, but cannot
-assert a clean boundary, absence, reduction, or removal. It is never treated as a complete
-snapshot.
+The summary preserves aggregate expansions, reductions, unresolved operations, complex-expression changes, declared-boundary differences, and annotation counts. Details are deterministically bounded by records and UTF-8 bytes. Unknown outcomes and unknown reason codes fail closed.
 
-## Lifecycle, freshness, and retention
+Truthful changed-head evidence can become an annotation: expansion failures use `failure`, permitted expansions use `notice`, and actionable incompleteness uses `warning` or `failure` according to policy. Base-only, non-locatable, invalid-span, unchanged-file, and external-fork diagnostics remain in summary or details and never receive a fabricated location.
 
-There are exactly two non-resetting GitHub-read sessions. Each verified trigger creates one
-event-level pre-work session, used only for its current-pull lookup or its complete push fan-out
-enumeration. Each authenticated comparison creates a fresh independent session inside its
-coordinator run, bound to that `WorkControl.isCancelled`, for commit/tree/blob acquisition and the
-final freshness lookup. Every call in a session shares one monotonic start/elapsed ceiling and
-total retry accounting; individual methods do not reset either limit, and fan-out pull requests do
-not share a work session or retry budget. Only rate-limited, transient-service, and
-transient-transport reads retry. Authentication, identity, scope, contract, obsolete/not-found,
-security, cancellation, and supersession outcomes do not retry.
+## Production server
 
-An exhausted or invalid all-or-none push enumeration emits a single source-free
-`fanout-incomplete` envelope with `handoff: none` and no scheduled pull-request subset. Other
-pre-work failures retain their established trust, runtime, or no-op classifications.
+Build the service with `npm run build` and start it with `npm start`, or run the production image. Runtime configuration has exactly four required settings:
 
-Base and head bytes are materialized into separate owner-only private temporary roots. Only
-validated regular source/configuration bytes enter those roots. Target bytes never determine an
-executable path, command, environment variable, credential location, or module load. Roots are
-not a cache, journal, or restart mechanism.
+- `APP_ID`: positive integer GitHub App ID
+- `PRIVATE_KEY_PATH`: path to a nonempty readable regular private-key file
+- `WEBHOOK_SECRET`: nonempty webhook secret
+- `PORT`: integer from 1 through 65535
 
-The lifecycle constructs source-free structured evidence, removes both roots, verifies absence,
-then re-reads the authenticated pull-request identity before any Phase 6 handoff. A stale,
-superseded, cancelled, obsolete, unauthenticated, ambiguous, or cleanup-failed result has no
-publication handoff. A cleanup error remains an operational security/runtime condition even when
-the bounded emergency cleanup retry subsequently proves root absence.
+Invalid configuration emits only a stable field code. Values are never echoed. The key is read only at process startup and is not copied into the container image.
 
-In-process coordination keys work by installation, repository, pull request, exact base SHA,
-exact head SHA, and evaluator identity. Duplicate current work coalesces; a newer authenticated
-comparison supersedes older work for the same pull request. This is in-memory only: a process
-restart does not resume snapshots, envelopes, queue state, or delivery history. A later valid
-event can safely reconstruct current work.
+The HTTP surface is fixed:
 
-Phase 6 must perform one additional authenticated identity lookup immediately before creating,
-updating, or finalizing any GitHub Check. A mismatch suppresses publication and returns the newer
-identity to normal latest-work scheduling. Phase 5 does not choose Check conclusions, summaries,
-annotations, batches, or presentation wording.
+- `GET /healthz` returns exactly `{"status":"ok"}` as JSON with no source or diagnostic fields.
+- `POST /api/github/webhooks` invokes Probot's original-byte middleware.
+- Every other method and path returns the same fixed JSON 404.
 
-## Diagnostics and operational data
+SIGINT and SIGTERM stop acceptance, wait no more than ten seconds, destroy remaining tracked sockets at the deadline, remove signal listeners, and resolve idempotently.
 
-Operational logging is an exact allowlist: stable work and delivery IDs, normalized numeric
-identities, exact commit SHAs, finite stage/outcome/reason codes, bounded counts, durations, and
-retry fields. Raw payloads, source/configuration bytes, credentials, headers, signatures, keys,
-JWTs, authorization values, request/response objects, external error bodies, and generic metadata
-are rejected before a log sink is called. Sink failure cannot alter evaluation, cleanup, retry,
-freshness, or handoff behavior.
+## Freshness and finite publication
 
-The delivery envelope is JSON-safe and source-free. It separates acquisition incompleteness from
-analyzer or permission incompleteness while preserving the local comparison evidence that was
-actually established. No source snapshots or envelopes are persisted by default.
+The delivery coordinator binds acquisition to an exact current pull-request comparison, cleans temporary roots, and performs a final authenticated read. Phase 6 performs another immediate exact-identity read before Check lookup or mutation. Drift, ambiguity, untrusted freshness, cancellation, supersession, or cleanup failure suppresses publication.
 
-## Deployment and UAT checklist
+Exact lookup is bounded to ten pages and 1,000 records. Zero exact matches creates one completed Check. One match updates that Check. Multiple matches stop as a publication conflict. One bounded lookup can reconcile an ambiguous write, and freshness is checked again before any later mutation.
 
-For a live deployment review, record only non-secret facts:
+The initial create carries at most the deterministic first 50 eligible annotations inside the create output. Every update and update retry omits the annotation field. BoundaryCI does not list existing annotations, append batches, recover a prefix, replay annotations, replace a Check, or use an external report store.
 
-1. Confirm the GitHub App is installed for the intended repository and has Contents read and Pull
-   requests read, plus Metadata read only if platform-implied. This is the human proof of actual
-   registration/installation scope; it is not inferred from the private adapter declaration.
-2. Confirm the selected webhook events match the list above and the receiver verifies original
-   webhook bytes before trigger normalization.
-3. Observe one short-lived repository-scoped installation credential issuance and record only the
-   numeric installation/repository identities and the requested permission names.
-4. Confirm the receiver handles an open same-repository pull request and that no target source,
-   credential, header, token, key, signature, or raw response is retained in operational output.
-5. Before enabling Phase 6 publication, confirm its separate credential role and second freshness
-   lookup are implemented and reviewed.
+Coordination is in-memory. Duplicate current work coalesces and newer authenticated work supersedes older work, but a process restart does not restore a queue, journal, snapshot, or exactly-once record. A later valid event reconstructs current work.
 
-Never record credential values, token fragments, authorization headers, private keys, webhook
-secrets, signatures, raw payloads, raw API responses, or source content in this checklist.
+External-fork source acquisition is unsupported. A positively authenticated fork emits a source-free diagnostic, and publication remains conditional on exact head-repository addressability; inaccessible forks produce no mutation and never success.
 
-## Explicit exclusions
-
-Phase 5 excludes external-fork acquisition, alternate acquisition mechanisms, GraphQL, generic
-Octokit requests, arbitrary GitHub APIs, target dependency installation, imports, builds, tests,
-or execution, durable queues/databases/journals/caches, target-App live permission discovery, and
-all Check publication or presentation. These exclusions are capability boundaries, not inferred
-absence claims about a target repository.
+See the [demonstration](demo.md), [architecture](architecture.md), [security policy](../SECURITY.md), and [limitations](limitations.md).
