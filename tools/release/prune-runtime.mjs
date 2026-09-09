@@ -13,11 +13,14 @@ const REMOVED_DIRECTORIES = new Set([
   '.opencode',
   '.planning',
   'coverage',
+  'doc',
+  'docs',
   'fixture',
   'fixtures',
   'test',
   'tests',
 ]);
+const REMOVED_DOCUMENT = /^(?:CHANGELOG|CONTRIBUTING|HISTORY|README|SECURITY)(?:\.[^/]*)?$/iu;
 
 function contained(root, path) {
   const child = relative(root, path);
@@ -34,7 +37,7 @@ export async function pruneRuntimeDependencyTree(rootPath) {
     for (const entry of (await readdir(directory, { withFileTypes: true })).sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)))) {
       const path = resolve(directory, entry.name);
       if (!contained(root, path)) throw new TypeError('runtime-prune/path');
-      if (REMOVED_DIRECTORIES.has(basename(path))) {
+      if (REMOVED_DIRECTORIES.has(basename(path)) || (!entry.isDirectory() && REMOVED_DOCUMENT.test(basename(path)))) {
         await rm(path, { force: true, recursive: true, maxRetries: 0 });
         removed += 1;
         continue;
