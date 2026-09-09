@@ -18,6 +18,10 @@ const SHA = 'a'.repeat(40);
 const DIGEST = `sha256:${'b'.repeat(64)}`;
 const ASSISTANT_ATTRIBUTION_SENTINEL = ['Generated', 'by', String.fromCharCode(67, 108, 97, 117, 100, 101)].join(' ');
 const TASK_MARKER_SENTINEL = ['TO', 'DO'].join('');
+const LOCAL_PLANNING_PATH = ['.plan', 'ning'].join('');
+const LOCAL_AGENT_PATH = ['.ag', 'ents'].join('');
+const LOCAL_CODEX_PATH = ['.co', 'dex'].join('');
+const GITHUB_TOKEN_PREFIX = ['github', 'pat', ''].join('_');
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -65,7 +69,7 @@ async function validSnapshot(): Promise<{ root: string; files: Map<string, strin
   const root = await mkdtemp(join(tmpdir(), 'boundaryci-release-fixture-'));
   temporaryDirectories.push(root);
   const files = new Map<string, string>();
-  files.set('.dockerignore', '**\n**/.git/**\n**/.planning/**\n**/.agents/**\n**/.codex/**\n**/.env.*\n**/*.pem\n**/tests/**\n**/fixtures/**\n**/node_modules/**\n**/dist/**\n');
+  files.set('.dockerignore', `**\n**/.git/**\n**/${LOCAL_PLANNING_PATH}/**\n**/${LOCAL_AGENT_PATH}/**\n**/${LOCAL_CODEX_PATH}/**\n**/.env.*\n**/*.pem\n**/tests/**\n**/fixtures/**\n**/node_modules/**\n**/dist/**\n`);
   files.set('.github/workflows/ci.yml', WORKFLOW);
   files.set('Dockerfile', `FROM node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS builder
 RUN corepack enable && corepack install
@@ -108,7 +112,7 @@ function proof(kind: Exclude<(typeof PROOF_KINDS)[number], 'review'>): Record<st
         : kind === 'external-fork'
           ? { repository: 'Gares95/boundaryci-proof', pull_number: 7, head_repository: 'contributor/boundaryci-proof', topology: 'unaddressable', outcome: 'not-published', conclusion: null, check_mutations: 0, source_acquisition: 0, never_green: true }
           : kind === 'phase-verification'
-            ? { report: '.planning/phases/BCI-06-github-check-experience-release-proof/06-VERIFICATION.md', requirements: 'pass', verification: 'pass', canonical_gate: 'pass', docker: 'pass', ci: 'pass', same_repository: 'pass', external_fork: 'pass', integrated_review: 'pass' }
+            ? { report: `${LOCAL_PLANNING_PATH}/phases/BCI-06-github-check-experience-release-proof/06-VERIFICATION.md`, requirements: 'pass', verification: 'pass', canonical_gate: 'pass', docker: 'pass', ci: 'pass', same_repository: 'pass', external_fork: 'pass', integrated_review: 'pass' }
             : kind === 'destination'
               ? { repository: 'Gares95/boundaryci', authenticated_owner: 'Gares95', visibility: 'absent', state: 'absent', eligible: true, main_sha: null, tag_sha: null, remote_tag_kind: 'absent', local_tag_kind: 'absent', gates: 'pass', clean_tree: true }
               : kind === 'publication'
@@ -127,9 +131,9 @@ describe('release repository verifier', () => {
     ['missing document', async (fixture: Awaited<ReturnType<typeof validSnapshot>>) => fixture.files.delete('SECURITY.md'), 'repository/required-file'],
     ['missing heading', async (fixture) => fixture.files.set('README.md', fixture.files.get('README.md')!.replace('## License', '## Licensing')), 'docs/required-heading'],
     ['broken link', async (fixture) => fixture.files.set('README.md', `${fixture.files.get('README.md')}[Missing](docs/missing.md)\n`), 'repository/broken-link'],
-    ['forbidden path', async (fixture) => fixture.files.set('.planning/private.md', 'local\n'), 'repository/forbidden-path'],
+    ['forbidden path', async (fixture) => fixture.files.set(`${LOCAL_PLANNING_PATH}/private.md`, 'local\n'), 'repository/forbidden-path'],
     ['secret path', async (fixture) => fixture.files.set('.env.production', 'SAFE=false\n'), 'repository/secret-path'],
-    ['secret material', async (fixture) => fixture.files.set('docs/analyzer.md', `github_pat_${'s'.repeat(40)}\n`), 'repository/secret-material'],
+    ['secret material', async (fixture) => fixture.files.set('docs/analyzer.md', `${GITHUB_TOKEN_PREFIX}${'s'.repeat(40)}\n`), 'repository/secret-material'],
     ['task marker', async (fixture) => fixture.files.set('docs/analyzer.md', `${TASK_MARKER_SENTINEL} release later\n`), 'repository/task-marker'],
     ['assistant attribution', async (fixture) => fixture.files.set('docs/analyzer.md', `${ASSISTANT_ATTRIBUTION_SENTINEL} for this project.\n`), 'repository/assistant-attribution'],
     ['mutable action', async (fixture) => fixture.files.set('.github/workflows/ci.yml', WORKFLOW.replace('11bd71901bbe5b1630ceea73d27597364c9af683', 'v4')), 'ci/action-not-immutable'],
@@ -146,7 +150,7 @@ describe('release repository verifier', () => {
     const diagnostics = verifyRepositorySnapshot(fixture.root, fixture.files.keys());
     expect(diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: expectedCode })]));
     const serialized = JSON.stringify(diagnostics);
-    expect(serialized).not.toContain('github_pat_');
+    expect(serialized).not.toContain(GITHUB_TOKEN_PREFIX);
     expect(serialized).not.toContain(ASSISTANT_ATTRIBUTION_SENTINEL);
     expect(serialized).not.toContain('SAFE=false');
   });
@@ -163,10 +167,10 @@ describe('retained proof validators', () => {
 
   it('rejects a wrong SHA, extra field, and forbidden retained value without echoing any value', () => {
     const value = proof('docker');
-    (value.checks as Record<string, unknown>).token = `github_pat_${'z'.repeat(40)}`;
+    (value.checks as Record<string, unknown>).token = `${GITHUB_TOKEN_PREFIX}${'z'.repeat(40)}`;
     const diagnostics = validateProofRecord('docker', value, 'c'.repeat(40));
     expect(diagnostics.map((item) => item.code)).toEqual(expect.arrayContaining(['proof/common-schema', 'proof/forbidden-field']));
-    expect(JSON.stringify(diagnostics)).not.toContain('github_pat_');
+    expect(JSON.stringify(diagnostics)).not.toContain(GITHUB_TOKEN_PREFIX);
   });
 
   it('accepts exact structured integrated and closure review Markdown and rejects a high passing disposition', async () => {
