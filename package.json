@@ -1,7 +1,14 @@
 {
   "name": "boundaryci",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
+  "description": "Static permission-boundary analysis and GitHub Checks for JavaScript and TypeScript GitHub Apps",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gares95/boundaryci.git"
+  },
+  "homepage": "https://github.com/Gares95/boundaryci#readme",
   "type": "module",
   "bin": {
     "boundaryci": "dist/cli/main.js"
@@ -21,6 +28,8 @@
     "test:delivery": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot tests/delivery",
     "test:analyzer": "node_modules/vitest/vitest.mjs run --config vitest.config.ts --reporter=dot tests/analyzer",
     "typecheck": "node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
+    "start": "node dist/delivery/server.js",
+    "verify:release": "node tools/release/verify-release.mjs",
     "quality:delivery": "npm run test:delivery && npm run typecheck && npm run lint && npm run format:check && npm run build",
     "quality:permission-data-feasibility": "node tools/permission-data-feasibility/scripts/quality-checks.mjs"
   },
