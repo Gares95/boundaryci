@@ -70,6 +70,8 @@ describe('portable artifact manifest', () => {
     };
     expect(rootPackage.dependencies.probot).toBe('14.3.2');
     expect(rootPackage.devDependencies.probot).toBeUndefined();
+    expect(rootPackage.dependencies.typescript).toBe('6.0.2');
+    expect(rootPackage.devDependencies.typescript).toBeUndefined();
     expect(manifest.runtimeEndpointSelection).toEqual({
       selectedRole: 'runtimeEndpointMethods',
       peerContext: '@octokit/core@7.0.7',

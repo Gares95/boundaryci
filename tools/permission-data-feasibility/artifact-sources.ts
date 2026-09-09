@@ -59,7 +59,7 @@ export const STATIC_ARTIFACT_SOURCES = {
     maxDataBytes: 4 * 1024 * 1024,
   },
   typescript: {
-    rootDependencySection: 'devDependencies',
+    rootDependencySection: 'dependencies',
     packageName: 'typescript',
     version: '6.0.2',
     packagePath: 'node_modules/typescript',
