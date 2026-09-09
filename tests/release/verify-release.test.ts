@@ -63,6 +63,7 @@ jobs:
         with:
           node-version: 24.19.0
       - run: corepack enable && corepack install
+      - run: printf '/node_modules/\\n' >> .git/info/exclude
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: npm run verify:release
 `;
@@ -138,6 +139,7 @@ describe('release repository verifier', () => {
     ['secret material', async (fixture) => fixture.files.set('docs/analyzer.md', `${GITHUB_TOKEN_PREFIX}${'s'.repeat(40)}\n`), 'repository/secret-material'],
     ['task marker', async (fixture) => fixture.files.set('docs/analyzer.md', `${TASK_MARKER_SENTINEL} release later\n`), 'repository/task-marker'],
     ['assistant attribution', async (fixture) => fixture.files.set('docs/analyzer.md', `${ASSISTANT_ATTRIBUTION_SENTINEL} for this project.\n`), 'repository/assistant-attribution'],
+    ['missing generated install exclude', async (fixture) => fixture.files.set('.github/workflows/ci.yml', WORKFLOW.replace("      - run: printf '/node_modules/\\n' >> .git/info/exclude\n", '')), 'ci/generated-install-exclude'],
     ['mutable action', async (fixture) => fixture.files.set('.github/workflows/ci.yml', WORKFLOW.replace('11bd71901bbe5b1630ceea73d27597364c9af683', 'v4')), 'ci/action-not-immutable'],
     ['write permission', async (fixture) => fixture.files.set('.github/workflows/ci.yml', WORKFLOW.replace('contents: read', 'contents: write')), 'ci/read-only'],
     ['publication command', async (fixture) => fixture.files.set('.github/workflows/ci.yml', WORKFLOW.replace('npm run verify:release', 'npm publish')), 'ci/mutation-or-secret'],

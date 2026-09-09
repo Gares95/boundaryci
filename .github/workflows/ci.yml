@@ -20,5 +20,6 @@ jobs:
         with:
           node-version: 24.19.0
       - run: corepack enable && corepack install
+      - run: printf '/node_modules/\n' >> .git/info/exclude
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: npm run verify:release

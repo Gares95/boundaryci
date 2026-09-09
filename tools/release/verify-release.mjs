@@ -169,6 +169,7 @@ function workflowDiagnostics(text) {
     ['ci/read-only', /^permissions:\s*\n  contents: read\s*$/mu],
     ['ci/single-job', /^  verify:\s*$/mu],
     ['ci/node-version', /node-version: ['"]?24\.19\.0['"]?/u],
+    ['ci/generated-install-exclude', /run: printf '\/node_modules\/\\n' >> \.git\/info\/exclude/u],
     ['ci/frozen-install', /pnpm install --frozen-lockfile --ignore-scripts/u],
     ['ci/canonical-gate', /run: npm run verify:release/u],
     ['ci/no-checkout-credentials', /persist-credentials: false/u],
