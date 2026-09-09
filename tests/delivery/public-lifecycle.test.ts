@@ -98,7 +98,15 @@ function installFiniteHttpBoundary(read: ReturnType<typeof createGitHubReadFake>
     const authorization = authorizationFrom(init?.headers);
     if (authorization !== null) authorizationHeaders.push(authorization);
     if (url.pathname === '/app/installations/42/access_tokens') {
-      return new Response(JSON.stringify({ token, expires_at: '2099-01-01T00:00:00Z', permissions: {} }), { status: 201, headers: { 'content-type': 'application/json' } });
+      const rawBody = input instanceof Request ? await input.clone().text() : typeof init?.body === 'string' ? init.body : '{}';
+      const request = JSON.parse(rawBody) as { permissions?: Record<string, string> };
+      return new Response(JSON.stringify({
+        token,
+        expires_at: '2099-01-01T00:00:00Z',
+        repositories: [{ id: 7, name: 'target' }],
+        repository_selection: 'selected',
+        permissions: { ...request.permissions, metadata: 'read' },
+      }), { status: 201, headers: { 'content-type': 'application/json' } });
     }
     if (url.pathname === '/repos/owner/target/pulls') {
       const value = await read.capability.listOpenPullsByBase(url.searchParams.get('base') ?? '', Number(url.searchParams.get('page') ?? '1'), readOptions(init));

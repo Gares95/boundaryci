@@ -33,10 +33,10 @@ function provider(overrides: Partial<RepositoryReadProvider> = {}): RepositoryRe
 }
 
 describe('repository-scoped GitHub read capability', () => {
-  it('adapts only the fixed minimum-registration-equivalent Probot REST surface', async () => {
+  it('derives an issuance-narrowed Probot role and adapts only the fixed REST surface', async () => {
     const calls: string[] = [];
-    const octokit = {
-      rest: {
+    const authCalls: Array<Record<string, unknown>> = [];
+    const rest = {
         pulls: {
           get: async () => {
             calls.push('pulls.get');
@@ -61,6 +61,22 @@ describe('repository-scoped GitHub read capability', () => {
             return { data: { sha: DELIVERY_FIXTURES.baseBlobSha, encoding: 'base64', content: '', size: 0 } };
           },
         },
+      };
+    class ScopedOctokit {
+      readonly rest = rest;
+    }
+    const octokit = {
+      rest,
+      async auth(options: Readonly<Record<string, unknown>>) {
+        authCalls.push(options as Record<string, unknown>);
+        if (typeof options.factory === 'function') {
+          return options.factory({ octokit: { constructor: ScopedOctokit }, octokitOptions: {} });
+        }
+        return {
+          type: 'token', tokenType: 'installation', installationId: 42,
+          token: 'reader-token-sentinel', repositoryIds: [7],
+          permissions: { contents: 'read', pull_requests: 'read', metadata: 'read' },
+        };
       },
     };
 
@@ -72,7 +88,12 @@ describe('repository-scoped GitHub read capability', () => {
     await read.getTree(DELIVERY_FIXTURES.baseTreeSha);
     await read.getBlob(DELIVERY_FIXTURES.baseBlobSha);
     expect(calls).toEqual(['pulls.get', 'pulls.list', 'git.getCommit', 'git.getTree', 'git.getBlob']);
+    expect(authCalls).toHaveLength(2);
+    expect(authCalls[0]).toMatchObject({ type: 'installation', installationId: 42, repositoryIds: [7], permissions: { contents: 'read', pull_requests: 'read' } });
+    expect(Object.hasOwn(authCalls[0]!, 'factory')).toBe(false);
+    expect(typeof authCalls[1]!.factory).toBe('function');
     expect(Object.keys(read).sort()).toEqual(['getBlob', 'getCommit', 'getCurrentPull', 'getTree', 'listOpenPullsByBase']);
+    expect(JSON.stringify(read)).not.toContain('reader-token-sentinel');
   });
 
   it('issues only the exact repository/read role and rejects broadened or mismatched scope before a read', async () => {

@@ -1,5 +1,8 @@
 import type { CurrentPull, GitBlob, GitCommit, GitTree } from './types.js';
 import { emitDeliveryEvent, type DeliveryLogSink } from './logging.js';
+import { issueNarrowedProbotRole, SanitizedGitHubReadError, type PublicProbotScopedAuth, type SanitizedGitHubReadErrorKind } from './github-auth.js';
+
+export { SanitizedGitHubReadError, type SanitizedGitHubReadErrorKind } from './github-auth.js';
 
 export interface GitHubReadOptions {
   signal?: AbortSignal;
@@ -18,34 +21,6 @@ export interface GitHubPullPage {
   pulls: readonly CurrentPull[];
   nextPage: number | null;
   normalizedBytes: number;
-}
-
-export type SanitizedGitHubReadErrorKind =
-  | 'authentication-authorization'
-  | 'contract-invalid'
-  | 'credential-narrowing-unsupported'
-  | 'credential-scope-mismatch'
-  | 'identity-mismatch'
-  | 'not-found-obsolete'
-  | 'rate-limited'
-  | 'transient-service'
-  | 'transient-transport';
-
-/** A source-free, header-free error value permitted to leave the read adapter. */
-export class SanitizedGitHubReadError extends Error {
-  readonly name = 'SanitizedGitHubReadError';
-
-  constructor(
-    readonly kind: SanitizedGitHubReadErrorKind,
-    readonly retryable: boolean,
-    readonly retryAfterMilliseconds: number | null = null,
-  ) {
-    super(`github-read:${kind}`);
-  }
-
-  toJSON(): { kind: SanitizedGitHubReadErrorKind; retryable: boolean; retryAfterMilliseconds: number | null } {
-    return { kind: this.kind, retryable: this.retryable, retryAfterMilliseconds: this.retryAfterMilliseconds };
-  }
 }
 
 export interface RepositoryReadIdentity {
@@ -157,10 +132,10 @@ function validateIssuedRole(value: unknown, identity: RepositoryReadIdentity): I
   }
   const permissions = issued.permissions as Record<string, unknown>;
   const accepted = issued.credentialScope === 'issuance-narrowed'
-    ? ['contents', 'pull_requests']
-    : ['contents', 'metadata', 'pull_requests'];
-  if (!exactKeys(permissions, accepted) || permissions.contents !== 'read' || permissions.pull_requests !== 'read' ||
-    (issued.credentialScope === 'minimum-registration-equivalent' && permissions.metadata !== 'read')) {
+    ? [['contents', 'pull_requests'], ['contents', 'metadata', 'pull_requests']]
+    : [['contents', 'metadata', 'pull_requests']];
+  if (!accepted.some((keys) => exactKeys(permissions, keys)) || permissions.contents !== 'read' || permissions.pull_requests !== 'read' ||
+    (Object.hasOwn(permissions, 'metadata') && permissions.metadata !== 'read')) {
     throw new SanitizedGitHubReadError('credential-scope-mismatch', false);
   }
   if (typeof issued.transport !== 'object' || issued.transport === null || Array.isArray(issued.transport)) {
@@ -325,7 +300,7 @@ export async function createRepositoryReadCapability(
   });
 }
 
-interface PublicProbotOctokit {
+interface PublicProbotOctokit extends PublicProbotScopedAuth {
   rest: {
     pulls: {
       get(parameters: Readonly<Record<string, unknown>>): Promise<unknown>;
@@ -412,21 +387,30 @@ export async function createProbotRepositoryReadCapability(
 ): Promise<GitHubReadCapability> {
   const provider: RepositoryReadProvider = Object.freeze({
     async issue(request: RepositoryReadIssueRequest) {
-      if (request.installationId !== identity.installationId || request.repositoryIds[0] !== identity.repositoryId) {
+      if (request.installationId !== identity.installationId || request.repositoryIds[0] !== identity.repositoryId ||
+        !exactKeys(request.permissions, ['contents', 'pull_requests']) ||
+        request.permissions.contents !== 'read' || request.permissions.pull_requests !== 'read') {
         throw new SanitizedGitHubReadError('credential-scope-mismatch', false);
       }
-      return Object.freeze({
-        credentialScope: 'minimum-registration-equivalent' as const,
-        repositoryIds: Object.freeze([identity.repositoryId]),
-        permissions: MINIMUM_REGISTRATION_EQUIVALENT,
-        transport: Object.freeze({
-          getCurrentPull: async (pullNumber: number, options?: GitHubReadOptions) => pullResponse(await octokit.rest.pulls.get({ owner: route.owner, repo: route.repo, pull_number: pullNumber, ...requestSignal(options?.signal) }), identity.repositoryId),
-          listOpenPullsByBase: async (baseRef: string, page: number, options?: GitHubReadOptions) => pullPageResponse(await octokit.rest.pulls.list({ owner: route.owner, repo: route.repo, base: baseRef, state: 'open', per_page: 100, page, ...requestSignal(options?.signal) }), identity.repositoryId, page),
-          getCommit: async (sha: string, options?: GitHubReadOptions) => commitResponse(await octokit.rest.git.getCommit({ owner: route.owner, repo: route.repo, commit_sha: sha, ...requestSignal(options?.signal) })),
-          getTree: async (sha: string, options?: GitHubReadOptions) => treeResponse(await octokit.rest.git.getTree({ owner: route.owner, repo: route.repo, tree_sha: sha, recursive: 'false', ...requestSignal(options?.signal) })),
-          getBlob: async (sha: string, options?: GitHubReadOptions) => blobResponse(await octokit.rest.git.getBlob({ owner: route.owner, repo: route.repo, file_sha: sha, ...requestSignal(options?.signal) })),
-        }),
+      const narrowed = await issueNarrowedProbotRole(octokit, request, (client) => {
+        if (typeof client !== 'object' || client === null ||
+          typeof (client as { rest?: unknown }).rest !== 'object' || (client as { rest: unknown }).rest === null) {
+          throw new SanitizedGitHubReadError('credential-narrowing-unsupported', false);
+        }
+        const scoped = client as PublicProbotOctokit;
+        const methods = [scoped.rest.pulls?.get, scoped.rest.pulls?.list, scoped.rest.git?.getCommit, scoped.rest.git?.getTree, scoped.rest.git?.getBlob];
+        if (methods.some((method) => typeof method !== 'function')) {
+          throw new SanitizedGitHubReadError('credential-narrowing-unsupported', false);
+        }
+        return Object.freeze({
+          getCurrentPull: async (pullNumber: number, options?: GitHubReadOptions) => pullResponse(await scoped.rest.pulls.get({ owner: route.owner, repo: route.repo, pull_number: pullNumber, ...requestSignal(options?.signal) }), identity.repositoryId),
+          listOpenPullsByBase: async (baseRef: string, page: number, options?: GitHubReadOptions) => pullPageResponse(await scoped.rest.pulls.list({ owner: route.owner, repo: route.repo, base: baseRef, state: 'open', per_page: 100, page, ...requestSignal(options?.signal) }), identity.repositoryId, page),
+          getCommit: async (sha: string, options?: GitHubReadOptions) => commitResponse(await scoped.rest.git.getCommit({ owner: route.owner, repo: route.repo, commit_sha: sha, ...requestSignal(options?.signal) })),
+          getTree: async (sha: string, options?: GitHubReadOptions) => treeResponse(await scoped.rest.git.getTree({ owner: route.owner, repo: route.repo, tree_sha: sha, recursive: 'false', ...requestSignal(options?.signal) })),
+          getBlob: async (sha: string, options?: GitHubReadOptions) => blobResponse(await scoped.rest.git.getBlob({ owner: route.owner, repo: route.repo, file_sha: sha, ...requestSignal(options?.signal) })),
+        });
       });
+      return Object.freeze({ credentialScope: 'issuance-narrowed' as const, ...narrowed });
     },
   });
   return createRepositoryReadCapability(identity, provider, logSink);

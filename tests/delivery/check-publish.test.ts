@@ -68,7 +68,7 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
     expect(publisher.calls).toEqual(['lookup', 'create', 'lookup']);
   });
 
-  it('A19 rejects a nontransient ambiguous create without retry or annotation replay', async () => {
+  it('rejects a nontransient ambiguous create without retry or annotation replay', async () => {
     const publisher = provider([[], []]);
     publisher.create = async () => { publisher.calls.push('create'); throw Object.assign(new Error('refused'), { status: 400 }); };
     await expect(publishCompletedCheck(publisher, 1, identity, payload)).resolves.toEqual({ status: 'not-published', reason: 'publication-failure' });
@@ -76,7 +76,7 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
     expect(publisher.updates).toEqual([]);
   });
 
-  it('A20 reconciles an ambiguous update with an annotation-free update only', async () => {
+  it('A19 reconciles an ambiguous update with an annotation-free update only', async () => {
     const publisher = provider([[{ id: 17 }], [{ id: 17 }]]); let calls = 0;
     publisher.update = async (id, value) => { publisher.calls.push(`update:${id}`); publisher.updates.push(value); calls += 1; if (calls === 1) throw Object.assign(new Error('temporary'), { status: 503 }); return Object.freeze({ id }); };
     await expect(publishCompletedCheck(publisher, 1, identity, payload)).resolves.toEqual({ status: 'updated', correlationId: identity.correlationId, checkId: 17 });
@@ -84,20 +84,32 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
     expect(publisher.updates.every((value) => !Object.hasOwn(value as object, 'annotations'))).toBe(true);
   });
 
-  it('A21 never switches an ambiguous update to create when reconciliation finds zero', async () => {
+  it('A20 retries the same Check once after an ambiguous update reconciles to zero', async () => {
     const publisher = provider([[{ id: 17 }], []]);
     publisher.update = async (id, value) => { publisher.calls.push(`update:${id}`); publisher.updates.push(value); throw Object.assign(new Error('temporary'), { status: 503 }); };
     await expect(publishCompletedCheck(publisher, 1, identity, payload)).resolves.toEqual({ status: 'not-published', reason: 'publication-failure' });
     expect(publisher.calls).toEqual(['lookup', 'update:17', 'lookup', 'update:17']);
     expect(publisher.creates).toEqual([]);
+    expect(publisher.calls).toEqual(['lookup', 'update:17', 'lookup', 'update:17']);
     expect(publisher.updates.every((value) => !Object.hasOwn(value as object, 'annotations'))).toBe(true);
   });
 
-  it('A22 stops ambiguous updates on multiple exact matches and the shared three-attempt/60-second budget', async () => {
+  it('A21 stops an ambiguous update when reconciliation finds multiple exact matches', async () => {
     const duplicate = provider([[{ id: 17 }], [{ id: 1 }, { id: 2 }]]);
     duplicate.update = async () => { duplicate.calls.push('update:17'); throw Object.assign(new Error('temporary'), { status: 503 }); };
     await expect(publishCompletedCheck(duplicate, 1, identity, payload)).resolves.toEqual({ status: 'not-published', reason: 'publication-conflict' });
     expect(duplicate.calls).toEqual(['lookup', 'update:17', 'lookup']);
+  });
+
+  it('A22 stops when the initial exact lookup finds multiple correlation matches', async () => {
+    const duplicate = provider([[{ id: 1 }, { id: 2 }]]);
+    await expect(publishCompletedCheck(duplicate, 1, identity, payload)).resolves.toEqual({ status: 'not-published', reason: 'publication-conflict' });
+    expect(duplicate.calls).toEqual(['lookup']);
+    expect(duplicate.creates).toEqual([]);
+    expect(duplicate.updates).toEqual([]);
+  });
+
+  it('stops when the shared three-attempt/60-second budget is exhausted', async () => {
     const elapsed = provider([[]]); const moments = [0, 60_001];
     await expect(publishCompletedCheck(elapsed, 1, identity, payload, { now: () => moments.shift() ?? 60_001 })).resolves.toEqual({ status: 'not-published', reason: 'publication-failure' });
     expect(elapsed.calls).toEqual(['lookup']);
@@ -112,11 +124,32 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
     for (const update of [...normal.updates, ...retry.updates]) expect(Object.hasOwn(update as object, 'annotations')).toBe(false);
   });
 
+  it('rechecks freshness before every post-ambiguity mutation and stops on drift', async () => {
+    const publisher = provider([[], [{ id: 17 }]]);
+    publisher.create = async () => { publisher.calls.push('create'); throw Object.assign(new Error('temporary'), { status: 503 }); };
+    let guards = 0;
+    await expect(publishCompletedCheck(publisher, 1, identity, payload, undefined, async () => {
+      guards += 1;
+      return false;
+    })).resolves.toEqual({ status: 'not-published', reason: 'stale-comparison' });
+    expect(guards).toBe(1);
+    expect(publisher.calls).toEqual(['lookup', 'create', 'lookup']);
+    expect(publisher.updates).toEqual([]);
+  });
+
   it('rejects broad issuance, incomplete pagination, and hostile list records before mutation', async () => {
     const issue: CheckPublicationProvider = Object.freeze({
       async issue() { return { credentialScope: 'issuance-narrowed', repositoryIds: [7], permissions: { checks: 'write', pull_requests: 'read' }, transport: {} } as never; },
     });
     await expect(createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, issue)).rejects.toMatchObject({ kind: 'credential-scope-mismatch' });
+    const structuralOnly: CheckPublicationProvider = Object.freeze({
+      async issue() { return { credentialScope: 'minimum-registration-equivalent', repositoryIds: [7], permissions: { checks: 'write', metadata: 'read' }, transport: {} } as never; },
+    });
+    await expect(createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, structuralOnly)).rejects.toMatchObject({ kind: 'credential-narrowing-unsupported' });
+    const requestEscape: CheckPublicationProvider = Object.freeze({
+      async issue() { return { credentialScope: 'issuance-narrowed', repositoryIds: [7], permissions: { checks: 'write' }, transport: { listForRef() {}, create() {}, update() {}, request() {} } } as never; },
+    });
+    await expect(createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, requestEscape)).rejects.toMatchObject({ kind: 'credential-narrowing-unsupported' });
   });
 
   it('issues exactly Checks write, accepts only implied metadata, and enumerates exact 0/1/many identities', async () => {
@@ -125,14 +158,14 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
       async issue(request) {
         requests.push(request);
         return {
-          credentialScope: 'minimum-registration-equivalent', repositoryIds: [7], permissions: { checks: 'write', metadata: 'read' },
+          credentialScope: 'issuance-narrowed', repositoryIds: [7], permissions: { checks: 'write', metadata: 'read' },
           transport: {
             async listForRef(request) {
               listCalls.push(request);
               return { records: [
                 { id: 1, appId: 1, name: 'BoundaryCI', headSha: identity.headSha, externalId: identity.correlationId },
                 { id: 2, appId: 2, name: 'BoundaryCI', headSha: identity.headSha, externalId: identity.correlationId },
-              ], nextPage: null };
+              ], nextPage: null, totalCount: 2 };
             },
             async create() { return { id: 1 }; }, async update(id) { return { id }; },
           },
@@ -150,29 +183,151 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
     const make = (response: unknown): CheckPublicationProvider => ({
       async issue() { return { credentialScope: 'issuance-narrowed', repositoryIds: [7], permissions: { checks: 'write' }, transport: { async listForRef() { if (response instanceof Error) throw response; return response; }, async create() { return { id: 1 }; }, async update(id) { return { id }; } } }; },
     });
-    const incomplete = await createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, make({ records: [], nextPage: 3 }));
+    const incomplete = await createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, make({ records: [], nextPage: 3, totalCount: 1 }));
     await expect(incomplete.lookupExact({ appId: 1, headSha: identity.headSha, name: CHECK_NAME, correlationId: identity.correlationId })).rejects.toMatchObject({ kind: 'contract-invalid' });
-    const hostile = await createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, make({ records: [{ id: 1, hostile: 'publisher-secret-sentinel' }], nextPage: null }));
+    const hostile = await createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, make({ records: [{ id: 1, hostile: 'publisher-secret-sentinel' }], nextPage: null, totalCount: 1 }));
     await expect(hostile.lookupExact({ appId: 1, headSha: identity.headSha, name: CHECK_NAME, correlationId: identity.correlationId })).rejects.toSatisfy((error: unknown) => {
       expect(JSON.stringify(error)).not.toContain('publisher-secret-sentinel'); return true;
     });
-    const pages = await createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, make({ records: [], nextPage: 2 }));
+    const pages = await createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, make({ records: [], nextPage: 2, totalCount: 1 }));
     await expect(pages.lookupExact({ appId: 1, headSha: identity.headSha, name: CHECK_NAME, correlationId: identity.correlationId })).rejects.toMatchObject({ kind: 'contract-invalid' });
+  });
+
+  it('enumerates exactly ten 100-record pages and rejects totals beyond the 1,000-record bound', async () => {
+    const calls: number[] = [];
+    const bounded: CheckPublicationProvider = {
+      async issue() {
+        return {
+          credentialScope: 'issuance-narrowed', repositoryIds: [7], permissions: { checks: 'write' },
+          transport: {
+            async listForRef(request) {
+              calls.push(request.page);
+              return {
+                records: Array.from({ length: 100 }, (_, index) => ({
+                  id: (request.page - 1) * 100 + index + 1,
+                  appId: 2, name: 'BoundaryCI', headSha: identity.headSha,
+                  externalId: identity.correlationId,
+                })),
+                totalCount: 1_000,
+                nextPage: request.page < 10 ? request.page + 1 : null,
+              };
+            },
+            async create() { return { id: 1 }; }, async update(id) { return { id }; },
+          },
+        };
+      },
+    };
+    const capability = await createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, bounded);
+    await expect(capability.lookupExact({ appId: 1, headSha: identity.headSha, name: CHECK_NAME, correlationId: identity.correlationId })).resolves.toEqual([]);
+    expect(calls).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+    const overBound: CheckPublicationProvider = {
+      async issue() {
+        return {
+          credentialScope: 'issuance-narrowed', repositoryIds: [7], permissions: { checks: 'write' },
+          transport: {
+            async listForRef() { return { records: [], totalCount: 1_001, nextPage: null }; },
+            async create() { return { id: 1 }; }, async update(id) { return { id }; },
+          },
+        };
+      },
+    };
+    const rejected = await createCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, overBound);
+    await expect(rejected.lookupExact({ appId: 1, headSha: identity.headSha, name: CHECK_NAME, correlationId: identity.correlationId })).rejects.toMatchObject({ kind: 'contract-invalid' });
+  });
+
+  it('rejects short, changing-total, and overlong pages as incomplete before mutation', async () => {
+    const capabilityFor = async (pages: readonly unknown[]) => createCheckPublicationCapability(
+      { installationId: 42, repositoryId: 7 },
+      {
+        async issue() {
+          let index = 0;
+          return {
+            credentialScope: 'issuance-narrowed', repositoryIds: [7], permissions: { checks: 'write' },
+            transport: {
+              async listForRef() { return pages[index++]; },
+              async create() { return { id: 1 }; }, async update(id) { return { id }; },
+            },
+          };
+        },
+      },
+    );
+    const query = { appId: 1, headSha: identity.headSha, name: CHECK_NAME, correlationId: identity.correlationId } as const;
+    const short = await capabilityFor([{ records: Array.from({ length: 99 }, () => ({})), totalCount: 100, nextPage: 2 }]);
+    await expect(short.lookupExact(query)).rejects.toMatchObject({ kind: 'contract-invalid' });
+    const changing = await capabilityFor([
+      { records: Array.from({ length: 100 }, () => ({})), totalCount: 200, nextPage: 2 },
+      { records: Array.from({ length: 100 }, () => ({})), totalCount: 201, nextPage: 3 },
+    ]);
+    await expect(changing.lookupExact(query)).rejects.toMatchObject({ kind: 'contract-invalid' });
+    const overlong = await capabilityFor([{ records: Array.from({ length: 101 }, () => ({})), totalCount: 101, nextPage: null }]);
+    await expect(overlong.lookupExact(query)).rejects.toMatchObject({ kind: 'contract-invalid' });
   });
 
   it('adapts Probot through only list/create/update with exact Checks REST arguments', async () => {
     const calls: Array<{ name: string; input: Record<string, unknown> }> = [];
-    const octokit = { rest: { checks: {
+    const authCalls: Array<Record<string, unknown>> = [];
+    const rest = { checks: {
       async listForRef(input: Record<string, unknown>) { calls.push({ name: 'list', input }); return { data: { total_count: 0, check_runs: [] } }; },
       async create(input: Record<string, unknown>) { calls.push({ name: 'create', input }); return { data: { id: 71 } }; },
       async update(input: Record<string, unknown>) { calls.push({ name: 'update', input }); return { data: { id: input.check_run_id } }; },
-    } } };
+    } };
+    class ScopedOctokit {
+      readonly rest = rest;
+    }
+    const octokit = {
+      rest,
+      async auth(options: Readonly<Record<string, unknown>>) {
+        authCalls.push(options as Record<string, unknown>);
+        if (typeof options.factory === 'function') {
+          return options.factory({ octokit: { constructor: ScopedOctokit }, octokitOptions: {} });
+        }
+        return {
+          type: 'token', tokenType: 'installation', installationId: 42,
+          token: 'publisher-token-sentinel', repositoryIds: [7],
+          permissions: { checks: 'write', metadata: 'read' },
+        };
+      },
+    };
     const capability = await createProbotCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, octokit, { owner: 'owner', repo: 'target' });
     await publishCompletedCheck(capability, 1, identity, payload);
     expect(calls).toEqual([
       { name: 'list', input: expect.objectContaining({ owner: 'owner', repo: 'target', ref: identity.headSha, check_name: 'BoundaryCI', app_id: 1, filter: 'all', per_page: 100, page: 1 }) },
-      { name: 'create', input: expect.objectContaining({ owner: 'owner', repo: 'target', name: 'BoundaryCI', head_sha: identity.headSha, annotations: payload.annotations }) },
+      { name: 'create', input: expect.objectContaining({ owner: 'owner', repo: 'target', name: 'BoundaryCI', head_sha: identity.headSha, output: expect.objectContaining({ annotations: payload.annotations }) }) },
     ]);
+    expect(authCalls).toHaveLength(2);
+    expect(authCalls[0]).toMatchObject({ type: 'installation', installationId: 42, repositoryIds: [7], permissions: { checks: 'write' } });
+    expect(Object.hasOwn(authCalls[0]!, 'factory')).toBe(false);
+    expect(typeof authCalls[1]!.factory).toBe('function');
     expect(Object.keys(capability).sort()).toEqual(['create', 'lookupExact', 'update']);
+    expect(JSON.stringify(capability)).not.toContain('publisher-token-sentinel');
+  });
+
+  it('rejects unverified effective token scope and an unusable scoped-client factory', async () => {
+    const rest = { checks: {
+      async listForRef() { return { data: { total_count: 0, check_runs: [] } }; },
+      async create() { return { data: { id: 1 } }; },
+      async update(input: Record<string, unknown>) { return { data: { id: input.check_run_id } }; },
+    } };
+    const source = (authentication: unknown, factoryResult?: unknown) => ({
+      rest,
+      async auth(options: Readonly<Record<string, unknown>>) {
+        if (typeof options.factory === 'function') return factoryResult;
+        return authentication;
+      },
+    });
+    const base = {
+      type: 'token', tokenType: 'installation', installationId: 42,
+      token: 'publisher-token-sentinel', repositoryIds: [7], permissions: { checks: 'write' },
+    };
+    await expect(createProbotCheckPublicationCapability(
+      { installationId: 42, repositoryId: 7 }, source({ ...base, repositoryIds: [8] }), { owner: 'owner', repo: 'target' },
+    )).rejects.toMatchObject({ kind: 'credential-scope-mismatch' });
+    await expect(createProbotCheckPublicationCapability(
+      { installationId: 42, repositoryId: 7 }, source({ ...base, permissions: { checks: 'write', contents: 'read' } }), { owner: 'owner', repo: 'target' },
+    )).rejects.toMatchObject({ kind: 'credential-scope-mismatch' });
+    await expect(createProbotCheckPublicationCapability(
+      { installationId: 42, repositoryId: 7 }, source(base, {}), { owner: 'owner', repo: 'target' },
+    )).rejects.toMatchObject({ kind: 'credential-narrowing-unsupported' });
   });
 });

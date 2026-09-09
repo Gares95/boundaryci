@@ -1,9 +1,10 @@
 /**
- * Public Phase 5 delivery surface.
+ * Public Phase 5/6 delivery surface.
  *
  * `createBoundaryCiApp` is the sole verified-webhook transport and lifecycle entrypoint.
- * The remaining exports are delivery-neutral types and bounded domain helpers; none provides
- * an alternate transport, a credential-bearing client, or GitHub Check presentation.
+ * The remaining exports are bounded domain and completed-Check helpers; none provides an
+ * alternate transport, credential/token surface, generic authenticated client, or arbitrary
+ * GitHub request capability.
  */
 export * from './app.js';
 export * from './check-contract.js';
