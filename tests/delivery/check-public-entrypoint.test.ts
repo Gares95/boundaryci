@@ -240,7 +240,8 @@ describe('signed BoundaryCI Check tracer', () => {
     expect(store.created).toEqual([expect.objectContaining({ conclusion, title, status: 'completed', name: 'BoundaryCI' })]);
     expect(store.calls[0]).toBe('fresh:19');
     expect(store.calls[1]).toMatch(/^lookup:boundaryci:v1:[a-f0-9]{64}$/u);
-    expect(store.calls[2]).toBe(`create:${DELIVERY_FIXTURES.headSha}`);
+    expect(store.calls[2]).toBe('fresh:19');
+    expect(store.calls[3]).toBe(`create:${DELIVERY_FIXTURES.headSha}`);
     expect(JSON.stringify({ results: coordinator.results, created: store.created, calls: store.calls })).not.toContain(sentinels.installationToken!);
   });
 
@@ -377,7 +378,7 @@ describe('signed BoundaryCI Check tracer', () => {
         async getCurrentPull(pullNumber) {
           freshnessReads += 1;
           const observed = await current.getCurrentPull(pullNumber);
-          return freshnessReads === 1 ? observed : Object.freeze({ ...observed, head: Object.freeze({ ...observed.head, sha: 'c'.repeat(40) }) });
+          return freshnessReads <= 2 ? observed : Object.freeze({ ...observed, head: Object.freeze({ ...observed.head, sha: 'c'.repeat(40) }) });
         },
       },
       publisher,
@@ -390,7 +391,7 @@ describe('signed BoundaryCI Check tracer', () => {
     expect((await postSigned(app, sentinels, 'A16-drift')).status).toBe(200);
     await expect.poll(() => coordinator.results).toHaveLength(1);
     expect(coordinator.results).toEqual([{ status: 'not-published', reason: 'stale-comparison' }]);
-    expect(freshnessReads).toBe(2);
+    expect(freshnessReads).toBe(3);
     expect(calls).toEqual(['lookup', 'create', 'lookup']);
   });
 
@@ -441,10 +442,11 @@ describe('signed BoundaryCI Check tracer', () => {
     await expect.poll(() => coordinator.results, { timeout: 5_000 }).toHaveLength(1);
     expect(coordinator.results).toEqual([expect.objectContaining({ status: 'created' })]);
     expect(store.created).toHaveLength(1);
-    expect(store.calls).toHaveLength(3);
+    expect(store.calls).toHaveLength(4);
     expect(store.calls[0]).toBe('fresh:19');
     expect(store.calls[1]).toMatch(/^lookup:boundaryci:v1:[a-f0-9]{64}$/u);
-    expect(store.calls[2]).toBe(`create:${DELIVERY_FIXTURES.headSha}`);
+    expect(store.calls[2]).toBe('fresh:19');
+    expect(store.calls[3]).toBe(`create:${DELIVERY_FIXTURES.headSha}`);
     expect(store.created[0]).toMatchObject({
       name: 'BoundaryCI', status: 'completed', headSha: DELIVERY_FIXTURES.headSha,
       conclusion: 'failure', title: 'Permission expansion requires review',

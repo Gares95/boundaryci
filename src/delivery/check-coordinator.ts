@@ -94,11 +94,11 @@ export function createCheckCoordinator(options: CreateCheckCoordinatorOptions): 
       try {
         const identity = envelope.handoff === 'publishable-semantic' ? deriveCheckCorrelationId(envelope) : diagnosticIdentity(envelope);
         const payload = renderCompletedCheck(envelope, identity);
-        const beforeSubsequentMutation = async (): Promise<boolean> => {
+        const beforeMutation = async (): Promise<boolean> => {
           const refreshed = await options.freshness.getCurrentPull(envelope.phase6Match.pullNumber);
           return matchesFreshness(envelope.phase6Match, refreshed);
         };
-        return record(await publishCompletedCheck(options.publisher, options.appId, identity, payload, undefined, beforeSubsequentMutation));
+        return record(await publishCompletedCheck(options.publisher, options.appId, identity, payload, undefined, beforeMutation));
       } catch {
         return record({ status: 'not-published', reason: 'invalid-envelope' });
       }

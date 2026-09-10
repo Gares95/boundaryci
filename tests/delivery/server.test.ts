@@ -354,7 +354,7 @@ describe('production HTTP surface', () => {
         title: 'Permission expansion requires review',
       }),
     ]);
-    expect(store.calls).toEqual(['fresh:19', 'lookup', 'create']);
+    expect(store.calls).toEqual(['fresh:19', 'lookup', 'fresh:19', 'create']);
     expect(JSON.stringify({ status: response.status, results: coordinator.results, checks: store.created }))
       .not.toContain(sentinels.installationToken!);
     expect(JSON.stringify({ status: response.status, results: coordinator.results, checks: store.created }))

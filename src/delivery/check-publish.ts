@@ -41,9 +41,9 @@ interface PublicProbotChecksOctokit extends PublicProbotScopedAuth {
 export interface CheckPublicationRoute { owner: string; repo: string; }
 
 export interface PublishClock { now(): number; }
-export type SubsequentMutationGuard = () => Promise<boolean>;
+export type MutationFreshnessGuard = () => Promise<boolean>;
 const SYSTEM_CLOCK: PublishClock = Object.freeze({ now: () => Date.now() });
-const ALLOW_SUBSEQUENT_MUTATION: SubsequentMutationGuard = async () => true;
+const ALLOW_MUTATION: MutationFreshnessGuard = async () => true;
 const PUBLICATION_PERMISSIONS = Object.freeze({ checks: 'write' as const });
 
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean { const actual = Object.keys(value).sort(); const wanted = [...expected].sort(); return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]); }
@@ -239,7 +239,7 @@ export async function publishCompletedCheck(
   identity: CheckIdentityV1,
   payload: CompletedCheckPayloadV1,
   clock: PublishClock = SYSTEM_CLOCK,
-  beforeSubsequentMutation: SubsequentMutationGuard = ALLOW_SUBSEQUENT_MUTATION,
+  beforeMutation: MutationFreshnessGuard = ALLOW_MUTATION,
 ): Promise<CheckPublicationResultV1> {
   try { validateCheckIdentity(identity); validateCompletedCheckPayload(payload); } catch { return Object.freeze({ status: 'not-published', reason: 'invalid-envelope' }); }
   if (!positive(appId) || payload.name !== CHECK_NAME || payload.headSha !== identity.headSha || payload.externalId !== identity.correlationId) return Object.freeze({ status: 'not-published', reason: 'invalid-envelope' });
@@ -253,6 +253,7 @@ export async function publishCompletedCheck(
   const write = async (kind: typeof operation, id: number | undefined): Promise<ExistingBoundaryCiCheck> => { attempts += 1; return kind === 'create' ? publisher.create(payload) : publisher.update(id!, updatePayload(payload)); };
   try {
     if (!inBudget(attempts)) return invalidResult();
+    try { if (!await beforeMutation()) return Object.freeze({ status: 'not-published', reason: 'stale-comparison' }); } catch { return invalidResult(); }
     const result = validCheck(await write(operation, targetId), operation === 'update' ? targetId : undefined);
     return result === null ? invalidResult() : Object.freeze({ status: operation === 'create' ? 'created' : 'updated', correlationId: identity.correlationId, checkId: result.id });
   } catch (writeError) {
@@ -262,11 +263,11 @@ export async function publishCompletedCheck(
     if (matches.length > 1) return conflictResult();
     if (matches.length === 1) {
       if (!inBudget(attempts)) return invalidResult();
-      try { if (!await beforeSubsequentMutation()) return Object.freeze({ status: 'not-published', reason: 'stale-comparison' }); } catch { return invalidResult(); }
+      try { if (!await beforeMutation()) return Object.freeze({ status: 'not-published', reason: 'stale-comparison' }); } catch { return invalidResult(); }
       try { const result = validCheck(await publisher.update(matches[0]!.id, updatePayload(payload)), matches[0]!.id); return result === null ? invalidResult() : Object.freeze({ status: 'updated', correlationId: identity.correlationId, checkId: result.id }); } catch { return invalidResult(); }
     }
     if (!retryable || !inBudget(attempts)) return invalidResult();
-    try { if (!await beforeSubsequentMutation()) return Object.freeze({ status: 'not-published', reason: 'stale-comparison' }); } catch { return invalidResult(); }
+    try { if (!await beforeMutation()) return Object.freeze({ status: 'not-published', reason: 'stale-comparison' }); } catch { return invalidResult(); }
     try { const result = validCheck(await write(operation, targetId), operation === 'update' ? targetId : undefined); return result === null ? invalidResult() : Object.freeze({ status: operation === 'create' ? 'created' : 'updated', correlationId: identity.correlationId, checkId: result.id }); } catch { return invalidResult(); }
   }
 }
