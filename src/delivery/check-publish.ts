@@ -6,6 +6,7 @@ const MAX_PAGES = 10;
 const MAX_RECORDS = 1_000;
 const MAX_ATTEMPTS = 3;
 const MAX_ELAPSED_MILLISECONDS = 60_000;
+const SHA_PATTERN = /^[a-f0-9]{40}$/u;
 
 export interface ExistingBoundaryCiCheck { id: number; }
 export interface CheckPublicationIdentity { installationId: number; repositoryId: number; }
@@ -22,6 +23,11 @@ export interface CheckPublisher {
   lookupExact(query: Readonly<{ appId: number; headSha: string; name: typeof CHECK_NAME; correlationId: string }>): Promise<readonly ExistingBoundaryCiCheck[]>;
   create(payload: CompletedCheckPayloadV1): Promise<ExistingBoundaryCiCheck>;
   update(checkId: number, payload: Omit<CompletedCheckPayloadV1, 'annotations'>): Promise<ExistingBoundaryCiCheck>;
+}
+
+export interface ProbotCheckPublicationCapability extends CheckPublisher {
+  /** Probes only whether the base repository's Checks API addresses an external PR head SHA. */
+  addressHeadRepository(repositoryId: number, headSha: string): Promise<boolean>;
 }
 
 interface PublicProbotChecksOctokit extends PublicProbotScopedAuth {
@@ -56,6 +62,17 @@ function validCheck(value: unknown, expectedId?: number): ExistingBoundaryCiChec
 function updatePayload(payload: CompletedCheckPayloadV1): Omit<CompletedCheckPayloadV1, 'annotations'> { const { annotations: _annotations, ...result } = payload; return Object.freeze(result); }
 function invalidResult(): CheckPublicationResultV1 { return Object.freeze({ status: 'not-published', reason: 'publication-failure' }); }
 function conflictResult(): CheckPublicationResultV1 { return Object.freeze({ status: 'not-published', reason: 'publication-conflict' }); }
+
+function sanitizeAddressabilityFailure(error: unknown): SanitizedGitHubReadError {
+  if (error instanceof SanitizedGitHubReadError) return error;
+  if (typeof error !== 'object' || error === null) return new SanitizedGitHubReadError('transient-transport', true);
+  const record = error as { status?: unknown; code?: unknown };
+  if (record.status === 401) return new SanitizedGitHubReadError('authentication-authorization', false);
+  if (record.status === 429) return new SanitizedGitHubReadError('rate-limited', true);
+  if (typeof record.status === 'number' && record.status >= 500 && record.status <= 599) return new SanitizedGitHubReadError('transient-service', true);
+  if (typeof record.code === 'string' && /^(?:ECONN|ETIMEDOUT|ENOTFOUND|EAI_AGAIN)/u.test(record.code)) return new SanitizedGitHubReadError('transient-transport', true);
+  return new SanitizedGitHubReadError('contract-invalid', false);
+}
 
 function validateIssuedRole(value: unknown, identity: CheckPublicationIdentity): IssuedCheckPublicationRole {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new SanitizedGitHubReadError('credential-narrowing-unsupported', false);
@@ -164,7 +181,8 @@ export async function createProbotCheckPublicationCapability(
   identity: CheckPublicationIdentity,
   octokit: PublicProbotChecksOctokit,
   route: CheckPublicationRoute,
-): Promise<CheckPublisher> {
+): Promise<ProbotCheckPublicationCapability> {
+  let addressHeadSha: ((headSha: string) => Promise<void>) | undefined;
   const provider: CheckPublicationProvider = Object.freeze({
     async issue(request: CheckPublicationIssueRequest) {
       if (request.installationId !== identity.installationId || request.repositoryIds[0] !== identity.repositoryId || !exactKeys(request.permissions, ['checks']) || request.permissions.checks !== 'write') throw new SanitizedGitHubReadError('credential-scope-mismatch', false);
@@ -181,6 +199,9 @@ export async function createProbotCheckPublicationCapability(
         const listForRef = checks.listForRef.bind(checks);
         const createCheck = checks.create.bind(checks);
         const updateCheck = checks.update.bind(checks);
+        addressHeadSha = async (headSha: string): Promise<void> => {
+          await listForRef({ owner: route.owner, repo: route.repo, ref: headSha, filter: 'all', per_page: 1, page: 1 });
+        };
         return Object.freeze({
           listForRef: async (query: CheckPublicationListRequest) => listResponse(await listForRef({ owner: route.owner, repo: route.repo, ref: query.headSha, check_name: query.name, app_id: query.appId, filter: query.filter, per_page: query.perPage, page: query.page }), query.page),
           create: async (payload: CompletedCheckPayloadV1) => checkResponse(await createCheck({ owner: route.owner, repo: route.repo, name: payload.name, head_sha: payload.headSha, status: payload.status, conclusion: payload.conclusion, output: { title: payload.title, summary: payload.summary, text: payload.text, annotations: createAnnotations(payload.annotations) }, external_id: payload.externalId })),
@@ -190,7 +211,25 @@ export async function createProbotCheckPublicationCapability(
       return Object.freeze({ credentialScope: 'issuance-narrowed' as const, ...narrowed });
     },
   });
-  return createCheckPublicationCapability(identity, provider);
+  const publisher = await createCheckPublicationCapability(identity, provider);
+  const probe = addressHeadSha;
+  if (probe === undefined) throw new SanitizedGitHubReadError('credential-narrowing-unsupported', false);
+  return Object.freeze({
+    ...publisher,
+    async addressHeadRepository(repositoryId: number, headSha: string): Promise<boolean> {
+      if (!positive(repositoryId) || repositoryId === identity.repositoryId || !SHA_PATTERN.test(headSha)) {
+        throw new SanitizedGitHubReadError('contract-invalid', false);
+      }
+      try {
+        await probe(headSha);
+        return true;
+      } catch (error) {
+        const status = typeof error === 'object' && error !== null ? (error as { status?: unknown }).status : undefined;
+        if (status === 403 || status === 404 || status === 422) return false;
+        throw sanitizeAddressabilityFailure(error);
+      }
+    },
+  });
 }
 
 /** D-02/D-05 completed-state upsert with one bounded reconciliation and no annotation replay. */

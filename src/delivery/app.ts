@@ -236,16 +236,21 @@ export function createBoundaryCiApp(options: CreateBoundaryCiAppOptions): Probot
         route,
         options.logSink,
       );
-      const phase6Coordinator = options.checkCoordinator ?? (options.enableCheckPublication === true
-        ? createCheckCoordinator({
+      let phase6Coordinator = options.checkCoordinator;
+      if (phase6Coordinator === undefined && options.enableCheckPublication === true) {
+        const publication = await createProbotCheckPublicationCapability(
+          { installationId: trigger.installationId, repositoryId: trigger.repositoryId },
+          context.octokit as Parameters<typeof createProbotCheckPublicationCapability>[1], route,
+        );
+        phase6Coordinator = createCheckCoordinator({
           appId: options.appId,
-          freshness: read,
-          publisher: await createProbotCheckPublicationCapability(
-            { installationId: trigger.installationId, repositoryId: trigger.repositoryId },
-            context.octokit as Parameters<typeof createProbotCheckPublicationCapability>[1], route,
-          ),
-        })
-        : undefined);
+          freshness: Object.freeze({
+            getCurrentPull: read.getCurrentPull,
+            addressHeadRepository: publication.addressHeadRepository,
+          }),
+          publisher: publication,
+        });
+      }
       const deliveryOptions = phase6Coordinator === undefined ? options : { ...options, checkCoordinator: phase6Coordinator };
       const session = createBoundedReadSession();
       const preWorkRead = bindBoundedReadSession(read, session);

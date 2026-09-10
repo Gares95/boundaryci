@@ -7,7 +7,7 @@ import { createCheckCoordinator, type CurrentPullFreshnessReader } from '../../s
 import type { CheckPublisher } from '../../src/delivery/check-publish.js';
 import { deriveCheckCorrelationId, type CompletedCheckPayloadV1 } from '../../src/delivery/check-contract.js';
 import { evaluateLocalComparison } from '../../src/runtime/evaluate.js';
-import { DELIVERY_FIXTURES } from './fixtures/index.js';
+import { currentPull, DELIVERY_FIXTURES } from './fixtures/index.js';
 import { acquireDeliveryFetchScope, createDeliveryCaseSentinels, createGitHubReadFake, createWebhookHarness, signOriginalWebhookBody } from './support.js';
 
 const harnesses: Array<Awaited<ReturnType<typeof createWebhookHarness>>> = [];
@@ -47,6 +47,8 @@ function installPhase5Http(
   checkRequests?: string[],
   scopeRequests?: unknown[],
   configText?: string,
+  headAddressabilityStatus = 200,
+  createdCheckRequests?: Array<Record<string, unknown>>,
 ): void {
   const nativeFetch = globalThis.fetch;
   vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
@@ -66,10 +68,15 @@ function installPhase5Http(
     }
     if (/^\/repos\/owner\/target\/commits\/[a-f0-9]{40}\/check-runs$/u.test(url.pathname)) {
       checkRequests?.push(`list:${url.searchParams.get('filter')}:${url.searchParams.get('per_page')}`);
+      if (url.searchParams.get('per_page') === '1' && headAddressabilityStatus !== 200) {
+        return new Response(JSON.stringify({ code: 'head-not-addressable' }), { status: headAddressabilityStatus, headers: { 'content-type': 'application/json' } });
+      }
       return new Response(JSON.stringify({ total_count: 0, check_runs: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
     }
     if (url.pathname === '/repos/owner/target/check-runs') {
       checkRequests?.push('create');
+      const rawBody = input instanceof Request ? await input.clone().text() : typeof init?.body === 'string' ? init.body : '{}';
+      createdCheckRequests?.push(JSON.parse(rawBody) as Record<string, unknown>);
       return new Response(JSON.stringify({ id: 101 }), { status: 201, headers: { 'content-type': 'application/json' } });
     }
     const pull = /^\/repos\/owner\/target\/pulls\/(\d+)$/u.exec(url.pathname);
@@ -168,6 +175,40 @@ describe('signed BoundaryCI Check tracer', () => {
       ],
     }));
     expect(JSON.stringify(checks)).not.toContain(sentinels.installationToken!);
+  });
+
+  it.each([
+    ['addressable', 200, ['list:all:1', 'list:all:100', 'create'], 1],
+    ['unaddressable', 422, ['list:all:1'], 0],
+  ] as const)('A08 production composition probes an external head as %s without source acquisition', async (_caseId, addressabilityStatus, expectedChecks, expectedCreates) => {
+    const sentinels = createDeliveryCaseSentinels(`a08-production-${addressabilityStatus}`);
+    const read = createGitHubReadFake({
+      currentPull: (pullNumber) => currentPull({
+        number: pullNumber,
+        head: Object.freeze({ repositoryId: 8, sha: DELIVERY_FIXTURES.headSha }),
+      }),
+    });
+    const checks: string[] = [];
+    const scopes: unknown[] = [];
+    const creates: Array<Record<string, unknown>> = [];
+    const app = createBoundaryCiApp({ appId: 1, privateKey: privateKey(), webhookSecret: sentinels.webhookSecret!, evaluator: evaluateLocalComparison, enableCheckPublication: true });
+    installPhase5Http(read, READ_SOURCE, WRITE_SOURCE, sentinels.installationToken!, checks, scopes, undefined, addressabilityStatus, creates);
+
+    expect((await postSigned(app, sentinels, `A08-production-${addressabilityStatus}`)).status).toBe(200);
+    await expect.poll(() => checks).toEqual(expectedChecks);
+    expect(creates).toHaveLength(expectedCreates);
+    if (addressabilityStatus === 200) {
+      expect(creates[0]).toMatchObject({
+        conclusion: 'action_required',
+        output: expect.objectContaining({ title: 'BoundaryCI could not evaluate this change', annotations: [] }),
+      });
+    }
+    expect(scopes).toEqual([
+      { repository_ids: [7], permissions: { contents: 'read', pull_requests: 'read' } },
+      { repository_ids: [7], permissions: { checks: 'write' } },
+    ]);
+    expect(read.calls.length).toBeGreaterThanOrEqual(3);
+    expect(read.calls.every((call) => call === 'pull:19')).toBe(true);
   });
 
   it.each([

@@ -290,8 +290,10 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
       },
     };
     const capability = await createProbotCheckPublicationCapability({ installationId: 42, repositoryId: 7 }, octokit, { owner: 'owner', repo: 'target' });
+    await expect(capability.addressHeadRepository(8, identity.headSha)).resolves.toBe(true);
     await publishCompletedCheck(capability, 1, identity, payload);
     expect(calls).toEqual([
+      { name: 'list', input: expect.objectContaining({ owner: 'owner', repo: 'target', ref: identity.headSha, filter: 'all', per_page: 1, page: 1 }) },
       { name: 'list', input: expect.objectContaining({ owner: 'owner', repo: 'target', ref: identity.headSha, check_name: 'BoundaryCI', app_id: 1, filter: 'all', per_page: 100, page: 1 }) },
       {
         name: 'create',
@@ -317,7 +319,7 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
     expect(authCalls[0]).toMatchObject({ type: 'installation', installationId: 42, repositoryIds: [7], permissions: { checks: 'write' } });
     expect(Object.hasOwn(authCalls[0]!, 'factory')).toBe(false);
     expect(typeof authCalls[1]!.factory).toBe('function');
-    expect(Object.keys(capability).sort()).toEqual(['create', 'lookupExact', 'update']);
+    expect(Object.keys(capability).sort()).toEqual(['addressHeadRepository', 'create', 'lookupExact', 'update']);
     expect(JSON.stringify(capability)).not.toContain('publisher-token-sentinel');
   });
 
