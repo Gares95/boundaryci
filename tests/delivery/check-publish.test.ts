@@ -46,6 +46,32 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
     expect(Object.hasOwn(publisher.updates[0] as object, 'annotations')).toBe(false);
   });
 
+  it('rechecks freshness after lookup and before a normal create', async () => {
+    const publisher = provider([[]]); let observedHeadSha = identity.headSha; let guards = 0;
+    publisher.lookupExact = async () => { publisher.calls.push('lookup'); observedHeadSha = 'd'.repeat(40); return Object.freeze([]); };
+    await expect(publishCompletedCheck(publisher, 1, identity, payload, undefined, async () => {
+      guards += 1;
+      return observedHeadSha === identity.headSha;
+    })).resolves.toEqual({ status: 'not-published', reason: 'stale-comparison' });
+    expect(guards).toBe(1);
+    expect(publisher.calls).toEqual(['lookup']);
+    expect(publisher.creates).toEqual([]);
+    expect(publisher.updates).toEqual([]);
+  });
+
+  it('rechecks freshness after lookup and before a normal update', async () => {
+    const publisher = provider([[{ id: 17 }]]); let observedHeadSha = identity.headSha; let guards = 0;
+    publisher.lookupExact = async () => { publisher.calls.push('lookup'); observedHeadSha = 'd'.repeat(40); return Object.freeze([{ id: 17 }]); };
+    await expect(publishCompletedCheck(publisher, 1, identity, payload, undefined, async () => {
+      guards += 1;
+      return observedHeadSha === identity.headSha;
+    })).resolves.toEqual({ status: 'not-published', reason: 'stale-comparison' });
+    expect(guards).toBe(1);
+    expect(publisher.calls).toEqual(['lookup']);
+    expect(publisher.creates).toEqual([]);
+    expect(publisher.updates).toEqual([]);
+  });
+
   it('A16 reconciles one ambiguous create with one non-annotation update', async () => {
     const publisher = provider([[], [{ id: 17 }]]);
     publisher.create = async () => { publisher.calls.push('create'); throw Object.assign(new Error('temporary'), { status: 503 }); };
@@ -130,9 +156,9 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
     let guards = 0;
     await expect(publishCompletedCheck(publisher, 1, identity, payload, undefined, async () => {
       guards += 1;
-      return false;
+      return guards === 1;
     })).resolves.toEqual({ status: 'not-published', reason: 'stale-comparison' });
-    expect(guards).toBe(1);
+    expect(guards).toBe(2);
     expect(publisher.calls).toEqual(['lookup', 'create', 'lookup']);
     expect(publisher.updates).toEqual([]);
   });
