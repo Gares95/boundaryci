@@ -146,6 +146,19 @@ function validateTree(tree: unknown, expectedSha: string): readonly EntryRecord[
   return response.entries.map(validateEntry).sort((left, right) => comparePathBytes(left.path, right.path));
 }
 
+const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
+
+/** Accepts canonical base64 or GitHub's observed 60-column, LF-wrapped representation. */
+function normalizeBlobBase64(content: string): string | null {
+  if (!content.includes('\n')) return CANONICAL_BASE64.test(content) ? content : null;
+  if (content.includes('\r')) return null;
+  const lines = content.endsWith('\n') ? content.slice(0, -1).split('\n') : content.split('\n');
+  if (lines.length === 0 || lines.some((line, index) =>
+    line.length === 0 || line.length > 60 || (index < lines.length - 1 && line.length !== 60))) return null;
+  const normalized = lines.join('');
+  return CANONICAL_BASE64.test(normalized) ? normalized : null;
+}
+
 function validateBlob(blob: unknown, expectedSha: string, expectedSize: number): Buffer {
   if (typeof blob !== 'object' || blob === null || Array.isArray(blob)) {
     throw new AcquisitionStop('acquisition-security-failure', 'immutable-object-mismatch');
@@ -154,11 +167,12 @@ function validateBlob(blob: unknown, expectedSha: string, expectedSize: number):
   if (response.sha !== expectedSha || response.encoding !== 'base64' || !safeCount(response.size) || typeof response.content !== 'string') {
     throw new AcquisitionStop('acquisition-security-failure', 'immutable-object-mismatch');
   }
-  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(response.content)) {
+  const normalizedContent = normalizeBlobBase64(response.content);
+  if (normalizedContent === null) {
     throw new AcquisitionStop('acquisition-security-failure', 'immutable-object-mismatch');
   }
-  const bytes = Buffer.from(response.content, 'base64');
-  if (bytes.toString('base64') !== response.content || bytes.byteLength !== response.size || bytes.byteLength !== expectedSize) {
+  const bytes = Buffer.from(normalizedContent, 'base64');
+  if (bytes.toString('base64') !== normalizedContent || bytes.byteLength !== response.size || bytes.byteLength !== expectedSize) {
     throw new AcquisitionStop('acquisition-security-failure', 'immutable-object-mismatch');
   }
   return bytes;

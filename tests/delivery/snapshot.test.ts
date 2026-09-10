@@ -104,6 +104,54 @@ describe('immutable comparison snapshot acquisition', () => {
     ]);
   });
 
+  it('accepts GitHub LF-wrapped base64 while preserving canonical decoded bytes and sizes', async () => {
+    const sourceBytes = Buffer.from('export const githubWrappedBlob = true;\n'.repeat(4));
+    const canonical = sourceBytes.toString('base64');
+    const wrapped = `${canonical.match(/.{1,60}/gu)!.join('\n')}\n`;
+    const read = createGitHubReadFake({
+      tree: (sha) => ({
+        sha,
+        entries: [{
+          path: DELIVERY_FIXTURES.sourcePath,
+          mode: '100644',
+          type: 'blob',
+          sha: sha === DELIVERY_FIXTURES.baseTreeSha ? DELIVERY_FIXTURES.baseBlobSha : DELIVERY_FIXTURES.headBlobSha,
+          size: sourceBytes.byteLength,
+        }],
+      }),
+      blob: (sha) => ({ sha, encoding: 'base64', content: wrapped, size: sourceBytes.byteLength }),
+    });
+
+    const acquired = await acquireComparisonRoots({
+      capability: read.capability,
+      baseSha: DELIVERY_FIXTURES.baseSha,
+      headSha: DELIVERY_FIXTURES.headSha,
+    });
+    roots.push(acquired);
+
+    expect(acquired.result.status).toBe('complete');
+    expect(await readFile(`${acquired.roots.base}/${DELIVERY_FIXTURES.sourcePath}`, 'utf8')).toBe(sourceBytes.toString('utf8'));
+    expect(await readFile(`${acquired.roots.head}/${DELIVERY_FIXTURES.sourcePath}`, 'utf8')).toBe(sourceBytes.toString('utf8'));
+  });
+
+  it.each([
+    ['embedded space', `${DELIVERY_FIXTURES.sourceBytes.toString('base64').slice(0, 4)} ${DELIVERY_FIXTURES.sourceBytes.toString('base64').slice(4)}`],
+    ['short intermediate line', `${DELIVERY_FIXTURES.sourceBytes.toString('base64').slice(0, 4)}\n${DELIVERY_FIXTURES.sourceBytes.toString('base64').slice(4)}\n`],
+    ['CRLF wrapping', `${DELIVERY_FIXTURES.sourceBytes.toString('base64')}\r\n`],
+  ])('rejects non-GitHub %s in blob base64', async (_case, content) => {
+    const read = createGitHubReadFake({
+      blob: (sha) => ({ ...blob(sha), content }),
+    });
+    const acquired = await acquireComparisonRoots({
+      capability: read.capability,
+      baseSha: DELIVERY_FIXTURES.baseSha,
+      headSha: DELIVERY_FIXTURES.headSha,
+    });
+    roots.push(acquired);
+
+    expect(acquired.result).toMatchObject({ status: 'acquisition-security-failure', reason: 'immutable-object-mismatch' });
+  });
+
   it('keeps fully validated positive blobs but marks post-bootstrap truncation incomplete', async () => {
     const read = createGitHubReadFake({
       tree: (sha) => ({ ...tree(sha), truncated: true }),
