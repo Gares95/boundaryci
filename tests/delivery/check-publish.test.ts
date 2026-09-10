@@ -293,7 +293,25 @@ describe('A14-A22/A28-A30 bounded Check publisher', () => {
     await publishCompletedCheck(capability, 1, identity, payload);
     expect(calls).toEqual([
       { name: 'list', input: expect.objectContaining({ owner: 'owner', repo: 'target', ref: identity.headSha, check_name: 'BoundaryCI', app_id: 1, filter: 'all', per_page: 100, page: 1 }) },
-      { name: 'create', input: expect.objectContaining({ owner: 'owner', repo: 'target', name: 'BoundaryCI', head_sha: identity.headSha, output: expect.objectContaining({ annotations: payload.annotations }) }) },
+      {
+        name: 'create',
+        input: expect.objectContaining({
+          owner: 'owner',
+          repo: 'target',
+          name: 'BoundaryCI',
+          head_sha: identity.headSha,
+          output: expect.objectContaining({
+            annotations: payload.annotations.map((annotation) => ({
+              path: annotation.path,
+              start_line: annotation.startLine,
+              end_line: annotation.endLine,
+              annotation_level: annotation.level,
+              title: annotation.title,
+              message: annotation.message,
+            })),
+          }),
+        }),
+      },
     ]);
     expect(authCalls).toHaveLength(2);
     expect(authCalls[0]).toMatchObject({ type: 'installation', installationId: 42, repositoryIds: [7], permissions: { checks: 'write' } });

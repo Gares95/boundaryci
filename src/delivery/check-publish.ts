@@ -130,6 +130,16 @@ function checkResponse(value: unknown): unknown {
   const data = responseData(value);
   return { id: data.id };
 }
+function createAnnotations(annotations: CompletedCheckPayloadV1['annotations']): readonly Readonly<Record<string, unknown>>[] {
+  return annotations.map((annotation) => Object.freeze({
+    path: annotation.path,
+    start_line: annotation.startLine,
+    end_line: annotation.endLine,
+    annotation_level: annotation.level,
+    title: annotation.title,
+    message: annotation.message,
+  }));
+}
 function listResponse(value: unknown, page: number): unknown {
   const data = responseData(value);
   if (!exactKeys(data, ['check_runs', 'total_count']) || !Array.isArray(data.check_runs) || !Number.isSafeInteger(data.total_count) || (data.total_count as number) < 0) throw new SanitizedGitHubReadError('contract-invalid', false);
@@ -173,7 +183,7 @@ export async function createProbotCheckPublicationCapability(
         const updateCheck = checks.update.bind(checks);
         return Object.freeze({
           listForRef: async (query: CheckPublicationListRequest) => listResponse(await listForRef({ owner: route.owner, repo: route.repo, ref: query.headSha, check_name: query.name, app_id: query.appId, filter: query.filter, per_page: query.perPage, page: query.page }), query.page),
-          create: async (payload: CompletedCheckPayloadV1) => checkResponse(await createCheck({ owner: route.owner, repo: route.repo, name: payload.name, head_sha: payload.headSha, status: payload.status, conclusion: payload.conclusion, output: { title: payload.title, summary: payload.summary, text: payload.text, annotations: payload.annotations }, external_id: payload.externalId })),
+          create: async (payload: CompletedCheckPayloadV1) => checkResponse(await createCheck({ owner: route.owner, repo: route.repo, name: payload.name, head_sha: payload.headSha, status: payload.status, conclusion: payload.conclusion, output: { title: payload.title, summary: payload.summary, text: payload.text, annotations: createAnnotations(payload.annotations) }, external_id: payload.externalId })),
           update: async (checkId: number, payload: Omit<CompletedCheckPayloadV1, 'annotations'>) => checkResponse(await updateCheck({ owner: route.owner, repo: route.repo, check_run_id: checkId, status: payload.status, conclusion: payload.conclusion, output: { title: payload.title, summary: payload.summary, text: payload.text }, external_id: payload.externalId })),
         });
       });
