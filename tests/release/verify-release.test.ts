@@ -177,6 +177,14 @@ describe('retained proof validators', () => {
     expect(JSON.stringify(diagnostics)).not.toContain(GITHUB_TOKEN_PREFIX);
   });
 
+  it('binds a same-repository proof to a distinct exact PR head SHA', () => {
+    const value = proof('same-repository');
+    (value.checks as Record<string, unknown>).head_sha = 'b'.repeat(40);
+    expect(validateProofRecord('same-repository', value, SHA)).toEqual([]);
+    (value.checks as Record<string, unknown>).head_sha = 'not-a-sha';
+    expect(validateProofRecord('same-repository', value, SHA)).toEqual([{ code: 'proof/kind-schema' }]);
+  });
+
   it('accepts exact structured integrated and closure review Markdown and rejects a high passing disposition', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'boundaryci-review-fixture-'));
     temporaryDirectories.push(directory);
