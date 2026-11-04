@@ -1,6 +1,7 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { request as httpRequest } from 'node:http';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -410,5 +411,95 @@ describe('production server shutdown', () => {
     ]);
     expect(Date.now() - started).toBeLessThan(1_000);
     expect(service.listening).toBe(false);
+  });
+});
+
+describe('production webhook body bound', () => {
+  // GitHub caps webhook payloads at 25 MB; anything larger cannot be a genuine delivery.
+  const WEBHOOK_BODY_LIMIT = 25 * 1024 * 1024;
+  const webhookHeaders = {
+    'content-type': 'application/json',
+    'x-github-delivery': 'server-oversized-body',
+    'x-github-event': 'pull_request',
+    'x-hub-signature-256': 'sha256=unverified',
+  } as const;
+
+  /** Streams `totalBytes` without a declared length; resolves with the status or the transport failure. */
+  function streamBody(origin: string, totalBytes: number, headers: Record<string, string>): Promise<number | 'connection-closed'> {
+    return new Promise((resolve) => {
+      const url = new URL(`${origin}/api/github/webhooks`);
+      const outgoing = httpRequest({ host: url.hostname, port: url.port, path: url.pathname, method: 'POST', headers });
+      let settled = false;
+      const settle = (value: number | 'connection-closed'): void => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      outgoing.on('response', (response) => {
+        response.resume();
+        settle(response.statusCode ?? 0);
+      });
+      outgoing.on('error', () => settle('connection-closed'));
+      const chunk = Buffer.alloc(1024 * 1024, 0x20);
+      let sent = 0;
+      const pump = (): void => {
+        while (sent < totalBytes && !settled && !outgoing.destroyed) {
+          const size = Math.min(chunk.byteLength, totalBytes - sent);
+          sent += size;
+          if (!outgoing.write(chunk.subarray(0, size))) {
+            outgoing.once('drain', pump);
+            return;
+          }
+        }
+        if (!settled && !outgoing.destroyed) outgoing.end();
+      };
+      pump();
+    });
+  }
+
+  it('rejects a declared oversized webhook body before buffering it or reaching the middleware', async () => {
+    const store = checkStore();
+    const coordinator = createCheckCoordinator({ appId: 1234, freshness: store, publisher: store });
+    const { origin } = await listen(config(), { checkCoordinator: coordinator });
+    const status = await new Promise<number | 'connection-closed'>((resolve) => {
+      const url = new URL(`${origin}/api/github/webhooks`);
+      const outgoing = httpRequest({
+        host: url.hostname, port: url.port, path: url.pathname, method: 'POST',
+        headers: { ...webhookHeaders, 'content-length': String(WEBHOOK_BODY_LIMIT + 1) },
+      });
+      outgoing.on('response', (response) => {
+        response.resume();
+        resolve(response.statusCode ?? 0);
+      });
+      outgoing.on('error', () => resolve('connection-closed'));
+      // Only a token prefix is sent: the declared length alone must be enough to reject.
+      outgoing.write('{}');
+    });
+    expect(status).toBe(413);
+    expect(coordinator.results).toEqual([]);
+    expect(store.calls).toEqual([]);
+    expect((await fetch(`${origin}/healthz`)).status).toBe(200);
+  });
+
+  it('stops buffering an undeclared streamed webhook body at the bound and stays healthy', async () => {
+    const store = checkStore();
+    const coordinator = createCheckCoordinator({ appId: 1234, freshness: store, publisher: store });
+    const { origin } = await listen(config(), { checkCoordinator: coordinator });
+    const status = await streamBody(origin, WEBHOOK_BODY_LIMIT + (2 * 1024 * 1024), { ...webhookHeaders, 'transfer-encoding': 'chunked' });
+    expect([413, 'connection-closed']).toContain(status);
+    expect(coordinator.results).toEqual([]);
+    expect(store.calls).toEqual([]);
+    expect((await fetch(`${origin}/healthz`)).status).toBe(200);
+  });
+
+  it('still hands an in-bound streamed body to signature verification', async () => {
+    const store = checkStore();
+    const coordinator = createCheckCoordinator({ appId: 1234, freshness: store, publisher: store });
+    const { origin } = await listen(config(), { checkCoordinator: coordinator });
+    const status = await streamBody(origin, 2 * 1024 * 1024, { ...webhookHeaders, 'transfer-encoding': 'chunked' });
+    // The real Probot middleware rejects the unverified signature; the bound did not intervene.
+    expect(status).not.toBe(413);
+    expect(status).not.toBe(200);
+    expect(coordinator.results).toEqual([]);
   });
 });

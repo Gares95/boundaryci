@@ -1,6 +1,6 @@
 import { constants as fileConstants } from 'node:fs';
 import { open } from 'node:fs/promises';
-import { createServer, type Server, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import { pathToFileURL } from 'node:url';
 
@@ -14,6 +14,12 @@ const WEBHOOK_PATH = '/api/github/webhooks';
 const HEALTH_PATH = '/healthz';
 const HEALTH_BODY = '{"status":"ok"}';
 const NOT_FOUND_BODY = '{"error":"not-found"}';
+const PAYLOAD_TOO_LARGE_BODY = '{"error":"payload-too-large"}';
+/**
+ * GitHub caps webhook payloads at 25 MB, so a larger request cannot be a genuine delivery. The
+ * bound is enforced before signature verification because the verifier needs the whole body.
+ */
+const MAX_WEBHOOK_BODY_BYTES = 25 * 1024 * 1024;
 const DEFAULT_SHUTDOWN_TIMEOUT_MILLISECONDS = 10_000;
 
 export type ServerConfigErrorCode = 'app-id' | 'private-key-path' | 'private-key-file' | 'webhook-secret' | 'port';
@@ -120,6 +126,62 @@ function writeJson(response: ServerResponse, statusCode: number, body: string): 
   response.end(body);
 }
 
+/** Answers 413 once, closes the connection, and stops reading an over-bound webhook request. */
+function rejectOversizedWebhook(request: IncomingMessage, response: ServerResponse): void {
+  if (!response.headersSent) {
+    response.setHeader('connection', 'close');
+    writeJson(response, 413, PAYLOAD_TOO_LARGE_BODY);
+  }
+  response.once('finish', () => { request.destroy(); });
+}
+
+/**
+ * Buffers one webhook request body up to {@link MAX_WEBHOOK_BODY_BYTES} before Probot's
+ * middleware sees it. The exact received bytes are then handed over as `rawBody`, which
+ * `@octokit/webhooks` verifies in place of reading the stream itself, so signature
+ * verification still covers the original request bytes. An over-bound body never reaches the
+ * middleware and is never retained.
+ */
+function bufferBoundedWebhook(
+  request: IncomingMessage,
+  response: ServerResponse,
+  handOff: (request: IncomingMessage) => void,
+): void {
+  const declared = request.headers['content-length'];
+  if (declared !== undefined && Number(declared) > MAX_WEBHOOK_BODY_BYTES) {
+    rejectOversizedWebhook(request, response);
+    return;
+  }
+  const chunks: Buffer[] = [];
+  let received = 0;
+  let rejected = false;
+  request.on('data', (chunk: Buffer) => {
+    if (rejected) return;
+    received += chunk.byteLength;
+    if (received > MAX_WEBHOOK_BODY_BYTES) {
+      rejected = true;
+      chunks.length = 0;
+      rejectOversizedWebhook(request, response);
+      return;
+    }
+    chunks.push(chunk);
+  });
+  request.on('error', () => {
+    rejected = true;
+    chunks.length = 0;
+  });
+  request.on('end', () => {
+    if (rejected) return;
+    const rawBody = Buffer.concat(chunks, received);
+    chunks.length = 0;
+    Object.defineProperties(request, {
+      body: { value: Object.freeze({}), enumerable: false },
+      rawBody: { value: rawBody, enumerable: false },
+    });
+    handOff(request);
+  });
+}
+
 function assertRuntimeConfig(config: BoundaryCiServerConfig): void {
   if (!Number.isSafeInteger(config.appId) || config.appId < 1) throw new ServerConfigError('app-id');
   if (!boundedSecret(config.privateKey)) throw new ServerConfigError('private-key-file');
@@ -156,7 +218,9 @@ export async function createBoundaryCiServer(
       return;
     }
     if (request.method === 'POST' && request.url === WEBHOOK_PATH) {
-      void middleware(request, response, () => writeJson(response, 404, NOT_FOUND_BODY));
+      bufferBoundedWebhook(request, response, (buffered) => {
+        void middleware(buffered, response, () => writeJson(response, 404, NOT_FOUND_BODY));
+      });
       return;
     }
     writeJson(response, 404, NOT_FOUND_BODY);

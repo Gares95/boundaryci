@@ -63,6 +63,7 @@ The HTTP surface is fixed:
 
 - `GET /healthz` returns exactly `{"status":"ok"}` as JSON with no source or diagnostic fields.
 - `POST /api/github/webhooks` invokes Probot's original-byte middleware.
+- A webhook body larger than GitHub's 25 MB payload cap receives a fixed JSON 413 and a closed connection; it is never buffered beyond the cap and never reaches signature verification or delivery logic.
 - Every other method and path returns the same fixed JSON 404.
 
 SIGINT and SIGTERM stop acceptance, wait no more than ten seconds, destroy remaining tracked sockets at the deadline, remove signal listeners, and resolve idempotently.
