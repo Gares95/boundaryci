@@ -55,6 +55,30 @@ function referenceMatch(pattern: string, segments: readonly string[]): boolean {
   return referenceSegments(pattern.split('/'), segments, 0, 0);
 }
 
+/** Verbatim released-v1 `coversDirectoryPrefix`, using the v1 segment regular expression. */
+function referenceCovers(patternSegments: readonly string[], dirSegments: readonly string[], p: number, s: number): boolean {
+  if (s === dirSegments.length) return p < patternSegments.length;
+  if (p === patternSegments.length) return false;
+  const segment = patternSegments[p];
+  if (segment === '**') return true;
+  if (s >= dirSegments.length) return false;
+  const candidate = dirSegments[s];
+  if (segment === undefined || candidate === undefined) return false;
+  if (!referenceSegment(segment).test(candidate)) return false;
+  return referenceCovers(patternSegments, dirSegments, p + 1, s + 1);
+}
+
+/** Every string of length 1..maxLength over `alphabet`. */
+function allStrings(alphabet: readonly string[], maxLength: number): string[] {
+  const out: string[] = [];
+  let frontier = [''];
+  for (let length = 1; length <= maxLength; length += 1) {
+    frontier = frontier.flatMap((prefix) => alphabet.map((character) => prefix + character));
+    out.push(...frontier);
+  }
+  return out;
+}
+
 function elapsed(run: () => void): number {
   const started = performance.now();
   run();
@@ -86,8 +110,10 @@ describe('compileLimitedGlob matching complexity', () => {
 
   it('keeps the existing limited-glob semantics on deterministic random cases', () => {
     const random = prng(0x5eed_2026);
-    const patternAlphabet = ['a', 'b', '*', '?', '.', 'é', '\u{1f600}'];
-    const nameAlphabet = ['a', 'b', '.', 'é', '\u{1f600}'];
+    // Literal regex metacharacters the grammar still admits, case, astral and lone-surrogate
+    // code points all exercise the v1 per-code-point `u`-mode semantics.
+    const patternAlphabet = ['a', 'b', 'A', '*', '?', '.', '$', '^', '-', ' ', 'é', '\u{1f600}', '\ud800'];
+    const nameAlphabet = ['a', 'b', 'A', '.', '$', '^', '-', ' ', 'é', '\u{1f600}', '\ud800', '\udc00'];
     const pick = <T>(values: readonly T[]): T => values[Math.floor(random() * values.length)] as T;
     let matches = 0;
     for (let index = 0; index < 4_000; index += 1) {
@@ -104,8 +130,52 @@ describe('compileLimitedGlob matching complexity', () => {
       expect({ pattern, path, matched: glob.test(path) }).toEqual({ pattern, path, matched: expected });
       const excludesSubtree = patternSegments.at(-1) === '**' && expected;
       expect({ pattern, path, excludesSubtree: glob.excludesSubtree(path) }).toEqual({ pattern, path, excludesSubtree });
+      const dir = path.slice(0, Math.floor(random() * path.length));
+      expect({ pattern, dir, covers: glob.coversDirectory(dir) })
+        .toEqual({ pattern, dir, covers: referenceCovers(patternSegments, dir, 0, 0) });
     }
     // The generator must exercise both outcomes to be a meaningful equivalence check.
     expect(matches).toBeGreaterThan(200);
+  });
+
+  it('agrees with v1 on every single-segment pattern and name in a small exhaustive space', () => {
+    // All patterns of length <= 4 over {a, b, *, ?} (single `*` runs only, since `**` inside a
+    // segment is rejected) against every name of length <= 5 over {a, b}: 292 x 62 = 18,104 pairs.
+    const patterns = allStrings(['a', 'b', '*', '?'], 4).filter((pattern) => !pattern.includes('**'));
+    const names = allStrings(['a', 'b'], 5);
+    let matched = 0;
+    let mismatches = 0;
+    for (const pattern of patterns) {
+      const glob = compileLimitedGlob(pattern);
+      for (const name of names) {
+        const expected = referenceMatch(pattern, [name]);
+        if (expected) matched += 1;
+        if (glob.test([name]) !== expected) mismatches += 1;
+      }
+    }
+    expect(patterns.length * names.length).toBe(18_104);
+    expect(mismatches).toBe(0);
+    expect(matched).toBeGreaterThan(1_000);
+    expect(matched).toBeLessThan(patterns.length * names.length);
+  });
+
+  it('agrees with v1 on every multi-segment arrangement of a small pattern alphabet', () => {
+    const segmentChoices = ['**', '*', 'a', '?', 'a*'];
+    const patterns = allStrings(segmentChoices.map((segment) => `${segment}\0`), 4)
+      .map((joined) => joined.slice(0, -1).split('\0').join('/'));
+    const paths = allStrings(['a\0', 'b\0', 'ab\0'], 4).map((joined) => joined.slice(0, -1).split('\0'));
+    let mismatches = 0;
+    for (const pattern of patterns) {
+      const glob = compileLimitedGlob(pattern);
+      const segments = pattern.split('/');
+      for (const path of paths) {
+        if (glob.test(path) !== referenceMatch(pattern, path)) mismatches += 1;
+        if (glob.coversDirectory(path) !== referenceCovers(segments, path, 0, 0)) mismatches += 1;
+        if (glob.excludesSubtree(path) !== (segments.at(-1) === '**' && referenceMatch(pattern, path))) mismatches += 1;
+      }
+    }
+    expect(patterns.length).toBe(780);
+    expect(paths.length).toBe(120);
+    expect(mismatches).toBe(0);
   });
 });
