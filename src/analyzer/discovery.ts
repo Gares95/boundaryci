@@ -65,36 +65,74 @@ function assertValidPatternSegments(pattern: string): readonly string[] {
   return segments;
 }
 
-const SEGMENT_MATCHER_CACHE = new Map<string, RegExp>();
-
-function segmentMatcher(segment: string): RegExp {
-  const cached = SEGMENT_MATCHER_CACHE.get(segment);
-  if (cached !== undefined) return cached;
-  let body = '';
-  for (const character of segment) {
-    if (character === '*') body += '[^/]*';
-    else if (character === '?') body += '[^/]';
-    else body += character.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+/**
+ * Matches one path segment against one pattern segment, given as code points, where `*` matches
+ * zero or more non-separator code points and `?` exactly one; every other code point is literal.
+ *
+ * Patterns come from hostile repository configuration, so this deliberately avoids regular
+ * expression backtracking: the classic single-resume wildcard scan only ever retries from the
+ * most recent `*`, bounding work by pattern length times candidate length.
+ */
+function segmentMatches(pattern: readonly string[], candidate: string): boolean {
+  if (candidate.includes('/')) return false;
+  const text = Array.from(candidate);
+  let p = 0;
+  let t = 0;
+  let star = -1;
+  let resume = 0;
+  while (t < text.length) {
+    const token = pattern[p];
+    if (token === '*') {
+      star = p;
+      resume = t;
+      p += 1;
+    } else if (token !== undefined && (token === '?' || token === text[t])) {
+      p += 1;
+      t += 1;
+    } else if (star !== -1) {
+      p = star + 1;
+      resume += 1;
+      t = resume;
+    } else {
+      return false;
+    }
   }
-  const matcher = new RegExp(`^${body}$`, 'u');
-  SEGMENT_MATCHER_CACHE.set(segment, matcher);
-  return matcher;
+  while (pattern[p] === '*') p += 1;
+  return p === pattern.length;
 }
 
-function matchSegments(patternSegments: readonly string[], pathSegments: readonly string[], p: number, s: number): boolean {
-  if (p === patternSegments.length) return s === pathSegments.length;
-  const segment = patternSegments[p];
-  if (segment === '**') {
-    for (let next = s; next <= pathSegments.length; next += 1) {
-      if (matchSegments(patternSegments, pathSegments, p + 1, next)) return true;
+/**
+ * Whole-path matching where `**` absorbs zero or more complete segments. It tracks the set of
+ * path prefixes each pattern prefix can reach instead of recursively re-exploring every `**`
+ * split, so adjacent globstars cannot cause exponential work.
+ */
+function matchSegments(
+  patternSegments: readonly string[],
+  patternTokens: readonly (readonly string[])[],
+  pathSegments: readonly string[],
+): boolean {
+  const width = pathSegments.length + 1;
+  let reachable = new Array<boolean>(width).fill(false);
+  reachable[0] = true;
+  for (let p = 0; p < patternSegments.length; p += 1) {
+    const next = new Array<boolean>(width).fill(false);
+    if (patternSegments[p] === '**') {
+      let running = false;
+      for (let s = 0; s < width; s += 1) {
+        running ||= reachable[s] === true;
+        next[s] = running;
+      }
+    } else {
+      const tokens = patternTokens[p];
+      if (tokens === undefined) return false;
+      for (let s = 0; s < pathSegments.length; s += 1) {
+        const candidate = pathSegments[s];
+        if (reachable[s] === true && candidate !== undefined && segmentMatches(tokens, candidate)) next[s + 1] = true;
+      }
     }
-    return false;
+    reachable = next;
   }
-  if (s >= pathSegments.length) return false;
-  const candidate = pathSegments[s];
-  if (segment === undefined || candidate === undefined) return false;
-  if (!segmentMatcher(segment).test(candidate)) return false;
-  return matchSegments(patternSegments, pathSegments, p + 1, s + 1);
+  return reachable[pathSegments.length] === true;
 }
 
 /**
@@ -117,7 +155,7 @@ function coversDirectoryPrefix(
   if (s >= dirSegments.length) return false;
   const candidate = dirSegments[s];
   if (segment === undefined || candidate === undefined) return false;
-  if (!segmentMatcher(segment).test(candidate)) return false;
+  if (!segmentMatches(Array.from(segment), candidate)) return false;
   return coversDirectoryPrefix(patternSegments, dirSegments, p + 1, s + 1);
 }
 
@@ -151,17 +189,18 @@ export function compileLimitedGlob(pattern: string): CompiledGlob {
   const cached = COMPILED_GLOB_CACHE.get(pattern);
   if (cached !== undefined) return cached;
   const segments = assertValidPatternSegments(pattern);
+  const tokens = Object.freeze(segments.map((segment) => Object.freeze(Array.from(segment))));
   const compiled: CompiledGlob = {
     source: pattern,
     segments,
     test(pathSegments) {
-      return matchSegments(segments, pathSegments, 0, 0);
+      return matchSegments(segments, tokens, pathSegments);
     },
     coversDirectory(dirSegments) {
       return coversDirectoryPrefix(segments, dirSegments, 0, 0);
     },
     excludesSubtree(dirSegments) {
-      return segments[segments.length - 1] === '**' && matchSegments(segments, dirSegments, 0, 0);
+      return segments[segments.length - 1] === '**' && matchSegments(segments, tokens, dirSegments);
     },
   };
   COMPILED_GLOB_CACHE.set(pattern, compiled);
