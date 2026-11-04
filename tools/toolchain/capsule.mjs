@@ -85,7 +85,8 @@ export function capsuleDirectory(storePhysical, tool) {
 export function readPinnedFile(absolutePath, linkStats) {
   let descriptor;
   try {
-    descriptor = openSync(absolutePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    // O_NONBLOCK keeps a FIFO swapped in after inspection from blocking; the inode check rejects it.
+    descriptor = openSync(absolutePath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   } catch {
     fail('toolchain/file-type', `${absolutePath} cannot be opened without following links`);
   }

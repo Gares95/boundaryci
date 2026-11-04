@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -316,6 +316,9 @@ describe.runIf(CAN_EXECUTE_SYNTHETIC_ELF)('toolchain command line', () => {
     expect([wrongPin.status, wrongPin.stderr.split(':')[0]]).toEqual([1, 'toolchain/manifest-digest-mismatch']);
     const requalify = cli(['qualify', '--manifest', manifestPath, '--request', requestPath]);
     expect([requalify.status, requalify.stderr.split(':')[0]]).toEqual([1, 'toolchain/requalify-requires-explicit-replace']);
+    symlinkSync(manifestPath, join(root, 'linked.manifest.json'));
+    const linked = cli(['verify', '--manifest', join(root, 'linked.manifest.json'), '--store', store]);
+    expect([linked.status, linked.stderr.split(':')[0]]).toEqual([1, 'toolchain/manifest-read']);
     const usage = cli(['run', '--manifest', manifestPath, '--store', store]);
     expect(usage.status).toBe(2);
     expect(cli(['download', '--manifest', manifestPath]).status).toBe(2);

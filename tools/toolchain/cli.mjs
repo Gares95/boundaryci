@@ -1,7 +1,7 @@
-import { lstatSync, readFileSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-import { OWNER_POLICIES, probeVersion, runTool, verifyTool } from './capsule.mjs';
+import { OWNER_POLICIES, probeVersion, readPinnedFile, runTool, verifyTool } from './capsule.mjs';
 import { fail, ToolchainError } from './errors.mjs';
 import { MAX_MANIFEST_BYTES, parseManifest } from './manifest.mjs';
 import { driftReport, materializeTool, qualifyTools, readRequestFile } from './qualify.mjs';
@@ -70,7 +70,7 @@ export function parseCommandLine(argv) {
 function loadManifest(path, expectedSha256) {
   const stats = lstatSync(path, { throwIfNoEntry: false });
   if (stats === undefined || !stats.isFile() || stats.size > MAX_MANIFEST_BYTES) fail('toolchain/manifest-read', 'manifest is not a bounded regular file');
-  return parseManifest(readFileSync(path), { expectedSha256 });
+  return parseManifest(readPinnedFile(path, stats), { expectedSha256 });
 }
 
 /**
