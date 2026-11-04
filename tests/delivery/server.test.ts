@@ -492,6 +492,45 @@ describe('production webhook body bound', () => {
     expect((await fetch(`${origin}/healthz`)).status).toBe(200);
   });
 
+  it('accepts exactly the bound and verifies the original bytes of a signed body split mid-character', async () => {
+    const atBound = await listen(config(), { checkCoordinator: testCheckCoordinator() });
+    const boundary = await streamBody(atBound.origin, WEBHOOK_BODY_LIMIT, { ...webhookHeaders, 'transfer-encoding': 'chunked' });
+    // Exactly the bound is in-bound: the unverified signature, not the size, rejects it.
+    expect(boundary).not.toBe(413);
+    expect(boundary).not.toBe('connection-closed');
+
+    const sentinels = createDeliveryCaseSentinels('server-multibyte-original-bytes');
+    const store = checkStore();
+    const coordinator = createCheckCoordinator({ appId: 1234, freshness: store, publisher: store });
+    installGitHubReadTransport(sentinels.installationToken!);
+    const { origin } = await listen(config(sentinels.webhookSecret!), { evaluator: evaluateLocalComparison, checkCoordinator: coordinator });
+    const body = signedPullRequestBody(`${sentinels.rawPayload!}-\u00e9\u20ac\u{1f600}`);
+    const bytes = Buffer.from(body, 'utf8');
+    expect(bytes.byteLength).toBeGreaterThan(body.length);
+    const send = (signature: string): Promise<number> => new Promise((resolve, reject) => {
+      const url = new URL(`${origin}/api/github/webhooks`);
+      const outgoing = httpRequest({
+        host: url.hostname, port: url.port, path: url.pathname, method: 'POST',
+        headers: {
+          'content-type': 'application/json', 'transfer-encoding': 'chunked',
+          'x-github-delivery': 'server-multibyte-original-bytes', 'x-github-event': 'pull_request', 'x-hub-signature-256': signature,
+        },
+      });
+      outgoing.on('response', (response) => { response.resume(); resolve(response.statusCode ?? 0); });
+      outgoing.on('error', reject);
+      // One-byte chunk frames split every multi-byte UTF-8 sequence across chunk boundaries.
+      for (let index = 0; index < bytes.byteLength; index += 1) outgoing.write(bytes.subarray(index, index + 1));
+      outgoing.end();
+    });
+    // A signature over a semantically equal re-encoding must fail: verification sees received bytes only.
+    const reencoded = body.replace('\u00e9', '\\u00e9');
+    expect(reencoded).not.toBe(body);
+    expect(await send(signOriginalWebhookBody(sentinels.webhookSecret!, reencoded))).not.toBe(200);
+    expect(coordinator.results).toEqual([]);
+    expect(await send(signOriginalWebhookBody(sentinels.webhookSecret!, body))).toBe(200);
+    await vi.waitFor(() => expect(coordinator.results).toEqual([expect.objectContaining({ status: 'created' })]));
+  });
+
   it('still hands an in-bound streamed body to signature verification', async () => {
     const store = checkStore();
     const coordinator = createCheckCoordinator({ appId: 1234, freshness: store, publisher: store });
