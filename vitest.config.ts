@@ -16,6 +16,7 @@ export default defineConfig({
       'tests/cli/**/*.test.ts',
       'tests/delivery/**/*.test.ts',
       'tests/release/**/*.test.ts',
+      'tests/toolchain/**/*.test.ts',
     ],
     watch: false,
   },
