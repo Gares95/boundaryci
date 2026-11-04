@@ -77,12 +77,12 @@ export function capsuleDirectory(storePhysical, tool) {
 }
 
 /**
- * Reads one capsule file without following links and proves the descriptor is the inspected inode.
+ * Reads one file without following links and proves the descriptor is the inspected inode.
  *
  * @param {string} absolutePath
  * @param {import('node:fs').Stats} linkStats
  */
-function readPinnedFile(absolutePath, linkStats) {
+export function readPinnedFile(absolutePath, linkStats) {
   let descriptor;
   try {
     descriptor = openSync(absolutePath, constants.O_RDONLY | constants.O_NOFOLLOW);
