@@ -20,6 +20,14 @@
  * - `probot-registration`    `<receiver>.on(event, handler)` inside a *designated* Probot
  *                            entrypoint only — never an arbitrary `.on` call.
  *
+ * Detached request surfaces are a separate, proof-conditional obligation: an uninvoked
+ * `<receiver>.rest`, `<receiver>.rest.<scope>`, or `<receiver>.request` value, top-level
+ * `rest`/`request` destructuring from a receiver, and `<receiver>.paginate(...)` /
+ * `<receiver>.paginate.iterator(...)`. Such a site is marked `provenReceiverOnly`: it becomes an
+ * incomplete obligation exactly when its receiver is independently proven to be an authorized
+ * client, and is otherwise dropped, so these common words never add name-based noise while an
+ * authorized client's REST surface can never leave the census by being detached before a call.
+ *
  * Exact pinned membership comes only from {@link ANALYZER_ENDPOINT_PROFILE}. A fully static
  * `.rest.<scope>.<method>` chain is nevertheless retained when its pair is absent from that
  * profile: if receiver proof later establishes an authorized Octokit client, operation
@@ -60,6 +68,11 @@ const ANCHOR_REQUEST_POSITIONAL = 'request-positional-route-argument';
 const ANCHOR_REQUEST_OBJECT = 'request-object-argument';
 const ANCHOR_REQUEST_BRACKET = 'request-static-bracket-access';
 const ANCHOR_PROBOT_REGISTRATION = 'designated-probot-registration';
+const ANCHOR_PROVEN_SURFACE_EXTRACTION = 'proven-client-request-surface-extraction';
+const ANCHOR_PROVEN_PAGINATE = 'proven-client-paginate-request';
+
+/** The exact member name of Octokit's paginating request surface. */
+const PAGINATE_LINK = 'paginate';
 
 const MEMBER_IDS: ReadonlySet<string> = new Set(
   ANALYZER_ENDPOINT_PROFILE.members.map((member) => `${member.scope}.${member.method}`),
@@ -137,6 +150,11 @@ export interface CandidateSite {
   /** Exact request syntax needed by the bounded Task 1 call grammar, or `null` otherwise. */
   readonly request: CandidateRequest | null;
   readonly enclosingClassStart: number | null;
+  /**
+   * `true` only for a detached request-surface site: it is an obligation exactly when its
+   * receiver is independently proven to be an authorized client, and is dropped otherwise.
+   */
+  readonly provenReceiverOnly?: true;
 }
 
 /** Per-file census input the caller owns, because discovery — not syntax — designates a role. */
@@ -243,6 +261,13 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
   const sites: CandidateSite[] = [];
   /** Callee expressions of call sites, so an uninvoked chain is distinguishable from a call. */
   const invoked = new Set<ts.Node>();
+  /**
+   * Objects of a member access, i.e. prefixes of a longer chain. The parser runs without parent
+   * pointers, so the pre-order visitor records each access's object before visiting it.
+   */
+  const chainPrefixes = new Set<ts.Node>();
+  /** `R.rest.<scope>` initializers whose pinned members v1 destructuring already censused. */
+  const destructuredScopeInitializers = new Set<ts.Node>();
 
   const push = (site: CandidateSite): void => {
     sites.push(site);
@@ -562,6 +587,7 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
     if (!MEMBER_SCOPES.has(scope)) return;
     const receiver = describeReceiver(restLink.object);
     const base = `${receiverSpelling(receiver)}${linkSpelling(restLink)}${linkSpelling(scopeLink)}`;
+    const before = sites.length;
     for (const element of declaration.name.elements) {
       if (element.dotDotDotToken !== undefined) continue;
       const propertyName = element.propertyName ?? element.name;
@@ -583,6 +609,100 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
         enclosingClassStart: classStart,
       });
     }
+    if (sites.length > before) destructuredScopeInitializers.add(initializer);
+  };
+
+  const isChainPrefix = (node: ts.Expression): boolean => chainPrefixes.has(node);
+
+  const pushProvenReceiverOnly = (
+    kind: Extract<CandidateKind, 'endpoint-extraction' | 'positional-request'>,
+    anchor: string,
+    spellingSuffix: string,
+    receiverExpression: ts.Expression,
+    siteNode: ts.Node,
+    optional: boolean,
+    classStart: number | null,
+  ): void => {
+    const receiver = describeReceiver(receiverExpression);
+    push({
+      kind,
+      anchor,
+      spelling: `${receiverSpelling(receiver)}${spellingSuffix}`,
+      path,
+      span: spanOfNode(parsed, siteNode),
+      optional,
+      receiver,
+      receiverStart: receiverStartOf(receiverExpression),
+      member: null,
+      route: null,
+      request: null,
+      enclosingClassStart: classStart,
+      provenReceiverOnly: true,
+    });
+  };
+
+  /**
+   * Censuses an uninvoked, detached request surface: `<receiver>.rest` or
+   * `<receiver>.rest.<scope>` read as a value rather than as a prefix of a longer chain, or
+   * `<receiver>.request` in any non-callee position (including `.defaults(...)`).
+   */
+  const censusSurfaceExtraction = (node: ts.Expression, classStart: number | null): void => {
+    const link = accessOf(node);
+    if (link === null) return;
+    if (link.text === REQUEST_LINK) {
+      pushProvenReceiverOnly('endpoint-extraction', ANCHOR_PROVEN_SURFACE_EXTRACTION, linkSpelling(link), link.object, node, link.optional, classStart);
+      return;
+    }
+    if (isChainPrefix(node) || destructuredScopeInitializers.has(node)) return;
+    if (link.text === REST_LINK) {
+      pushProvenReceiverOnly('endpoint-extraction', ANCHOR_PROVEN_SURFACE_EXTRACTION, linkSpelling(link), link.object, node, link.optional, classStart);
+      return;
+    }
+    if (link.text !== null && !MEMBER_SCOPES.has(link.text)) return;
+    const restLink = accessOf(link.object);
+    if (restLink === null || restLink.text !== REST_LINK) return;
+    pushProvenReceiverOnly(
+      'endpoint-extraction',
+      ANCHOR_PROVEN_SURFACE_EXTRACTION,
+      `${linkSpelling(restLink)}${linkSpelling(link)}`,
+      restLink.object,
+      node,
+      restLink.optional || link.optional,
+      classStart,
+    );
+  };
+
+  /** Censuses top-level `rest` or `request` destructured directly out of a receiver value. */
+  const censusSurfaceDestructuring = (declaration: ts.VariableDeclaration, classStart: number | null): void => {
+    const initializer = declaration.initializer;
+    if (initializer === undefined || !ts.isObjectBindingPattern(declaration.name)) return;
+    for (const element of declaration.name.elements) {
+      if (element.dotDotDotToken !== undefined) continue;
+      const propertyName = element.propertyName ?? element.name;
+      if (!ts.isIdentifier(propertyName) && !ts.isStringLiteral(propertyName)) continue;
+      if (propertyName.text !== REST_LINK && propertyName.text !== REQUEST_LINK) continue;
+      pushProvenReceiverOnly('endpoint-extraction', ANCHOR_PROVEN_SURFACE_EXTRACTION, `.${propertyName.text}`, initializer, element, false, classStart);
+    }
+  };
+
+  /** Censuses `<receiver>.paginate(...)` and `<receiver>.paginate.iterator(...)` calls. */
+  const censusPaginate = (node: ts.CallExpression, link: ChainLink, classStart: number | null): boolean => {
+    if (link.text === PAGINATE_LINK) {
+      pushProvenReceiverOnly('positional-request', ANCHOR_PROVEN_PAGINATE, `${linkSpelling(link)}(…)`, link.object, node, link.optional || node.questionDotToken !== undefined, classStart);
+      return true;
+    }
+    const paginateLink = link.text === 'iterator' ? accessOf(link.object) : null;
+    if (paginateLink === null || paginateLink.text !== PAGINATE_LINK) return false;
+    pushProvenReceiverOnly(
+      'positional-request',
+      ANCHOR_PROVEN_PAGINATE,
+      `${linkSpelling(paginateLink)}${linkSpelling(link)}(…)`,
+      paginateLink.object,
+      node,
+      paginateLink.optional || link.optional || node.questionDotToken !== undefined,
+      classStart,
+    );
+    return true;
   };
 
   const visit = (node: ts.Node, classStart: number | null): void => {
@@ -602,16 +722,24 @@ export function censusCandidates(parsed: ParsedSource, options: CandidateCensusO
           (link.text === REGISTRATION_LINK || (options.probotEntrypoint && link.text === 'onAny'))
         ) {
           censusRegistration(node, link, classStart);
+        } else if (link !== null) {
+          censusPaginate(node, link, classStart);
         }
       }
     } else if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      chainPrefixes.add(node.expression);
       // An uninvoked pinned chain is an extraction obligation. Callee positions are excluded
       // because the enclosing call already censused them under its own kind.
-      if (!invoked.has(node) && !censusChain(node, null, classStart)) {
-        censusAlternateSurface(node, null, classStart);
+      if (
+        !invoked.has(node) &&
+        !censusChain(node, null, classStart) &&
+        !censusAlternateSurface(node, null, classStart)
+      ) {
+        censusSurfaceExtraction(node, classStart);
       }
     } else if (ts.isVariableDeclaration(node)) {
       censusDestructuring(node, classStart);
+      censusSurfaceDestructuring(node, classStart);
     }
 
     ts.forEachChild(node, (child) => {

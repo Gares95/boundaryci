@@ -353,9 +353,28 @@ function classifyProbotRegistration(site: CandidateSite, graph: SourceGraph): Pe
  * an operation from: a proven receiver alone never emits an observation, and only the exact
  * pinned `.rest.<scope>.<method>(...)` anchor or its supported optional forms may.
  */
-function classifyCandidate(site: CandidateSite, graph: SourceGraph): PendingCandidate {
+function classifyCandidate(site: CandidateSite, graph: SourceGraph): PendingCandidate | null {
   if (site.kind === 'probot-registration') return classifyProbotRegistration(site, graph);
   const proof = proveCandidateReceiver(graph, site);
+
+  if (site.provenReceiverOnly === true) {
+    // A detached request surface is an obligation only on a proven authorized client; it is
+    // never proven into an operation, and any other receiver keeps its unanchored v1 status.
+    if (proof.status !== 'proven') return null;
+    return site.kind === 'positional-request'
+      ? anchoredIncomplete(
+          site,
+          'unsupported-request-grammar',
+          'unsupported-request-grammar',
+          'paginate() on a proven Octokit client is outside the supported request grammar',
+        )
+      : anchoredIncomplete(
+          site,
+          'unsupported-endpoint-extraction',
+          'unsupported-endpoint-extraction',
+          'a detached rest, scope, or request surface of a proven Octokit client is outside the supported call grammar',
+        );
+  }
 
   if (site.kind === 'direct-endpoint' || site.kind === 'positional-request' || site.kind === 'object-request') {
     if (proof.status === 'unproven') return unprovenCandidate(site, proof.causes);
@@ -472,7 +491,10 @@ async function runAnalysis(request: AnalysisRequest): Promise<AnalysisResult> {
     const sites = censusCandidates(parsed, {
       probotEntrypoint: probotEntrypoints.has(parsed.record.path),
     });
-    for (const site of sites) candidates.push(classifyCandidate(site, graph));
+    for (const site of sites) {
+      const candidate = classifyCandidate(site, graph);
+      if (candidate !== null) candidates.push(candidate);
+    }
   }
 
   sources.sort((left, right) => compareBytes(left.path, right.path));

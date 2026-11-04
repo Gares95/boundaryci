@@ -163,6 +163,14 @@ separate dynamic-member cause. Endpoint function extraction is also unsupported 
 pinned evidence does not establish detachment-safe semantics; the Phase 3 detached-endpoint
 authorization set is empty.
 
+Detaching a larger part of a proven client's request surface is likewise unsupported and never
+silently clean. On a receiver independently proven to be an authorized client, an uninvoked
+`receiver.rest`, `receiver.rest.<scope>`, or `receiver.request` value (including
+`request.defaults(...)`), top-level `rest` or `request` destructuring from the receiver, and
+`receiver.paginate(...)` or `receiver.paginate.iterator(...)` each become an explicit incomplete
+candidate. These sites never prove an operation. On any other receiver they raise no obligation,
+so the words `rest`, `request`, and `paginate` alone still create no noise.
+
 ## Pinned compatibility profile
 
 `boundaryci/octokit-analyzer-profile@1` is backed by the committed evidence for
