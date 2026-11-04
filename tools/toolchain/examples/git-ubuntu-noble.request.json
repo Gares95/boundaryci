@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "kind": "boundaryci-toolchain-qualification-request",
+  "qualifiedOn": "2026-11-04",
+  "tool": {
+    "id": "git",
+    "entrypoint": "bin/git",
+    "files": [
+      {
+        "path": "bin/git",
+        "from": "/usr/bin/git",
+        "mode": "0555"
+      },
+      {
+        "path": "lib/ld-linux-x86-64.so.2",
+        "from": "/lib64/ld-linux-x86-64.so.2",
+        "mode": "0555"
+      },
+      {
+        "path": "lib/libc.so.6",
+        "from": "/lib/x86_64-linux-gnu/libc.so.6",
+        "mode": "0444"
+      },
+      {
+        "path": "lib/libpcre2-8.so.0",
+        "from": "/lib/x86_64-linux-gnu/libpcre2-8.so.0",
+        "mode": "0444"
+      },
+      {
+        "path": "lib/libz.so.1",
+        "from": "/lib/x86_64-linux-gnu/libz.so.1",
+        "mode": "0444"
+      }
+    ],
+    "invocation": {
+      "kind": "elf-loader",
+      "loader": "lib/ld-linux-x86-64.so.2",
+      "libraryPath": [
+        "lib"
+      ]
+    },
+    "environment": [
+      {
+        "name": "GIT_CONFIG_COUNT",
+        "value": "5"
+      },
+      {
+        "name": "GIT_CONFIG_GLOBAL",
+        "value": "/dev/null"
+      },
+      {
+        "name": "GIT_CONFIG_KEY_0",
+        "value": "core.fsmonitor"
+      },
+      {
+        "name": "GIT_CONFIG_KEY_1",
+        "value": "core.hooksPath"
+      },
+      {
+        "name": "GIT_CONFIG_KEY_2",
+        "value": "core.sshCommand"
+      },
+      {
+        "name": "GIT_CONFIG_KEY_3",
+        "value": "protocol.allow"
+      },
+      {
+        "name": "GIT_CONFIG_KEY_4",
+        "value": "credential.helper"
+      },
+      {
+        "name": "GIT_CONFIG_NOSYSTEM",
+        "value": "1"
+      },
+      {
+        "name": "GIT_CONFIG_VALUE_0",
+        "value": "false"
+      },
+      {
+        "name": "GIT_CONFIG_VALUE_1",
+        "value": "/dev/null"
+      },
+      {
+        "name": "GIT_CONFIG_VALUE_2",
+        "value": "false"
+      },
+      {
+        "name": "GIT_CONFIG_VALUE_3",
+        "value": "never"
+      },
+      {
+        "name": "GIT_CONFIG_VALUE_4",
+        "value": ""
+      },
+      {
+        "name": "GIT_EXEC_PATH",
+        "capsulePath": "libexec/git-core"
+      },
+      {
+        "name": "GIT_TERMINAL_PROMPT",
+        "value": "0"
+      },
+      {
+        "name": "LC_ALL",
+        "value": "C"
+      }
+    ],
+    "pathEntries": [
+      "bin"
+    ],
+    "version": {
+      "args": [
+        "--version"
+      ],
+      "stdout": "git version 2.43.0\n"
+    }
+  }
+}

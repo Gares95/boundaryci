@@ -8,9 +8,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { runTool, verifyTool } from '../../tools/toolchain/capsule.mjs';
 import { parseManifest, sha256Hex } from '../../tools/toolchain/manifest.mjs';
 import { driftReport, materializeTool, qualifyTools } from '../../tools/toolchain/qualify.mjs';
-import { CAN_EXECUTE_SYNTHETIC_ELF, cleanupWorkspaces, staticElf, workspace } from './fixtures.js';
+import { CAN_EXECUTE_SYNTHETIC_ELF, cleanupWorkspaces, dynamicElf, staticElf, workspace } from './fixtures.js';
 
 const CLI = fileURLToPath(new URL('../../tools/toolchain/cli.mjs', import.meta.url));
+const EXAMPLE = fileURLToPath(new URL('../../tools/toolchain/examples/git-ubuntu-noble.request.json', import.meta.url));
 const V2430 = 'git version 2.43.0\n';
 const APPROVED = staticElf(V2430);
 const UBUNTU_REBUILD = staticElf(V2430, { padding: Buffer.from('1ubuntu7.5') });
@@ -106,6 +107,32 @@ describe('qualification', () => {
     expect(second.previousManifestSha256).toBe(first.manifestSha256);
     expect(second.changes[0]?.previousTreeSha256).toBe(first.changes[0]?.treeSha256);
     expect(second.changes[0]?.treeSha256).not.toBe(first.changes[0]?.treeSha256);
+  });
+
+  it('keeps the committed hardened git example qualifiable as a complete loader closure', () => {
+    const { root, manifestPath } = host();
+    const example = JSON.parse(readFileSync(EXAMPLE, 'utf8')) as { tool: { files: { path: string; from: string }[]; environment: Record<string, string>[] } };
+    const standIns: Record<string, Buffer> = {
+      'bin/git': dynamicElf({ interpreter: '/lib64/ld-linux-x86-64.so.2', needed: ['libpcre2-8.so.0', 'libz.so.1', 'libc.so.6'] }),
+      'lib/ld-linux-x86-64.so.2': dynamicElf({}),
+      'lib/libc.so.6': dynamicElf({ needed: ['ld-linux-x86-64.so.2'] }),
+      'lib/libpcre2-8.so.0': dynamicElf({ needed: ['libc.so.6'] }),
+      'lib/libz.so.1': dynamicElf({ needed: ['libc.so.6'] }),
+    };
+    for (const file of example.tool.files) {
+      const replacement = join(root, file.path.replaceAll('/', '_'));
+      writeFileSync(replacement, standIns[file.path] ?? Buffer.alloc(0));
+      file.from = replacement;
+    }
+    const result = qualifyTools({ manifestPath, requests: [example] });
+    const tool = parseManifest(readFileSync(manifestPath), { expectedSha256: result.manifestSha256 }).manifest.tools[0];
+    expect(tool?.invocation).toEqual({ kind: 'elf-loader', loader: 'lib/ld-linux-x86-64.so.2', libraryPath: ['lib'] });
+    const environment = Object.fromEntries((tool?.environment ?? []).map((entry) => [entry.name, 'value' in entry ? entry.value : `capsule:${entry.capsulePath}`]));
+    const overrides = Object.fromEntries(
+      Array.from({ length: Number(environment.GIT_CONFIG_COUNT) }, (_, index) => [environment[`GIT_CONFIG_KEY_${index}`], environment[`GIT_CONFIG_VALUE_${index}`]]),
+    );
+    expect(overrides).toMatchObject({ 'core.fsmonitor': 'false', 'core.hooksPath': '/dev/null', 'core.sshCommand': 'false', 'protocol.allow': 'never' });
+    expect(environment).toMatchObject({ GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_EXEC_PATH: 'capsule:libexec/git-core', GIT_TERMINAL_PROMPT: '0' });
   });
 
   it('refuses to create a manifest when the caller expected one to exist', () => {

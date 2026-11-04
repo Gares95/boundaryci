@@ -55,7 +55,10 @@ Out of scope, documented as residual risk:
 - root or kernel compromise;
 - a malicious Node interpreter running the verifier, since the verifier's own interpreter is in the trusted computing base;
 - a same-user attacker who swaps bytes and restores them within the window between pre-verification and `execve` (mitigated by the post-run check and, on hosts that need it, a root-owned store);
-- runtime `dlopen` of NSS or `gconv` modules by glibc. The prototype restricts the intended git use to repository-local plumbing (`ls-files`, `status`, `rev-parse`), which does not need them.
+- runtime `dlopen` of NSS or `gconv` modules by glibc. The prototype restricts the intended git use to repository-local plumbing (`ls-files`, `status`, `rev-parse`), which does not need them;
+- programs that a verified tool itself spawns at runtime. This channel is real and is described under "Runtime subprocess channels" below.
+
+The caller-supplied environment of the programmatic runner is trusted input from BoundaryCI code. It cannot override declared or reserved names. The CLI passes none.
 
 BoundaryCI never runs git against target repositories; targets are acquired as GitHub blobs. That bounds the exposure of a deliberately frozen, older git.
 
@@ -91,6 +94,8 @@ Every capsule entry is checked with `lstat` and never followed:
 - files must be regular, with the exact declared mode (`0555` or `0444`) and link count 1;
 - the owner must be root or the invoking user, or only root under the `root-only` policy;
 - the capsule must contain exactly the manifest's files and the directories they imply, so a planted library or helper is rejected.
+
+The closed tree is load-bearing. A real loader trace shows that glibc probes `lib/glibc-hwcaps/x86-64-v4`, `v3`, and `v2` inside the library path before `lib` itself. Any unlisted directory, even an empty one, is refused.
 
 The store root, the per-tool directory, and every ancestor must be real directories (no symlinked component), owned by root or the invoking user, and not group- or world-writable, unless they are root-owned sticky directories such as `/tmp`. Write-protection bits do not stop an owner who can `chmod`. That is why the `root-only` policy exists for hosts where the store is provisioned by an administrator.
 
@@ -158,15 +163,61 @@ Yes. This is the core of the design. Identity is `treeSha256` in the reviewed ma
 - Qualification needs an explicit compare-and-swap digest.
 - `drift` only reports.
 
+## Runtime subprocess channels
+
+The ELF closure binds what is loaded. It does not bind what a verified tool chooses to execute later. Validation against the real Ubuntu git showed:
+
+- **No hardening.** Even with a complete closure, git executed a host program named by repository-local `core.fsmonitor`. It also ran an explicitly invoked `!` alias through its compiled-in `/bin/sh`.
+- **With the environment overrides in [the example request](examples/git-ubuntu-noble.request.json).** That request sets `GIT_CONFIG_COUNT` overrides for `core.fsmonitor`, `core.hooksPath`, `core.sshCommand`, `protocol.allow`, and `credential.helper`, plus `GIT_TERMINAL_PROMPT=0`. The fsmonitor channel was closed. An explicitly invoked shell alias still reached host `/bin/sh`, but only through the shell with a capsule-only `PATH`.
+
+Git never lets an alias shadow a builtin, so the fixed plumbing commands BoundaryCI needs cannot reach that path. Integration must therefore:
+
+- use the hardened git environment;
+- invoke only a fixed allowlist of builtin subcommands through a git-specific wrapper;
+- never forward a caller environment that can re-enable configuration, such as `GIT_CONFIG_PARAMETERS`.
+
+## Operator workflow
+
+```sh
+node tools/toolchain/cli.mjs qualify --manifest MANIFEST --request tools/toolchain/examples/git-ubuntu-noble.request.json
+# review and commit MANIFEST; later requalification adds --replace-manifest-sha256 CURRENT_DIGEST
+node tools/toolchain/cli.mjs materialize --manifest MANIFEST --store STORE --tool git --manifest-sha256 PINNED
+node tools/toolchain/cli.mjs verify --manifest MANIFEST --store STORE --probe --manifest-sha256 PINNED
+node tools/toolchain/cli.mjs run --manifest MANIFEST --store STORE --tool git --manifest-sha256 PINNED -- rev-parse HEAD
+node tools/toolchain/cli.mjs drift --manifest MANIFEST --store STORE
+```
+
+The example request names host paths only. It records no digest and grants no trust until a reviewer approves the resulting manifest.
+
+## Validation on a real host
+
+On Ubuntu 24.04 (`git 1:2.43.0-1ubuntu7.4`), the example request produced a five-file capsule:
+
+- `git` itself;
+- `ld-linux-x86-64.so.2`;
+- `libc.so.6`, `libz.so.1`, and `libpcre2-8.so.0`.
+
+Results:
+
+- `rev-parse HEAD` and `ls-files` through the capsule matched the host git output exactly.
+- An `LD_DEBUG=libs` trace showed every library resolved and initialized from the capsule only.
+- A command that needs a `git-core` helper (`remote-https`) failed instead of falling back to the host helper.
+
+The resulting manifest is not committed. Whether BoundaryCI should trust those distribution bytes is exactly the review decision the design reserves.
+
 ## Failure codes
 
-`toolchain/usage`, `toolchain/platform`, `toolchain/manifest-read`, `toolchain/manifest-digest-mismatch`, `toolchain/manifest-noncanonical`, `toolchain/manifest-schema`, `toolchain/manifest-path`, `toolchain/manifest-tree-mismatch`, `toolchain/closure`, `toolchain/unknown-tool`, `toolchain/store-unsafe`, `toolchain/not-materialized`, `toolchain/dir-unsafe`, `toolchain/file-type`, `toolchain/file-hardlink`, `toolchain/file-mode`, `toolchain/file-owner`, `toolchain/file-size`, `toolchain/file-digest`, `toolchain/file-changed`, `toolchain/unexpected-file`, `toolchain/env-forbidden`, `toolchain/spawn`, `toolchain/version-mismatch`, `toolchain/changed-during-run`, `toolchain/source-drift`, `toolchain/capsule-conflict`, `toolchain/requalify-requires-explicit-replace`, `toolchain/requalify-base-mismatch`.
+- Command line and platform: `toolchain/usage`, `toolchain/platform`.
+- Manifest: `toolchain/manifest-read`, `toolchain/manifest-digest-mismatch`, `toolchain/manifest-noncanonical`, `toolchain/manifest-schema`, `toolchain/manifest-path`, `toolchain/manifest-tree-mismatch`, `toolchain/closure`, `toolchain/unknown-tool`.
+- Store and capsule tree: `toolchain/store-unsafe`, `toolchain/not-materialized`, `toolchain/dir-unsafe`, `toolchain/file-type`, `toolchain/file-hardlink`, `toolchain/file-mode`, `toolchain/file-owner`, `toolchain/file-size`, `toolchain/file-digest`, `toolchain/file-changed`, `toolchain/file-missing`, `toolchain/unexpected-file`.
+- Execution: `toolchain/env-forbidden`, `toolchain/spawn`, `toolchain/version-mismatch`, `toolchain/changed-during-run`.
+- Qualification and materialization: `toolchain/request-schema`, `toolchain/source-missing`, `toolchain/source-drift`, `toolchain/capsule-conflict`, `toolchain/requalify-requires-explicit-replace`, `toolchain/requalify-base-mismatch`, `toolchain/requalify-dependent`.
 
 ## Integration boundary
 
 These steps are deliberately left for separate review:
 
-- routing `verify-release.mjs` git calls through the runner;
+- routing `verify-release.mjs` git calls through the runner, behind a fixed-subcommand git wrapper;
 - any CI change;
 - authenticated acquisition;
 - garbage collection.

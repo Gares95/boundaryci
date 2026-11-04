@@ -104,6 +104,8 @@ describe.runIf(CAN_EXECUTE_SYNTHETIC_ELF)('approved toolchain capsule', () => {
     const elsewhere = join(root, 'bin-copy');
     mkdirSync(elsewhere);
     writeFileSync(join(elsewhere, 'git'), APPROVED, { mode: 0o555 });
+    // Moving a directory to another parent needs write access to it (for its parent link).
+    chmodSync(join(directory, 'bin'), 0o755);
     withWritable(directory, () => {
       renameSync(join(directory, 'bin'), join(root, 'old-bin'));
       symlinkSync(elsewhere, join(directory, 'bin'));
@@ -213,6 +215,7 @@ describe.runIf(CAN_EXECUTE_SYNTHETIC_ELF)('approved toolchain capsule', () => {
 
   it('reports a missing tool without searching PATH or the network', () => {
     const { options, directory, store } = setup();
+    chmodSync(directory, 0o755);
     withWritable(join(store, 'git'), () => renameSync(directory, join(store, 'moved')));
     const originalFetch = globalThis.fetch;
     let fetchCalls = 0;
