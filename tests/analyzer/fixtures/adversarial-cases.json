@@ -1,0 +1,839 @@
+{
+  "schema": "boundaryci/adversarial-analyzer-cases@1",
+  "cases": [
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "outer-fake-inner-real-block",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = { rest: { issues: { create() {} } } };\n{\n  const client = new Octokit();\n  client.rest.issues.create({});\n}\n"
+      },
+      "expect": {
+        "status": "complete",
+        "candidates": [
+          "direct-endpoint:proven-operation:proven-direct-rest-member-call"
+        ],
+        "operations": [
+          "issues/create"
+        ]
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "outer-fake-inner-real-fn-param-default",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = { rest: { issues: { create() {} } } };\nfunction f(client = new Octokit()) { return client.rest.issues.create({}); }\nf();\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "let-fake-then-real",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nlet client: any = { rest: { issues: { create() {} } } };\nclient = new Octokit();\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "var-redeclare-real",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nvar client: any = { rest: { issues: { create() {} } } };\nvar client: any = new Octokit();\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "fake-literal-mutated-rest",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = { rest: { issues: { create() {} } } };\nclient.rest = new Octokit().rest;\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "fake-literal-holding-real-rest",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst real = new Octokit();\nconst client = { rest: real.rest };\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "endpoint-extraction:incomplete:unsupported-endpoint-extraction",
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "spread-of-real-client",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst real = new Octokit();\nconst client = { ...real };\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "object-assign-real",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = {};\nObject.assign(client, new Octokit());\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "fake-scope-literal-holding-real-scope",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst real = new Octokit();\nconst client = { rest: { issues: real.rest.issues } };\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "endpoint-extraction:incomplete:unsupported-endpoint-extraction",
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "class-instance-fake-shadow",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nclass Octo { rest = new Octokit().rest; }\nconst client = new Octo();\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "ternary-real-or-fake",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst fake = { rest: { issues: { create() {} } } };\nconst client = Math.random() > 0.5 ? new Octokit() : fake;\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "logical-or-real",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst fake: any = undefined;\nconst client = fake || new Octokit();\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "array-element-real",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst clients = [new Octokit()];\nclients[0].rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "import-shadowed-by-local-class",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nfunction g() { class Octokit { rest = { issues: { create() {} } }; } return new Octokit(); }\nconst real = new Octokit();\nreal.rest.issues.create({});\ng();\n"
+      },
+      "expect": {
+        "status": "complete",
+        "candidates": [
+          "direct-endpoint:proven-operation:proven-direct-rest-member-call"
+        ],
+        "operations": [
+          "issues/create"
+        ]
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "catch-param-shadow",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\ntry { throw 1; } catch (client: any) { client.rest.issues.create({}); }\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "for-of-binding-shadow",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = { rest: { issues: { create() {} } } };\nfor (const client of [new Octokit()]) { client.rest.issues.create({}); }\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "require-real",
+      "files": {
+        "a.js": "const { Octokit } = require('octokit');\nconst client = new Octokit();\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "complete",
+        "candidates": [
+          "direct-endpoint:proven-operation:proven-direct-rest-member-call"
+        ],
+        "operations": [
+          "issues/create"
+        ]
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "dynamic-import-real",
+      "files": {
+        "a.mjs": "const { Octokit } = await import('octokit');\nconst client = new Octokit();\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "shadowing-and-reassignment",
+      "name": "fake-literal-delete-rest",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = { rest: { issues: { create() {} } } };\nObject.setPrototypeOf(client, new Octokit());\ndelete client.rest;\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-control",
+      "files": {
+        "a.ts": "const client = { rest: { issues: { create() {} } } };\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-mutated-via-alias",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = { rest: { issues: { create() {} } } };\nconst alias = client;\nalias.rest = new Octokit().rest;\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-nested-mutation",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = { rest: { issues: { create() {} } } };\nclient.rest.issues = new Octokit().rest.issues;\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-method-mutation",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = { rest: { issues: { create() {} } } };\nclient.rest.issues.create = new Octokit().rest.issues.create;\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "endpoint-extraction:incomplete:unsupported-endpoint-extraction",
+          "endpoint-extraction:incomplete:unsupported-endpoint-extraction",
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-assign-nested",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = { rest: { issues: { create() {} } } };\nObject.assign(client.rest, new Octokit().rest);\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-mutated-in-function",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = { rest: { issues: { create() {} } } };\nfunction swap(target: any) { target.rest = new Octokit().rest; }\nswap(client);\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-exported-mutated-elsewhere",
+      "files": {
+        "a.ts": "export const client: any = { rest: { issues: { create() {} } } };\n",
+        "b.ts": "import { Octokit } from 'octokit';\nimport { client } from './a.js';\nclient.rest = new Octokit().rest;\n",
+        "c.ts": "import { client } from './a.js';\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-getter",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst real = new Octokit();\nconst client = { get rest() { return real.rest; } };\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "endpoint-extraction:incomplete:unsupported-endpoint-extraction",
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-method-returns-real",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = { rest: { issues: { create: new Octokit().rest.issues.create } } };\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "endpoint-extraction:incomplete:unsupported-endpoint-extraction",
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-proto",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = { __proto__: new Octokit() };\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "class-new-lookalike",
+      "files": {
+        "a.ts": "class Fake { rest = { issues: { create() {} } }; }\nconst client = new Fake();\nclient.rest.issues.create({});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "direct-endpoint:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-request",
+      "files": {
+        "a.ts": "const client = { request(_r: string) {} };\nclient.request('POST /repos/{owner}/{repo}/issues');\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "look-alike-mutation",
+      "name": "lookalike-request-mutated",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client: any = { request(_r: string) {} };\nclient.request = new Octokit().request;\nclient.request('POST /repos/{owner}/{repo}/issues');\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:unproven-receiver-provenance"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-exact",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /repos/{owner}/{repo}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "complete",
+        "candidates": [
+          "positional-request:proven-operation:proven-static-request-call"
+        ],
+        "operations": [
+          "issues/create"
+        ]
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-lower-method",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"post /repos/{owner}/{repo}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-double-space",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST  /repos/{owner}/{repo}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-leading-space",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\" POST /repos/{owner}/{repo}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-trailing-slash",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /repos/{owner}/{repo}/issues/\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-query",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /repos/{owner}/{repo}/issues?x=1\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-renamed-params",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /repos/{o}/{r}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:unknown-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-concrete",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /repos/acme/app/issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:unknown-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-no-method",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"/repos/{owner}/{repo}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-absolute-url",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST https://api.github.com/repos/{owner}/{repo}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-tab",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST\\t/repos/{owner}/{repo}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-unknown-route",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /repos/{owner}/{repo}/does-not-exist\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:unknown-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-get-on-write-route",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"GET /repos/{owner}/{repo}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "complete",
+        "candidates": [
+          "positional-request:proven-operation:proven-static-request-call"
+        ],
+        "operations": [
+          "issues/list-for-repo"
+        ]
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-uppercase-path",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /REPOS/{owner}/{repo}/issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:unknown-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-encoded",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /repos/{owner}/{repo}/%69ssues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:unknown-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-fragment",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /repos/{owner}/{repo}/issues#x\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "pos-dotseg",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request(\"POST /repos/{owner}/{repo}/./issues\", {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "obj-exact",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request({ method: \"POST\", url: \"/repos/{owner}/{repo}/issues\" });\n"
+      },
+      "expect": {
+        "status": "complete",
+        "candidates": [
+          "object-request:proven-operation:proven-static-request-call"
+        ],
+        "operations": [
+          "issues/create"
+        ]
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "obj-lower",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request({ method: \"post\", url: \"/repos/{owner}/{repo}/issues\" });\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "object-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "obj-concrete",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request({ method: \"POST\", url: \"/repos/acme/app/issues\" });\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "object-request:incomplete:unknown-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "obj-query",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request({ method: \"POST\", url: \"/repos/{owner}/{repo}/issues?x=1\" });\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "object-request:incomplete:malformed-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "obj-absolute",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request({ method: \"POST\", url: \"https://api.github.com/repos/{owner}/{repo}/issues\" });\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "object-request:incomplete:unsupported-request-object"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "obj-protocol-relative",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nclient.request({ method: \"POST\", url: \"//api.github.com/repos/{owner}/{repo}/issues\" });\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "object-request:incomplete:unsupported-request-object"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "alias-route-const",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nconst route = 'POST /repos/{owner}/{repo}/issues';\nclient.request(route, {});\n"
+      },
+      "expect": {
+        "status": "complete",
+        "candidates": [
+          "positional-request:proven-operation:proven-static-request-call"
+        ],
+        "operations": [
+          "issues/create"
+        ]
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "alias-route-let",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nlet route = 'GET /repos/{owner}/{repo}/issues';\nroute = 'POST /repos/{owner}/{repo}/issues';\nclient.request(route, {});\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:dynamic-request-route"
+        ],
+        "operations": []
+      }
+    },
+    {
+      "group": "request-route-grammar",
+      "name": "alias-route-shadow",
+      "files": {
+        "a.ts": "import { Octokit } from 'octokit';\nconst client = new Octokit();\nconst route = 'GET /repos/{owner}/{repo}/issues';\nfunction f(route: string) { return client.request(route, {}); }\nf('POST /repos/{owner}/{repo}/issues');\n"
+      },
+      "expect": {
+        "status": "incomplete",
+        "candidates": [
+          "positional-request:incomplete:dynamic-request-route"
+        ],
+        "operations": []
+      }
+    }
+  ]
+}
