@@ -169,6 +169,10 @@ describe.runIf(CAN_EXECUTE_SYNTHETIC_ELF)('approved toolchain capsule', () => {
     if (uid === 0) {
       chownSync(join(directory, 'bin', 'git'), 4242, 4242);
       expect(codeOf(() => verifyTool(options))).toBe('toolchain/file-owner');
+      chownSync(join(directory, 'bin', 'git'), 0, 0);
+      expect(() => verifyTool(options)).not.toThrow();
+      chownSync(join(directory, 'bin'), 4242, 4242);
+      expect(codeOf(() => verifyTool(options))).toBe('toolchain/file-owner');
     } else {
       // A non-root invoker owns the store, which the root-only policy refuses.
       expect(codeOf(() => verifyTool({ ...options, ownerPolicy: 'root-only' }))).toBe('toolchain/store-unsafe');
@@ -186,6 +190,15 @@ describe.runIf(CAN_EXECUTE_SYNTHETIC_ELF)('approved toolchain capsule', () => {
     withWritable(directory, () => {
       mkdirSync(join(directory, 'libexec'));
       writeFileSync(join(directory, 'libexec', 'git-remote-https'), APPROVED, { mode: 0o555 });
+      chmodSync(join(directory, 'libexec'), 0o555);
+    });
+    expect(codeOf(() => verifyTool(options))).toBe('toolchain/unexpected-file');
+  });
+
+  it('refuses an unlisted empty directory where an exec path could later be populated', () => {
+    const { options, directory } = setup();
+    withWritable(directory, () => {
+      mkdirSync(join(directory, 'libexec'));
       chmodSync(join(directory, 'libexec'), 0o555);
     });
     expect(codeOf(() => verifyTool(options))).toBe('toolchain/unexpected-file');

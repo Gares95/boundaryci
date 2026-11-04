@@ -162,7 +162,12 @@ describe('ELF closure facts', () => {
   it('refuses a closure that would fall back to a host library', () => {
     const missing = new Map(complete);
     missing.delete('lib/libz.so.1');
+    expect(() => assertCapsuleClosure(loaderTool, missing)).toThrow(/bin\/git needs libz\.so\.1, which the capsule does not provide/u);
     expect(codeOf(() => assertCapsuleClosure(loaderTool, missing))).toBe('toolchain/closure');
+    const wrongDirectory = new Map(complete);
+    wrongDirectory.delete('lib/libz.so.1');
+    wrongDirectory.set('share/libz.so.1', libz);
+    expect(() => assertCapsuleClosure(loaderTool, wrongDirectory)).toThrow(/needs libz\.so\.1/u);
   });
 
   it('refuses embedded RPATH or RUNPATH that could redirect library search', () => {
