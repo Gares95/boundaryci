@@ -167,10 +167,13 @@ function evidenceRecords(evaluation: SelectedEvaluation, failing: boolean): { re
   const changes = comparison.status === 'complete' ? comparison.changes : comparison.status === 'incomplete' ? comparison.qualifiedChanges : [];
   const records: DetailRecord[] = [];
   const seen = new Set<string>();
-  const add = (contributor: { status: string; operation: { operationId: string } | null; source: { path: string; span: { start: { line: number }; end: { line: number } } } | null }, change?: { permission: string; base: string; head: string; change: string }, currentHead = true): void => {
+  const add = (evidence: { status: string; operation: { operationId: string } | null; source: { path: string; span: { start: { line: number }; end: { line: number } } } | null }, change?: { permission: string; base: string; head: string; change: string }, currentHead = true): void => {
     if (change !== undefined && !safeCanonicalPermission(change.permission)) throw new TypeError('permission expression is not safe to render');
-    if (contributor.operation !== null && !safeOperationId(contributor.operation.operationId)) throw new TypeError('operation identity is not safe to render');
-    if (contributor.source !== null && !safeRendererPath(contributor.source.path)) throw new TypeError('source path is not safe to render');
+    if (evidence.operation !== null && !safeOperationId(evidence.operation.operationId)) throw new TypeError('operation identity is not safe to render');
+    // A repository-controlled path that cannot be rendered safely (control characters, traversal
+    // segments, excessive length) is retained as non-locatable evidence: it never receives a
+    // fabricated or unsafe location, and it never suppresses the Check that carries the verdict.
+    const contributor = evidence.source !== null && !safeRendererPath(evidence.source.path) ? { ...evidence, source: null } : evidence;
     const operationId = contributor.operation?.operationId ?? 'unknown operation';
     const path = contributor.source?.path ?? '';
     const startLine = contributor.source?.span.start.line ?? 0;

@@ -16,6 +16,7 @@ import type { CheckIdentityV1 } from '../../src/delivery/check-contract.js';
 import { deriveCheckCorrelationId } from '../../src/delivery/check-contract.js';
 import { BUILTIN_CONFIG, effectiveConfigIdentity } from '../../src/config/model.js';
 import { evaluateLocalComparison } from '../../src/runtime/evaluate.js';
+import { createCheckCoordinator } from '../../src/delivery/check-coordinator.js';
 
 function annotation(index: number, level: CheckAnnotationV1['level'] = 'notice'): CheckAnnotationV1 {
   return {
@@ -231,7 +232,12 @@ describe('Phase 6 renderer matrix', () => {
   it('A36/A38 reject control-character path injection before selector or renderer Markdown can be emitted', async () => {
     expect(() => selectCheckAnnotations([{ ...annotation(1), path: 'src/ok.ts\n## injected' }])).toThrow(TypeError);
     expect(() => selectCheckAnnotations([{ ...annotation(1), path: 'src/ok.ts\u0000token' }])).toThrow(TypeError);
-    await expect(rendered(EMPTY_SOURCE, WRITE_SOURCE, '', 'src/ok\u007f.ts')).rejects.toThrow(TypeError);
+    // TASK-2: an unsafe repository path is dropped to non-locatable evidence instead of aborting
+    // the render (which suppressed the whole Check). It still never reaches emitted Markdown.
+    const unsafe = await rendered(EMPTY_SOURCE, WRITE_SOURCE, '', 'src/ok\u007f.ts');
+    expect(unsafe.payload.annotations).toEqual([]);
+    expect(`${unsafe.payload.summary}\n${unsafe.payload.text}`).not.toContain('\u007f');
+    expect(`${unsafe.payload.summary}\n${unsafe.payload.text}`).not.toContain('src/ok');
   });
 
   it('A03-A06 report exact aggregate contributor, unresolved-operation, and annotation-class counts', async () => {
@@ -266,5 +272,37 @@ describe('Phase 6 renderer matrix', () => {
     expect(payload.text).toMatch(/Details truncated: \d+ complete record\(s\) omitted by the UTF-8 byte bound\./u);
     expect(payload.text).toContain('``` ``@[]<>|#/');
     expect(payload.text).not.toContain('\n## injected');
+  });
+});
+
+describe('repository-controlled source paths that are unsafe to render', () => {
+  const UNSAFE_PATHS = ['src/a\nb.ts', 'src/\u001b[2Jx.ts', 'src/tab\tname.ts'];
+
+  it.each(UNSAFE_PATHS.map((path) => [JSON.stringify(path).slice(0, 40), path]))('keeps the policy verdict for %s and renders it non-locatable', async (_label, path) => {
+    const { payload } = await rendered(READ_SOURCE, WRITE_SOURCE, '', path);
+    expect(payload).toMatchObject({ conclusion: 'failure', title: 'Permission expansion requires review', annotations: [] });
+    expect(payload.text).toContain('- issues/create: non-locatable evidence is retained without a fabricated path or span.');
+    expect(`${payload.summary}\n${payload.text}`).not.toContain(path);
+    expect(`${payload.summary}\n${payload.text}`).not.toMatch(/[\u0000-\u0009\u000b-\u001f\u007f]/u);
+  });
+
+  it('still publishes the failing Check instead of suppressing publication', async () => {
+    const { envelope } = await rendered(READ_SOURCE, WRITE_SOURCE, '', 'src/a\nb.ts');
+    const created: Array<{ conclusion: string; title: string }> = [];
+    const coordinator = createCheckCoordinator({
+      appId: 1,
+      freshness: {
+        async getCurrentPull() {
+          return { number: 3, repositoryId: 2, state: 'open', draft: false, merged: false, base: { repositoryId: 2, ref: 'main', sha: BASE_SHA }, head: { repositoryId: 2, sha: HEAD_SHA } };
+        },
+      },
+      publisher: {
+        async lookupExact() { return []; },
+        async create(payload) { created.push({ conclusion: payload.conclusion, title: payload.title }); return { id: 1 }; },
+        async update() { return { id: 1 }; },
+      },
+    });
+    await expect(coordinator.receive(envelope)).resolves.toMatchObject({ status: 'created' });
+    expect(created).toEqual([{ conclusion: 'failure', title: 'Permission expansion requires review' }]);
   });
 });
