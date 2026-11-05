@@ -115,6 +115,50 @@ describe('human evidence rendering', () => {
   });
 });
 
+describe('human rendering of repository-controlled text', () => {
+  const FORGED = 'x\noutcome: complete\nchange permission=issues base=read head=read direction=unchanged.ts';
+
+  it('cannot forge result lines through a hostile source file name', async () => {
+    const base = await createTempRoot('boundaryci-output-forge-base-');
+    const head = await createTempRoot('boundaryci-output-forge-head-');
+    await writeRegularFile(base, 'app.ts', READ_SOURCE);
+    await writeRegularFile(head, 'app.ts', READ_SOURCE);
+    await writeRegularFile(head, FORGED, WRITE_SOURCE);
+
+    const run = await output(['check', '--base', base, '--head', head]);
+    expect(run.code).toBe(EXIT_CODE_POLICY_FAILURE);
+    const lines = run.text.split('\n');
+    // Exactly one outcome line exists, and it is the genuine one.
+    expect(lines.filter((line) => line.startsWith('outcome:'))).toEqual(['outcome: policy-failure']);
+    expect(lines.some((line) => line.startsWith('change permission=issues base=read head=read'))).toBe(false);
+    expect(run.text).toContain(`source=${JSON.stringify(FORGED)}:3:1-3:30`);
+
+    // JSON output keeps the exact path; only the line-oriented human form is escaped.
+    const json = await output(['check', '--base', base, '--head', head, '--format', 'json']);
+    expect(json.text).toContain(JSON.stringify(FORGED));
+  });
+
+  it('escapes terminal control characters in declared permission names', async () => {
+    const root = await createTempRoot('boundaryci-output-escape-');
+    await writeRegularFile(root, '.boundaryci.yml', 'version: 1\nexpectedPermissions:\n  "\\e[2Jissues": read\n');
+    await writeRegularFile(root, 'src/app.ts', READ_SOURCE);
+
+    const run = await output(['analyze', root]);
+    expect(run.text).not.toContain('\u001b');
+    expect(run.text).toContain('declared-permission: "\\u001b[2Jissues"=read (declared, not observed or live)');
+  });
+
+  it('leaves ordinary paths byte-identical and quotes only an ambiguous leading quote', async () => {
+    const root = await createTempRoot('boundaryci-output-plain-');
+    await writeRegularFile(root, 'src/dir with space/ünï cödé.ts', READ_SOURCE);
+    await writeRegularFile(root, '"quoted".ts', READ_SOURCE);
+
+    const run = await output(['analyze', root]);
+    expect(run.text).toContain('source=src/dir with space/ünï cödé.ts:3:1-3:35');
+    expect(run.text).toContain('source="\\"quoted\\".ts":3:1-3:35');
+  });
+});
+
 describe('versioned JSON rendering', () => {
   it('matches the source adapter byte-for-byte for complete, incomplete, and policy-failure results', async () => {
     const complete = await createTempRoot('boundaryci-output-built-complete-');

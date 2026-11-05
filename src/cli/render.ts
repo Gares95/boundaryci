@@ -122,9 +122,25 @@ export function renderJson(result: CliResult): string {
   return `${JSON.stringify(canonicalize(result as unknown as JsonValue), null, 2)}\n`;
 }
 
+/** C0/C1 controls, Unicode line separators, and bidirectional formatting controls. */
+const UNSAFE_DISPLAY_CHARACTER = /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/u;
+const UNESCAPED_BY_JSON = /[\u007f-\u009f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu;
+
+/**
+ * Renders repository-controlled text (a source path or a declared permission name) so it cannot
+ * break the line-oriented human format or drive a terminal. Ordinary text is returned
+ * unchanged; text containing a control, line-separator, or bidirectional formatting character,
+ * or starting with a double quote, becomes one JSON string literal with those characters
+ * escaped, so the escaped and raw forms can never be confused. JSON output is unaffected.
+ */
+function displayText(value: string): string {
+  if (!UNSAFE_DISPLAY_CHARACTER.test(value) && !value.startsWith('"')) return value;
+  return JSON.stringify(value).replace(UNESCAPED_BY_JSON, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+
 function span(source: SourceEvidence): string {
   const { start, end } = source.span;
-  return `${source.path}:${start.line}:${start.column}-${end.line}:${end.column}`;
+  return `${displayText(source.path)}:${start.line}:${start.column}-${end.line}:${end.column}`;
 }
 
 function operationLine(operation: OperationObservation, prefix: string): string {
@@ -205,7 +221,7 @@ function renderSelectedConfig(
   if (selected.head.status === 'absent') lines.push('prospective-head: absent');
   else lines.push(`prospective-head: ${selected.head.change} sha256=${selected.head.identity}`);
   for (const declaration of selected.authority.config.declaredExpectedPermissions) {
-    lines.push(`declared-permission: ${declaration.permission}=${declaration.level} (declared, not observed or live)`);
+    lines.push(`declared-permission: ${displayText(declaration.permission)}=${declaration.level} (declared, not observed or live)`);
   }
 }
 
@@ -225,7 +241,7 @@ export function renderHuman(result: CliResult): string {
     if (evaluation.status === 'complete' || evaluation.status === 'incomplete') {
       lines.push(`authority: ${evaluation.authority.source} sha256=${evaluation.authority.identity}`);
       for (const declaration of evaluation.declaredExpectedPermissions) {
-        lines.push(`declared-permission: ${declaration.permission}=${declaration.level} (declared, not observed or live)`);
+        lines.push(`declared-permission: ${displayText(declaration.permission)}=${declaration.level} (declared, not observed or live)`);
       }
       renderAnalysisEvidence(lines, evaluation.analysis.result, 'snapshot');
     } else if (evaluation.status === 'input-configuration-failure' && evaluation.stage === 'configuration') {
